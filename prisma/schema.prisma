@@ -1,0 +1,144 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+  GUEST
+}
+
+enum Priority {
+  URGENT
+  HIGH
+  MEDIUM
+  LOW
+  NONE
+}
+
+model User {
+  id                 String    @id @default(cuid())
+  username           String    @unique
+  name               String
+  role               Role      @default(MEMBER)
+  passwordHash       String    @map("password_hash")
+  mustChangePassword Boolean   @default(true) @map("must_change_password")
+  disabled           Boolean   @default(false)
+  loginAttempts      Int       @default(0) @map("login_attempts")
+  lockedUntil        DateTime? @map("locked_until")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  assignedTasks Task[]        @relation("TaskAssignee")
+  comments      Comment[]
+  activities    ActivityLog[]
+
+  @@map("users")
+}
+
+model Template {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  icon        String   @default("layout-template")
+  color       String   @default("#3366ff")
+  seedConfig  Json     @map("seed_config")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  projects Project[]
+
+  @@map("templates")
+}
+
+model Project {
+  id         String    @id @default(cuid())
+  name       String
+  clientName String?   @map("client_name")
+  templateId String?   @map("template_id")
+  status     String    @default("active")
+  statuses   Json      @default("[]")
+  priorities Json      @default("[]")
+  tags       Json      @default("[]")
+  version    Int       @default(1)
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  deletedAt  DateTime? @map("deleted_at")
+
+  template Template? @relation(fields: [templateId], references: [id])
+  tasks    Task[]
+
+  @@map("projects")
+}
+
+model Task {
+  id          String    @id @default(cuid())
+  projectId   String    @map("project_id")
+  title       String
+  description String?
+  status      String    @default("Backlog")
+  priority    Priority  @default(NONE)
+  assigneeId  String?   @map("assignee_id")
+  dueDate     DateTime? @map("due_date")
+  tags        Json      @default("[]")
+  orderIndex  Int       @default(0) @map("order_index")
+  version     Int       @default(1)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  project  Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee User?     @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  comments Comment[]
+
+  @@index([projectId, status])
+  @@index([assigneeId])
+  @@index([dueDate])
+  @@map("tasks")
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  taskId    String   @map("task_id")
+  authorId  String   @map("author_id")
+  body      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id])
+
+  @@map("comments")
+}
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  actorId    String   @map("actor_id")
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id")
+  action     String
+  before     Json?
+  after      Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  actor User @relation(fields: [actorId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+  @@map("activity_logs")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([token])
+  @@map("sessions")
+}

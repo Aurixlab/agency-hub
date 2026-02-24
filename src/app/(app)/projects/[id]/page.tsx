@@ -277,7 +277,7 @@ function KanbanView({ tasks, statuses, users, projectId, onRefetch, onTaskClick 
                                   ) : (
                                     <span className="text-[10px] text-surface-400">Unassigned</span>
                                   )}
-                                  {task._count?.comments > 0 && (
+                                  {(task._count?.comments ?? 0) > 0 && (
                                     <span className="flex items-center gap-1 text-[10px] text-surface-400">
                                       <MessageSquare className="w-3 h-3" /> {task._count.comments}
                                     </span>

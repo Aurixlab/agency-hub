@@ -91,29 +91,3 @@ export interface ConflictError {
   currentVersion: number;
   currentData: any;
 }
-```
-
-Commit this.
-
----
-
-### Fix 2: `src/app/(app)/projects/[id]/page.tsx`
-
-Go to this file on GitHub → pencil icon → **Ctrl+H** (Find and Replace):
-
-**Find:**
-```
-{task._count?.comments > 0 && (
-                                    <span className="flex items-center gap-1 text-[10px] text-surface-400">
-                                      <MessageSquare className="w-3 h-3" /> {task._count.comments}
-                                    </span>
-                                  )}
-```
-
-**Replace with:**
-```
-{(task._count?.comments ?? 0) > 0 && (
-                                    <span className="flex items-center gap-1 text-[10px] text-surface-400">
-                                      <MessageSquare className="w-3 h-3" /> {task._count?.comments}
-                                    </span>
-                                  )}

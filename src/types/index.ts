@@ -42,6 +42,8 @@ export interface Task {
   deletedAt: string | null;
   comments?: Comment[];
   project?: { id: string; name: string; statuses: string[] };
+  _count?: { comments: number; tasks?: number };
+}
 }
 
 export interface Comment {

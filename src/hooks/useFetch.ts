@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 
-const POLL_INTERVAL = 8000; // 8 seconds
+const POLL_INTERVAL = 15000; // 15 seconds (less aggressive, reduces load)
 
 interface UseFetchOptions {
   pollInterval?: number | false;

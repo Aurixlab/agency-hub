@@ -19,7 +19,7 @@
   "dependencies": {
     "@hello-pangea/dnd": "^16.6.0",
     "@prisma/client": "^5.22.0",
-    "argon2": "^0.41.1",
+    "bcryptjs": "^2.4.3",
     "date-fns": "^4.1.0",
     "jose": "^5.9.6",
     "lucide-react": "^0.460.0",

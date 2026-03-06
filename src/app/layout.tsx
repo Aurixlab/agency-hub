@@ -3,8 +3,8 @@ import { ThemeProvider } from '@/providers/ThemeProvider';
 import { Toaster } from 'react-hot-toast';
 
 export const metadata = {
-  title: 'AgencyHub — Project & Task Management',
-  description: 'Internal project management for digital agencies',
+  title: 'Aurix Lab Notion — Project & Task Management',
+  description: 'Internal project management for Aurix Lab',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

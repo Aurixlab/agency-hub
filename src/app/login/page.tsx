@@ -54,10 +54,10 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-brand-600 shadow-lg mb-4">
-            <span className="text-white font-bold text-xl">A</span>
+            <span className="text-white font-bold text-base">AL</span>
           </div>
           <h1 className="text-2xl font-bold text-surface-900 dark:text-white">
-            Welcome to AgencyHub
+            Welcome to Aurix Lab Notion
           </h1>
           <p className="text-surface-500 dark:text-surface-400 mt-2 text-sm">
             Sign in with your team credentials

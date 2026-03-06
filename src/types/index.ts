@@ -32,7 +32,9 @@ export interface Task {
   status: string;
   priority: 'URGENT' | 'HIGH' | 'MEDIUM' | 'LOW' | 'NONE';
   assigneeId: string | null;
+  assigneeIds: string[];
   assignee?: { id: string; name: string; username: string } | null;
+  assignees?: { id: string; name: string; username: string }[];
   dueDate: string | null;
   tags: string[];
   orderIndex: number;
@@ -42,7 +44,7 @@ export interface Task {
   deletedAt: string | null;
   comments?: Comment[];
   project?: { id: string; name: string; statuses: string[] };
-  _count?: { comments: number };
+  _count?: { comments: number; tasks?: number };
 }
 
 export interface Comment {

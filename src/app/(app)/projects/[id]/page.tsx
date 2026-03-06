@@ -34,7 +34,7 @@ export default function ProjectDetailPage() {
 
   const filteredTasks = tasks.filter(t => {
     if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
-    if (filterAssignee && t.assigneeId !== filterAssignee) return false;
+    if (filterAssignee && !(t.assignees || []).some((a: any) => a.id === filterAssignee) && t.assigneeId !== filterAssignee) return false;
     if (filterPriority && t.priority !== filterPriority) return false;
     return true;
   });
@@ -265,7 +265,20 @@ function KanbanView({ tasks, statuses, users, projectId, onRefetch, onTaskClick 
                                   )}
                                 </div>
                                 <div className="flex items-center justify-between mt-2.5">
-                                  {task.assignee ? (
+                                  {(task.assignees && task.assignees.length > 0) ? (
+                                    <div className="flex items-center gap-1">
+                                      {task.assignees.slice(0, 3).map((a: any) => (
+                                        <div key={a.id} className="w-5 h-5 rounded-full bg-brand-100 dark:bg-brand-900 flex items-center justify-center" title={a.name}>
+                                          <span className="text-[10px] font-bold text-brand-700 dark:text-brand-300">
+                                            {a.name.charAt(0)}
+                                          </span>
+                                        </div>
+                                      ))}
+                                      {task.assignees.length > 3 && (
+                                        <span className="text-[10px] text-surface-500">+{task.assignees.length - 3}</span>
+                                      )}
+                                    </div>
+                                  ) : task.assignee ? (
                                     <div className="flex items-center gap-1.5">
                                       <div className="w-5 h-5 rounded-full bg-brand-100 dark:bg-brand-900 flex items-center justify-center">
                                         <span className="text-[10px] font-bold text-brand-700 dark:text-brand-300">
@@ -277,9 +290,9 @@ function KanbanView({ tasks, statuses, users, projectId, onRefetch, onTaskClick 
                                   ) : (
                                     <span className="text-[10px] text-surface-400">Unassigned</span>
                                   )}
-                                  {(task._count?.comments ?? 0) > 0 && (
+                                  {task._count?.comments > 0 && (
                                     <span className="flex items-center gap-1 text-[10px] text-surface-400">
-                                      <MessageSquare className="w-3 h-3" /> {task._count?.comments ?? 0}
+                                      <MessageSquare className="w-3 h-3" /> {task._count.comments}
                                     </span>
                                   )}
                                 </div>
@@ -371,7 +384,7 @@ function TableView({ tasks, statuses, users, onTaskClick }: any) {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm text-surface-600 dark:text-surface-400">
-                    {task.assignee?.name || '—'}
+                    {task.assignee?.name || (task.assignees?.length ? task.assignees.map((a: any) => a.name).join(', ') : '—')}
                   </td>
                   <td className="px-4 py-3 text-sm text-surface-600 dark:text-surface-400">
                     {task.dueDate ? format(new Date(task.dueDate), 'MMM d, yyyy') : '—'}
@@ -468,9 +481,13 @@ function NewTaskModal({ projectId, statuses, users, projectTags, onClose, onCrea
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState(statuses[0] || 'Backlog');
   const [priority, setPriority] = useState('NONE');
-  const [assigneeId, setAssigneeId] = useState('');
+  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [dueDate, setDueDate] = useState('');
   const [creating, setCreating] = useState(false);
+
+  const toggleAssignee = (id: string) => {
+    setAssigneeIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -481,7 +498,7 @@ function NewTaskModal({ projectId, statuses, users, projectTags, onClose, onCrea
       method: 'POST',
       body: JSON.stringify({
         projectId, title, description, status, priority,
-        assigneeId: assigneeId || null,
+        assigneeIds,
         dueDate: dueDate || null,
       }),
     });
@@ -527,20 +544,30 @@ function NewTaskModal({ projectId, statuses, users, projectTags, onClose, onCrea
               </select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="label">Assignee</label>
-              <select value={assigneeId} onChange={e => setAssigneeId(e.target.value)} className="select">
-                <option value="">Unassigned</option>
-                {users?.filter((u: any) => !u.disabled).map((u: any) => (
-                  <option key={u.id} value={u.id}>{u.name}</option>
-                ))}
-              </select>
+          <div>
+            <label className="label">Assignees</label>
+            <div className="flex flex-wrap gap-2 p-2 rounded-lg border border-surface-300 dark:border-surface-700 min-h-[42px]">
+              {assigneeIds.length === 0 && <span className="text-sm text-surface-400 py-0.5">Click to assign people</span>}
+              {assigneeIds.map(id => {
+                const user = users?.find((u: any) => u.id === id);
+                return user ? (
+                  <span key={id} onClick={() => toggleAssignee(id)} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-100 dark:bg-brand-900/40 text-brand-800 dark:text-brand-200 text-xs cursor-pointer hover:bg-brand-200 dark:hover:bg-brand-800/40">
+                    {user.name} <X className="w-3 h-3" />
+                  </span>
+                ) : null;
+              })}
             </div>
-            <div>
-              <label className="label">Due Date</label>
-              <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="input" />
+            <div className="flex flex-wrap gap-1 mt-2">
+              {users?.filter((u: any) => !u.disabled && !assigneeIds.includes(u.id)).map((u: any) => (
+                <button key={u.id} type="button" onClick={() => toggleAssignee(u.id)} className="px-2 py-1 rounded text-xs bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors">
+                  + {u.name}
+                </button>
+              ))}
             </div>
+          </div>
+          <div>
+            <label className="label">Due Date</label>
+            <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="input" />
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} className="btn-secondary">Cancel</button>
@@ -562,11 +589,15 @@ function TaskDetailModal({ taskId, statuses, users, projectTags, onClose, onUpda
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState('');
   const [priority, setPriority] = useState('');
-  const [assigneeId, setAssigneeId] = useState('');
+  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [dueDate, setDueDate] = useState('');
   const [saving, setSaving] = useState(false);
   const [comment, setComment] = useState('');
   const [conflict, setConflict] = useState(false);
+
+  const toggleAssignee = (id: string) => {
+    setAssigneeIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
 
   useEffect(() => {
     if (task) {
@@ -574,7 +605,7 @@ function TaskDetailModal({ taskId, statuses, users, projectTags, onClose, onUpda
       setDescription(task.description || '');
       setStatus(task.status);
       setPriority(task.priority);
-      setAssigneeId(task.assigneeId || '');
+      setAssigneeIds(task.assigneeIds && Array.isArray(task.assigneeIds) && task.assigneeIds.length > 0 ? task.assigneeIds : (task.assigneeId ? [task.assigneeId] : []));
       setDueDate(task.dueDate ? task.dueDate.split('T')[0] : '');
     }
   }, [task]);
@@ -590,7 +621,7 @@ function TaskDetailModal({ taskId, statuses, users, projectTags, onClose, onUpda
         title, description,
         status: status,
         priority,
-        assigneeId: assigneeId || null,
+        assigneeIds,
         dueDate: dueDate || null,
       }),
     });
@@ -706,16 +737,39 @@ function TaskDetailModal({ taskId, statuses, users, projectTags, onClose, onUpda
               )}
             </div>
             <div>
-              <label className="label">Assignee</label>
+              <label className="label">Assignees</label>
               {editing ? (
-                <select value={assigneeId} onChange={e => setAssigneeId(e.target.value)} className="select">
-                  <option value="">Unassigned</option>
-                  {users?.filter((u: any) => !u.disabled).map((u: any) => (
-                    <option key={u.id} value={u.id}>{u.name}</option>
-                  ))}
-                </select>
+                <div>
+                  <div className="flex flex-wrap gap-1.5 p-2 rounded-lg border border-surface-300 dark:border-surface-700 min-h-[36px]">
+                    {assigneeIds.length === 0 && <span className="text-xs text-surface-400">No one assigned</span>}
+                    {assigneeIds.map(id => {
+                      const user = users?.find((u: any) => u.id === id);
+                      return user ? (
+                        <span key={id} onClick={() => toggleAssignee(id)} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-100 dark:bg-brand-900/40 text-brand-800 dark:text-brand-200 text-xs cursor-pointer hover:bg-brand-200">
+                          {user.name} <X className="w-3 h-3" />
+                        </span>
+                      ) : null;
+                    })}
+                  </div>
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {users?.filter((u: any) => !u.disabled && !assigneeIds.includes(u.id)).map((u: any) => (
+                      <button key={u.id} type="button" onClick={() => toggleAssignee(u.id)} className="px-2 py-0.5 rounded text-xs bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700">
+                        + {u.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               ) : (
-                <p className="text-sm text-surface-700 dark:text-surface-300">{task.assignee?.name || 'Unassigned'}</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {(task.assignees && task.assignees.length > 0)
+                    ? task.assignees.map((a: any) => (
+                        <span key={a.id} className="badge bg-brand-100 dark:bg-brand-900/40 text-brand-800 dark:text-brand-200">{a.name}</span>
+                      ))
+                    : task.assignee
+                      ? <span className="text-sm text-surface-700 dark:text-surface-300">{task.assignee.name}</span>
+                      : <span className="text-sm text-surface-500">Unassigned</span>
+                  }
+                </div>
               )}
             </div>
             <div>

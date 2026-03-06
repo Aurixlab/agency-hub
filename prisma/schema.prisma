@@ -84,6 +84,7 @@ model Task {
   status      String    @default("Backlog")
   priority    Priority  @default(NONE)
   assigneeId  String?   @map("assignee_id")
+  assigneeIds Json      @default("[]") @map("assignee_ids")
   dueDate     DateTime? @map("due_date")
   tags        Json      @default("[]")
   orderIndex  Int       @default(0) @map("order_index")

@@ -58,12 +58,12 @@ export default function Sidebar({ user }: SidebarProps) {
       {/* Logo */}
       <div className="flex items-center gap-3 px-5 py-5 border-b border-surface-200 dark:border-surface-800">
         <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center flex-shrink-0">
-          <span className="text-white font-bold text-sm">A</span>
+          <span className="text-white font-bold text-sm">AL</span>
         </div>
         {!collapsed && (
           <div className="min-w-0">
             <h1 className="text-base font-bold text-surface-900 dark:text-white truncate">
-              AgencyHub
+            Aurix Lab Notion
             </h1>
           </div>
         )}

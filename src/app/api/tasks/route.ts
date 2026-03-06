@@ -39,10 +39,10 @@ export async function GET(request: Request) {
   });
 
   // Resolve assigneeIds to user objects
-  const allAssigneeIds = [...new Set(tasks.flatMap((t: any) => {
+  const allAssigneeIds = Array.from(new Set(tasks.flatMap((t: any) => {
     const ids = t.assigneeIds as string[] | undefined;
     return Array.isArray(ids) ? ids : [];
-  }))];
+  })));
 
   const assigneeUsers = allAssigneeIds.length > 0
     ? await prisma.user.findMany({

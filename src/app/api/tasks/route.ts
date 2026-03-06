@@ -18,11 +18,15 @@ export async function GET(request: Request) {
   const where: any = { deletedAt: null };
 
   if (projectId) where.projectId = projectId;
-  if (assigneeId) where.assigneeId = assigneeId;
-  if (myTasks) where.assigneeId = session.id;
   if (status) where.status = status;
   if (priority) where.priority = priority;
   if (dueBefore) where.dueDate = { lte: new Date(dueBefore) };
+
+  if (myTasks) {
+    where.assigneeId = session.id;
+  } else if (assigneeId) {
+    where.assigneeId = assigneeId;
+  }
 
   const tasks = await prisma.task.findMany({
     where,
@@ -34,7 +38,29 @@ export async function GET(request: Request) {
     orderBy: [{ orderIndex: 'asc' }, { createdAt: 'desc' }],
   });
 
-  return NextResponse.json(tasks);
+  // Resolve assigneeIds to user objects
+  const allAssigneeIds = [...new Set(tasks.flatMap((t: any) => {
+    const ids = t.assigneeIds as string[] | undefined;
+    return Array.isArray(ids) ? ids : [];
+  }))];
+
+  const assigneeUsers = allAssigneeIds.length > 0
+    ? await prisma.user.findMany({
+        where: { id: { in: allAssigneeIds } },
+        select: { id: true, name: true, username: true },
+      })
+    : [];
+  const userMap = new Map(assigneeUsers.map(u => [u.id, u]));
+
+  const enriched = tasks.map((t: any) => {
+    const ids = Array.isArray(t.assigneeIds) ? t.assigneeIds as string[] : [];
+    return {
+      ...t,
+      assignees: ids.map((id: string) => userMap.get(id)).filter(Boolean),
+    };
+  });
+
+  return NextResponse.json(enriched);
 }
 
 export async function POST(request: Request) {
@@ -43,13 +69,14 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { projectId, title, description, status, priority, assigneeId, dueDate, tags } = body;
+    const { projectId, title, description, status, priority, assigneeIds, dueDate, tags } = body;
 
     if (!projectId || !title?.trim()) {
       return NextResponse.json({ error: 'Project ID and title are required' }, { status: 400 });
     }
 
-    // Get max orderIndex for the status column
+    const resolvedIds: string[] = Array.isArray(assigneeIds) ? assigneeIds : [];
+
     const maxOrder = await prisma.task.findFirst({
       where: { projectId, status: status || 'Backlog', deletedAt: null },
       orderBy: { orderIndex: 'desc' },
@@ -63,7 +90,8 @@ export async function POST(request: Request) {
         description: description?.trim() || null,
         status: status || 'Backlog',
         priority: priority || 'NONE',
-        assigneeId: assigneeId || null,
+        assigneeId: resolvedIds[0] || null,
+        assigneeIds: resolvedIds,
         dueDate: dueDate ? new Date(dueDate) : null,
         tags: tags || [],
         orderIndex: (maxOrder?.orderIndex ?? 0) + 1000,

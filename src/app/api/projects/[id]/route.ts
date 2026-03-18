@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSessionFromRequest } from '@/lib/auth';
+import { getSessionFromRequest, getSessionFromRequestFull } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { logActivity } from '@/lib/activity';
 
@@ -36,7 +36,7 @@ export async function PATCH(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  const session = await getSessionFromRequest(request);
+  const session = await getSessionFromRequestFull(request);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
@@ -92,7 +92,7 @@ export async function DELETE(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  const session = await getSessionFromRequest(request);
+  const session = await getSessionFromRequestFull(request);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(request.url);

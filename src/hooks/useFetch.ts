@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 
-const POLL_INTERVAL = 8000; // 8 seconds
+const DEFAULT_POLL_INTERVAL = 30000; // 30s — plenty fast for 11 users, way less DB load
 
 interface UseFetchOptions {
   pollInterval?: number | false;
@@ -17,50 +17,82 @@ interface UseFetchResult<T> {
   mutate: (newData: T) => void;
 }
 
+// Global dedup map: prevent multiple components from fetching the same URL simultaneously
+const inflightRequests = new Map<string, Promise<any>>();
+
 export function useFetch<T>(
   url: string | null,
   options: UseFetchOptions = {}
 ): UseFetchResult<T> {
-  const { pollInterval = POLL_INTERVAL, refetchOnFocus = true } = options;
+  const { pollInterval = DEFAULT_POLL_INTERVAL, refetchOnFocus = true } = options;
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const isVisible = useRef(true);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(true);
   const urlRef = useRef(url);
+  const lastFocusFetch = useRef(0);
   urlRef.current = url;
 
   const fetchData = useCallback(async (showLoading = false) => {
-    if (!urlRef.current) return;
+    const currentUrl = urlRef.current;
+    if (!currentUrl || !mountedRef.current) return;
+
     if (showLoading) setLoading(true);
+
+    // Abort any in-flight request from this hook instance
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
-      const res = await fetch(urlRef.current);
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
+      // Deduplicate: if the same URL is already being fetched, reuse the promise
+      let promise = inflightRequests.get(currentUrl);
+      if (!promise) {
+        promise = fetch(currentUrl, { signal: controller.signal }).then(res => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.json();
+        });
+        inflightRequests.set(currentUrl, promise);
+        // Clean up after resolution
+        promise.finally(() => inflightRequests.delete(currentUrl));
       }
-      const json = await res.json();
-      setData(json);
-      setError(null);
+
+      const json = await promise;
+      if (mountedRef.current && !controller.signal.aborted) {
+        setData(json);
+        setError(null);
+      }
     } catch (err: any) {
-      setError(err.message || 'Failed to fetch');
+      if (err.name === 'AbortError') return; // Normal cleanup, ignore
+      if (mountedRef.current) {
+        setError(err.message || 'Failed to fetch');
+      }
     } finally {
-      setLoading(false);
+      if (mountedRef.current) {
+        setLoading(false);
+      }
     }
   }, []);
 
   // Initial fetch
   useEffect(() => {
-    if (url) {
-      fetchData(true);
-    }
+    mountedRef.current = true;
+    if (url) fetchData(true);
+
+    return () => {
+      mountedRef.current = false;
+      abortRef.current?.abort();
+    };
   }, [url, fetchData]);
 
-  // Polling
+  // Polling — only when tab is visible
   useEffect(() => {
     if (!pollInterval || !url) return;
 
     intervalRef.current = setInterval(() => {
-      if (isVisible.current) {
+      if (document.visibilityState === 'visible') {
         fetchData(false);
       }
     }, pollInterval);
@@ -70,26 +102,24 @@ export function useFetch<T>(
     };
   }, [pollInterval, url, fetchData]);
 
-  // Visibility change (pause polling when tab hidden)
-  useEffect(() => {
-    const handleVisibility = () => {
-      isVisible.current = document.visibilityState === 'visible';
-      if (isVisible.current && refetchOnFocus) {
-        fetchData(false);
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibility);
-    return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [fetchData, refetchOnFocus]);
-
-  // Refetch on window focus
+  // Refetch on tab return — debounced, single handler
+  // Uses visibilitychange ONLY (not both focus + visibility which causes double-fetch)
   useEffect(() => {
     if (!refetchOnFocus) return;
 
-    const handleFocus = () => fetchData(false);
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // Debounce: don't refetch if we fetched less than 2s ago
+        const now = Date.now();
+        if (now - lastFocusFetch.current > 2000) {
+          lastFocusFetch.current = now;
+          fetchData(false);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [fetchData, refetchOnFocus]);
 
   const refetch = useCallback(async () => {

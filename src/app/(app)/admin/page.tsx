@@ -78,7 +78,7 @@ export default function AdminPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          <button onClick={refetch} className="btn-ghost btn-sm"><RefreshCw className="w-3.5 h-3.5" /></button>
+          <button onClick={refetch} className="btn-ghost btn-sm"><RefreshCw className="w-3.5 h-3.5 transition-transform duration-300 group-hover:rotate-180" /></button>
           <button onClick={() => setShowNewUser(true)} className="btn-primary btn-sm"><Plus className="w-4 h-4" /> Add User</button>
         </div>
       </div>
@@ -185,8 +185,8 @@ export default function AdminPage() {
 
       {/* New User Modal */}
       {showNewUser && (
-        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={() => setShowNewUser(false)}>
-          <div className="card p-6 w-full max-w-md animate-slide-up" onClick={e => e.stopPropagation()}>
+        <div className="modal-overlay" onClick={() => setShowNewUser(false)}>
+          <div className="card p-6 w-full max-w-md modal-content" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-surface-900 dark:text-white">Add Team Member</h2>
               <button onClick={() => setShowNewUser(false)} className="p-1 rounded hover:bg-surface-100 dark:hover:bg-surface-800">
@@ -228,8 +228,8 @@ export default function AdminPage() {
 
       {/* Reset Password Modal */}
       {showResetPw && (
-        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={() => setShowResetPw(null)}>
-          <div className="card p-6 w-full max-w-sm animate-slide-up" onClick={e => e.stopPropagation()}>
+        <div className="modal-overlay" onClick={() => setShowResetPw(null)}>
+          <div className="card p-6 w-full max-w-sm modal-content" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-bold text-surface-900 dark:text-white mb-4">Reset Password</h2>
             <div className="space-y-4">
               <div>

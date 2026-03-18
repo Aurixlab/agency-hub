@@ -12,7 +12,6 @@ import {
   Sun,
   Moon,
   LogOut,
-  RefreshCw,
   ChevronLeft,
   Menu,
 } from 'lucide-react';
@@ -57,21 +56,21 @@ export default function Sidebar({ user }: SidebarProps) {
     <div className="flex flex-col h-full">
       {/* Logo */}
       <div className="flex items-center gap-3 px-5 py-5 border-b border-surface-200 dark:border-surface-800">
-        <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center flex-shrink-0">
-          <span className="text-white font-bold text-sm">A</span>
+        <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center flex-shrink-0 transition-transform duration-300 hover:scale-110 hover:rotate-3">
+          <span className="text-white font-bold text-sm">AL</span>
         </div>
         {!collapsed && (
           <div className="min-w-0">
             <h1 className="text-base font-bold text-surface-900 dark:text-white truncate">
-              AgencyHub
+              Aurix Lab Notion
             </h1>
           </div>
         )}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="ml-auto p-1 rounded hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-400 hidden lg:flex"
+          className="ml-auto p-1 rounded hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-400 hidden lg:flex transition-colors"
         >
-          <ChevronLeft className={`w-4 h-4 transition-transform ${collapsed ? 'rotate-180' : ''}`} />
+          <ChevronLeft className={`w-4 h-4 transition-transform duration-300 ease-spring ${collapsed ? 'rotate-180' : ''}`} />
         </button>
       </div>
 
@@ -84,13 +83,13 @@ export default function Sidebar({ user }: SidebarProps) {
               key={href}
               href={href}
               onClick={() => setMobileOpen(false)}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${
+              className={`nav-link ${active ? 'nav-link-active' : ''} flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
                 active
                   ? 'bg-brand-50 text-brand-700 dark:bg-brand-950 dark:text-brand-300'
                   : 'text-surface-600 hover:bg-surface-100 hover:text-surface-900 dark:text-surface-400 dark:hover:bg-surface-800 dark:hover:text-surface-200'
               }`}
             >
-              <Icon className="w-[18px] h-[18px] flex-shrink-0" />
+              <Icon className={`w-[18px] h-[18px] flex-shrink-0 transition-transform duration-200 ${active ? '' : 'group-hover:scale-110'}`} />
               {!collapsed && <span>{label}</span>}
             </Link>
           );
@@ -101,15 +100,19 @@ export default function Sidebar({ user }: SidebarProps) {
       <div className="border-t border-surface-200 dark:border-surface-800 px-3 py-4 space-y-1">
         <button
           onClick={toggle}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-surface-600 hover:bg-surface-100 hover:text-surface-900 dark:text-surface-400 dark:hover:bg-surface-800 dark:hover:text-surface-200 w-full transition-all"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-surface-600 hover:bg-surface-100 hover:text-surface-900 dark:text-surface-400 dark:hover:bg-surface-800 dark:hover:text-surface-200 w-full transition-all duration-200"
         >
-          {theme === 'dark' ? <Sun className="w-[18px] h-[18px]" /> : <Moon className="w-[18px] h-[18px]" />}
+          {theme === 'dark' ? (
+            <Sun className="w-[18px] h-[18px] transition-transform duration-500 hover:rotate-180" />
+          ) : (
+            <Moon className="w-[18px] h-[18px] transition-transform duration-500 hover:-rotate-12" />
+          )}
           {!collapsed && <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>}
         </button>
 
         <button
           onClick={handleLogout}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-surface-600 hover:bg-red-50 hover:text-red-700 dark:text-surface-400 dark:hover:bg-red-950 dark:hover:text-red-300 w-full transition-all"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-surface-600 hover:bg-red-50 hover:text-red-700 dark:text-surface-400 dark:hover:bg-red-950 dark:hover:text-red-300 w-full transition-all duration-200"
         >
           <LogOut className="w-[18px] h-[18px]" />
           {!collapsed && <span>Sign out</span>}
@@ -117,7 +120,7 @@ export default function Sidebar({ user }: SidebarProps) {
 
         {/* User */}
         {!collapsed && (
-          <div className="flex items-center gap-3 px-3 py-3 mt-2 rounded-lg bg-surface-50 dark:bg-surface-800/50">
+          <div className="flex items-center gap-3 px-3 py-3 mt-2 rounded-lg bg-surface-50 dark:bg-surface-800/50 animate-fade-in">
             <div className="w-8 h-8 rounded-full bg-brand-100 dark:bg-brand-900 flex items-center justify-center flex-shrink-0">
               <span className="text-brand-700 dark:text-brand-300 text-xs font-bold">
                 {user.name.charAt(0).toUpperCase()}
@@ -142,7 +145,7 @@ export default function Sidebar({ user }: SidebarProps) {
       {/* Mobile toggle */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-white dark:bg-surface-900 shadow-elevated border border-surface-200 dark:border-surface-700"
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-white dark:bg-surface-900 shadow-elevated border border-surface-200 dark:border-surface-700 transition-transform duration-200 active:scale-95"
       >
         <Menu className="w-5 h-5 text-surface-700 dark:text-surface-300" />
       </button>
@@ -150,14 +153,15 @@ export default function Sidebar({ user }: SidebarProps) {
       {/* Mobile overlay */}
       {mobileOpen && (
         <div
-          className="lg:hidden fixed inset-0 bg-black/30 z-40"
+          className="lg:hidden fixed inset-0 z-40 animate-overlay-in"
+          style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(2px)' }}
           onClick={() => setMobileOpen(false)}
         />
       )}
 
       {/* Mobile sidebar */}
       <aside
-        className={`lg:hidden fixed inset-y-0 left-0 z-50 w-[260px] bg-white dark:bg-surface-950 border-r border-surface-200 dark:border-surface-800 transform transition-transform duration-200 ${
+        className={`lg:hidden fixed inset-y-0 left-0 z-50 w-[260px] bg-white dark:bg-surface-950 border-r border-surface-200 dark:border-surface-800 transition-transform duration-300 ease-spring ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -166,7 +170,7 @@ export default function Sidebar({ user }: SidebarProps) {
 
       {/* Desktop sidebar */}
       <aside
-        className={`hidden lg:flex flex-col fixed inset-y-0 left-0 z-30 bg-white dark:bg-surface-950 border-r border-surface-200 dark:border-surface-800 transition-all duration-200 ${
+        className={`hidden lg:flex flex-col fixed inset-y-0 left-0 z-30 bg-white dark:bg-surface-950 border-r border-surface-200 dark:border-surface-800 transition-all duration-300 ease-smooth ${
           collapsed ? 'w-[68px]' : 'w-[260px]'
         }`}
       >
@@ -174,7 +178,7 @@ export default function Sidebar({ user }: SidebarProps) {
       </aside>
 
       {/* Spacer */}
-      <div className={`hidden lg:block flex-shrink-0 transition-all duration-200 ${collapsed ? 'w-[68px]' : 'w-[260px]'}`} />
+      <div className={`hidden lg:block flex-shrink-0 transition-all duration-300 ease-smooth ${collapsed ? 'w-[68px]' : 'w-[260px]'}`} />
     </>
   );
 }

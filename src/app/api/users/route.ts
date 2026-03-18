@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSessionFromRequest } from '@/lib/auth';
+import { getSessionFromRequest, getSessionFromRequestFull } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { hashPassword, validatePasswordStrength } from '@/lib/password';
 import { logActivity } from '@/lib/activity';
@@ -25,7 +25,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const session = await getSessionFromRequest(request);
+  const session = await getSessionFromRequestFull(request);
   if (!session || session.role !== 'ADMIN') {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 });
   }
@@ -84,7 +84,7 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const session = await getSessionFromRequest(request);
+  const session = await getSessionFromRequestFull(request);
   if (!session || session.role !== 'ADMIN') {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 });
   }

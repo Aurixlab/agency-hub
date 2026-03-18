@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSessionFromRequest } from '@/lib/auth';
+import { getSessionFromRequest, getSessionFromRequestFull } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { logActivity } from '@/lib/activity';
 
@@ -33,7 +33,7 @@ export async function PATCH(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  const session = await getSessionFromRequest(request);
+  const session = await getSessionFromRequestFull(request);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
@@ -89,6 +89,11 @@ export async function PATCH(
     if (updates.status !== undefined) data.status = updates.status;
     if (updates.priority !== undefined) data.priority = updates.priority;
     if (updates.assigneeId !== undefined) data.assigneeId = updates.assigneeId || null;
+    if (updates.assigneeIds !== undefined) {
+      const ids = Array.isArray(updates.assigneeIds) ? updates.assigneeIds : [];
+      data.assigneeIds = ids;
+      data.assigneeId = ids[0] || null;
+    }
     if (updates.dueDate !== undefined) data.dueDate = updates.dueDate ? new Date(updates.dueDate) : null;
     if (updates.tags !== undefined) data.tags = updates.tags;
     if (updates.orderIndex !== undefined) data.orderIndex = updates.orderIndex;
@@ -127,7 +132,7 @@ export async function DELETE(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  const session = await getSessionFromRequest(request);
+  const session = await getSessionFromRequestFull(request);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(request.url);

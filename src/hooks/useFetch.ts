@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-
-const DEFAULT_POLL_INTERVAL = 30000; // 30s — plenty fast for 11 users, way less DB load
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback } from 'react';
 
 interface UseFetchOptions {
   pollInterval?: number | false;
@@ -17,123 +16,67 @@ interface UseFetchResult<T> {
   mutate: (newData: T) => void;
 }
 
-// Global dedup map: prevent multiple components from fetching the same URL simultaneously
-const inflightRequests = new Map<string, Promise<any>>();
+async function fetcher<T>(url: string): Promise<T> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
 
 export function useFetch<T>(
   url: string | null,
   options: UseFetchOptions = {}
 ): UseFetchResult<T> {
-  const { pollInterval = DEFAULT_POLL_INTERVAL, refetchOnFocus = true } = options;
-  const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
-  const mountedRef = useRef(true);
-  const urlRef = useRef(url);
-  const lastFocusFetch = useRef(0);
-  urlRef.current = url;
+  const { pollInterval = 30000, refetchOnFocus = true } = options;
+  const queryClient = useQueryClient();
 
-  const fetchData = useCallback(async (showLoading = false) => {
-    const currentUrl = urlRef.current;
-    if (!currentUrl || !mountedRef.current) return;
-
-    if (showLoading) setLoading(true);
-
-    // Abort any in-flight request from this hook instance
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    try {
-      // Deduplicate: if the same URL is already being fetched, reuse the promise
-      let promise = inflightRequests.get(currentUrl);
-      if (!promise) {
-        promise = fetch(currentUrl, { signal: controller.signal }).then(res => {
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          return res.json();
-        });
-        inflightRequests.set(currentUrl, promise);
-        // Clean up after resolution
-        promise.finally(() => inflightRequests.delete(currentUrl));
-      }
-
-      const json = await promise;
-      if (mountedRef.current && !controller.signal.aborted) {
-        setData(json);
-        setError(null);
-      }
-    } catch (err: any) {
-      if (err.name === 'AbortError') return; // Normal cleanup, ignore
-      if (mountedRef.current) {
-        setError(err.message || 'Failed to fetch');
-      }
-    } finally {
-      if (mountedRef.current) {
-        setLoading(false);
-      }
-    }
-  }, []);
-
-  // Initial fetch
-  useEffect(() => {
-    mountedRef.current = true;
-    if (url) fetchData(true);
-
-    return () => {
-      mountedRef.current = false;
-      abortRef.current?.abort();
-    };
-  }, [url, fetchData]);
-
-  // Polling — only when tab is visible
-  useEffect(() => {
-    if (!pollInterval || !url) return;
-
-    intervalRef.current = setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        fetchData(false);
-      }
-    }, pollInterval);
-
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [pollInterval, url, fetchData]);
-
-  // Refetch on tab return — debounced, single handler
-  // Uses visibilitychange ONLY (not both focus + visibility which causes double-fetch)
-  useEffect(() => {
-    if (!refetchOnFocus) return;
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        // Debounce: don't refetch if we fetched less than 2s ago
-        const now = Date.now();
-        if (now - lastFocusFetch.current > 2000) {
-          lastFocusFetch.current = now;
-          fetchData(false);
-        }
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [fetchData, refetchOnFocus]);
+  const { data, isLoading, error, refetch: rqRefetch } = useQuery<T>({
+    queryKey: [url],
+    queryFn: () => fetcher<T>(url!),
+    enabled: !!url,
+    // Poll interval — TanStack handles visibility pausing automatically
+    refetchInterval: pollInterval === false ? false : pollInterval,
+    // Pause polling when tab is hidden (built-in!)
+    refetchIntervalInBackground: false,
+    // Refetch on window focus
+    refetchOnWindowFocus: refetchOnFocus,
+    // Use staleTime from QueryClient defaults (30s)
+  });
 
   const refetch = useCallback(async () => {
-    await fetchData(true);
-  }, [fetchData]);
+    await rqRefetch();
+  }, [rqRefetch]);
 
-  const mutate = useCallback((newData: T) => {
-    setData(newData);
-  }, []);
+  const mutate = useCallback(
+    (newData: T) => {
+      if (url) {
+        queryClient.setQueryData([url], newData);
+      }
+    },
+    [url, queryClient]
+  );
 
-  return { data, loading, error, refetch, mutate };
+  return {
+    data: data ?? null,
+    loading: isLoading,
+    error: error ? (error as Error).message : null,
+    refetch,
+    mutate,
+  };
 }
 
-// Helper for API calls with error handling
+// Helper for API calls — also invalidates relevant caches after mutations
+export function useInvalidate() {
+  const queryClient = useQueryClient();
+  return useCallback(
+    (urls: string[]) => {
+      urls.forEach((url) => {
+        queryClient.invalidateQueries({ queryKey: [url] });
+      });
+    },
+    [queryClient]
+  );
+}
+
 export async function apiCall<T>(
   url: string,
   options: RequestInit = {}

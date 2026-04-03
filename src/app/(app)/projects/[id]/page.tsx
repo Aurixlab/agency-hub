@@ -12,7 +12,7 @@ import toast from 'react-hot-toast';
 
 type ViewMode = 'table' | 'kanban' | 'calendar';
 
-const priorityOrder: Record<string, number> = { URGENT: 0, HIGH: 1, MEDIUM: 2, LOW: 3, NONE: 4 };
+const priorityOrder = { URGENT: 0, HIGH: 1, MEDIUM: 2, LOW: 3, NONE: 4 };
 const priorityColors: Record<string, string> = {
   URGENT: 'priority-urgent', HIGH: 'priority-high', MEDIUM: 'priority-medium', LOW: 'priority-low', NONE: 'priority-none',
 };
@@ -40,27 +40,7 @@ export default function ProjectDetailPage() {
   });
 
   if (loading) {
-    return (
-      <div className="space-y-5 animate-fade-in">
-        <div className="flex items-center gap-3">
-          <div className="skeleton w-8 h-8 rounded-lg" />
-          <div className="space-y-2">
-            <div className="skeleton h-6 w-48 rounded" />
-            <div className="skeleton h-4 w-24 rounded" />
-          </div>
-        </div>
-        <div className="flex gap-4 overflow-hidden">
-          {[0,1,2,3].map(i => (
-            <div key={i} className="flex-shrink-0 w-72">
-              <div className="skeleton h-6 w-24 rounded mb-3" />
-              <div className="space-y-2">
-                {[0,1,2].map(j => <div key={j} className="skeleton h-24 w-full rounded-xl" />)}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
+    return <div className="py-20 text-center text-surface-400 animate-fade-in">Loading project...</div>;
   }
 
   if (!project) {
@@ -73,11 +53,11 @@ export default function ProjectDetailPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fade-in">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <Link href="/projects" className="p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 transition-all duration-200 active:scale-95">
+          <Link href="/projects" className="p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500">
             <ArrowLeft className="w-4 h-4" />
           </Link>
           <div>
@@ -86,8 +66,8 @@ export default function ProjectDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => refetch()} className="btn-ghost btn-sm group" title="Refresh">
-            <RefreshCw className="w-3.5 h-3.5 transition-transform duration-300 group-hover:rotate-180" />
+          <button onClick={() => refetch()} className="btn-ghost btn-sm" title="Refresh">
+            <RefreshCw className="w-3.5 h-3.5" />
           </button>
           <button onClick={() => setShowNewTask(true)} className="btn-primary btn-sm">
             <Plus className="w-4 h-4" /> Add Task
@@ -96,7 +76,7 @@ export default function ProjectDetailPage() {
       </div>
 
       {/* View Toggle + Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 animate-stagger-1">
+      <div className="flex flex-col sm:flex-row gap-3">
         <div className="flex items-center gap-1 p-1 rounded-lg bg-surface-100 dark:bg-surface-800/50">
           {[
             { key: 'kanban' as ViewMode, icon: Columns3, label: 'Board' },
@@ -106,7 +86,7 @@ export default function ProjectDetailPage() {
             <button
               key={key}
               onClick={() => setView(key)}
-              className={`view-toggle-btn flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                 view === key
                   ? 'bg-white dark:bg-surface-700 text-surface-900 dark:text-white shadow-sm'
                   : 'text-surface-500 hover:text-surface-700 dark:hover:text-surface-300'
@@ -142,23 +122,38 @@ export default function ProjectDetailPage() {
         </div>
       </div>
 
-      {/* Views — fade transition on switch */}
-      <div className="animate-fade-in" key={view}>
-        {view === 'kanban' && (
-          <KanbanView tasks={filteredTasks} statuses={statuses} users={users || []} projectId={id} onRefetch={refetch} onTaskClick={setShowTaskDetail} />
-        )}
-        {view === 'table' && (
-          <TableView tasks={filteredTasks} statuses={statuses} users={users || []} projectId={id} onRefetch={refetch} onTaskClick={setShowTaskDetail} />
-        )}
-        {view === 'calendar' && (
-          <CalendarView tasks={filteredTasks} onTaskClick={setShowTaskDetail} />
-        )}
-      </div>
+      {/* Views */}
+      {view === 'kanban' && (
+        <KanbanView
+          tasks={filteredTasks}
+          statuses={statuses}
+          users={users || []}
+          projectId={id}
+          onRefetch={refetch}
+          onTaskClick={setShowTaskDetail}
+        />
+      )}
+      {view === 'table' && (
+        <TableView
+          tasks={filteredTasks}
+          statuses={statuses}
+          users={users || []}
+          projectId={id}
+          onRefetch={refetch}
+          onTaskClick={setShowTaskDetail}
+        />
+      )}
+      {view === 'calendar' && (
+        <CalendarView tasks={filteredTasks} onTaskClick={setShowTaskDetail} />
+      )}
 
       {/* New Task Modal */}
       {showNewTask && (
         <NewTaskModal
-          projectId={id} statuses={statuses} users={users || []} projectTags={project.tags || []}
+          projectId={id}
+          statuses={statuses}
+          users={users || []}
+          projectTags={project.tags || []}
           onClose={() => setShowNewTask(false)}
           onCreated={() => { setShowNewTask(false); refetch(); }}
         />
@@ -167,8 +162,12 @@ export default function ProjectDetailPage() {
       {/* Task Detail Modal */}
       {showTaskDetail && (
         <TaskDetailModal
-          taskId={showTaskDetail} statuses={statuses} users={users || []} projectTags={project.tags || []}
-          onClose={() => setShowTaskDetail(null)} onUpdated={refetch}
+          taskId={showTaskDetail}
+          statuses={statuses}
+          users={users || []}
+          projectTags={project.tags || []}
+          onClose={() => setShowTaskDetail(null)}
+          onUpdated={refetch}
         />
       )}
     </div>
@@ -185,6 +184,7 @@ function KanbanView({ tasks, statuses, users, projectId, onRefetch, onTaskClick 
     const task = tasks.find((t: Task) => t.id === draggableId);
     if (!task) return;
 
+    // Build new order
     const columnTasks = tasks
       .filter((t: Task) => t.status === newStatus && t.id !== draggableId)
       .sort((a: Task, b: Task) => a.orderIndex - b.orderIndex);
@@ -192,9 +192,12 @@ function KanbanView({ tasks, statuses, users, projectId, onRefetch, onTaskClick 
     columnTasks.splice(destination.index, 0, { ...task, status: newStatus });
 
     const bulkUpdates = columnTasks.map((t: Task, i: number) => ({
-      id: t.id, status: newStatus, orderIndex: (i + 1) * 1000,
+      id: t.id,
+      status: newStatus,
+      orderIndex: (i + 1) * 1000,
     }));
 
+    // Optimistic update via refetch
     await apiCall(`/api/tasks/${draggableId}`, {
       method: 'PATCH',
       body: JSON.stringify({ bulkOrder: { tasks: bulkUpdates } }),
@@ -206,16 +209,17 @@ function KanbanView({ tasks, statuses, users, projectId, onRefetch, onTaskClick 
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
       <div className="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4">
-        {statuses.map((status: string, colIdx: number) => {
+        {statuses.map((status: string) => {
           const columnTasks = tasks
             .filter((t: Task) => t.status === status)
             .sort((a: Task, b: Task) => a.orderIndex - b.orderIndex);
 
           return (
-            <div key={status} className="flex-shrink-0 w-72"
-              style={{ animation: `fadeIn 0.3s ease-out ${colIdx * 60}ms both` }}>
+            <div key={status} className="flex-shrink-0 w-72">
               <div className="flex items-center justify-between mb-3 px-1">
-                <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300">{status}</h3>
+                <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300">
+                  {status}
+                </h3>
                 <span className="text-xs text-surface-400 bg-surface-100 dark:bg-surface-800 px-2 py-0.5 rounded-full">
                   {columnTasks.length}
                 </span>
@@ -225,9 +229,9 @@ function KanbanView({ tasks, statuses, users, projectId, onRefetch, onTaskClick 
                   <div
                     ref={provided.innerRef}
                     {...provided.droppableProps}
-                    className={`min-h-[120px] rounded-xl p-2 space-y-2 transition-all duration-200 ${
+                    className={`min-h-[120px] rounded-xl p-2 space-y-2 transition-colors ${
                       snapshot.isDraggingOver
-                        ? 'kanban-column-drop'
+                        ? 'bg-brand-50/50 dark:bg-brand-950/20 border-2 border-dashed border-brand-300 dark:border-brand-700'
                         : 'bg-surface-100/50 dark:bg-surface-800/30'
                     }`}
                   >
@@ -237,13 +241,13 @@ function KanbanView({ tasks, statuses, users, projectId, onRefetch, onTaskClick 
                           <div
                             ref={provided.innerRef}
                             {...provided.draggableProps}
-                            className={`card p-3.5 cursor-pointer group transition-all duration-200 ${
-                              snapshot.isDragging ? 'kanban-card-dragging' : 'hover:shadow-card-hover'
+                            className={`card p-3.5 cursor-pointer group ${
+                              snapshot.isDragging ? 'shadow-elevated rotate-1' : ''
                             }`}
                             onClick={() => onTaskClick(task.id)}
                           >
                             <div className="flex items-start gap-2">
-                              <div {...provided.dragHandleProps} className="mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                              <div {...provided.dragHandleProps} className="mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <GripVertical className="w-3.5 h-3.5 text-surface-400" />
                               </div>
                               <div className="flex-1 min-w-0">
@@ -265,7 +269,9 @@ function KanbanView({ tasks, statuses, users, projectId, onRefetch, onTaskClick 
                                     <div className="flex items-center gap-1">
                                       {task.assignees.slice(0, 3).map((a: any) => (
                                         <div key={a.id} className="w-5 h-5 rounded-full bg-brand-100 dark:bg-brand-900 flex items-center justify-center" title={a.name}>
-                                          <span className="text-[10px] font-bold text-brand-700 dark:text-brand-300">{a.name.charAt(0)}</span>
+                                          <span className="text-[10px] font-bold text-brand-700 dark:text-brand-300">
+                                            {a.name.charAt(0)}
+                                          </span>
                                         </div>
                                       ))}
                                       {task.assignees.length > 3 && (
@@ -275,7 +281,9 @@ function KanbanView({ tasks, statuses, users, projectId, onRefetch, onTaskClick 
                                   ) : task.assignee ? (
                                     <div className="flex items-center gap-1.5">
                                       <div className="w-5 h-5 rounded-full bg-brand-100 dark:bg-brand-900 flex items-center justify-center">
-                                        <span className="text-[10px] font-bold text-brand-700 dark:text-brand-300">{task.assignee.name.charAt(0)}</span>
+                                        <span className="text-[10px] font-bold text-brand-700 dark:text-brand-300">
+                                          {task.assignee.name.charAt(0)}
+                                        </span>
                                       </div>
                                       <span className="text-[10px] text-surface-500">{task.assignee.name}</span>
                                     </div>
@@ -329,7 +337,7 @@ function TableView({ tasks, statuses, users, onTaskClick }: any) {
   const SortHeader = ({ field, children }: { field: string; children: React.ReactNode }) => (
     <th
       onClick={() => toggleSort(field)}
-      className="px-4 py-3 text-left text-xs font-medium text-surface-500 dark:text-surface-400 uppercase tracking-wider cursor-pointer hover:text-surface-700 dark:hover:text-surface-200 select-none transition-colors"
+      className="px-4 py-3 text-left text-xs font-medium text-surface-500 dark:text-surface-400 uppercase tracking-wider cursor-pointer hover:text-surface-700 dark:hover:text-surface-200 select-none"
     >
       {children} {sortField === field && (sortDir === 'asc' ? '↑' : '↓')}
     </th>
@@ -356,20 +364,24 @@ function TableView({ tasks, statuses, users, onTaskClick }: any) {
                 </td>
               </tr>
             ) : (
-              sorted.map((task: Task, idx: number) => (
+              sorted.map((task: Task) => (
                 <tr
                   key={task.id}
                   onClick={() => onTaskClick(task.id)}
-                  className="row-interactive hover:bg-surface-50 dark:hover:bg-surface-800/50 cursor-pointer transition-colors"
+                  className="hover:bg-surface-50 dark:hover:bg-surface-800/50 cursor-pointer transition-colors"
                 >
                   <td className="px-4 py-3">
                     <p className="text-sm font-medium text-surface-900 dark:text-white">{task.title}</p>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="badge bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-surface-300">{task.status}</span>
+                    <span className="badge bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-surface-300">
+                      {task.status}
+                    </span>
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`badge ${priorityColors[task.priority]}`}>{task.priority === 'NONE' ? '—' : task.priority}</span>
+                    <span className={`badge ${priorityColors[task.priority]}`}>
+                      {task.priority === 'NONE' ? '—' : task.priority}
+                    </span>
                   </td>
                   <td className="px-4 py-3 text-sm text-surface-600 dark:text-surface-400">
                     {task.assignee?.name || (task.assignees?.length ? task.assignees.map((a: any) => a.name).join(', ') : '—')}
@@ -395,6 +407,7 @@ function CalendarView({ tasks, onTaskClick }: { tasks: Task[]; onTaskClick: (id:
   const end = endOfMonth(currentMonth);
   const days = eachDayOfInterval({ start, end });
 
+  // Pad start to Monday
   const startDay = start.getDay();
   const padStart = startDay === 0 ? 6 : startDay - 1;
   const paddedDays = [...Array(padStart).fill(null), ...days];
@@ -425,18 +438,28 @@ function CalendarView({ tasks, onTaskClick }: { tasks: Task[]; onTaskClick: (id:
           </div>
         ))}
         {paddedDays.map((day, i) => {
-          if (!day) return <div key={`pad-${i}`} className="bg-surface-50/50 dark:bg-surface-900/50 min-h-[80px]" />;
+          if (!day) {
+            return <div key={`pad-${i}`} className="bg-surface-50/50 dark:bg-surface-900/50 min-h-[80px]" />;
+          }
           const dayTasks = getTasksForDay(day);
           const isToday = isSameDay(day, new Date());
           return (
-            <div key={day.toISOString()} className={`bg-white dark:bg-surface-900 min-h-[80px] p-1.5 transition-colors ${isToday ? 'ring-2 ring-inset ring-brand-500' : ''}`}>
-              <span className={`text-xs font-medium ${isToday ? 'text-brand-600 dark:text-brand-400' : 'text-surface-500'}`}>
+            <div
+              key={day.toISOString()}
+              className={`bg-white dark:bg-surface-900 min-h-[80px] p-1.5 ${isToday ? 'ring-2 ring-inset ring-brand-500' : ''}`}
+            >
+              <span className={`text-xs font-medium ${
+                isToday ? 'text-brand-600 dark:text-brand-400' : 'text-surface-500'
+              }`}>
                 {format(day, 'd')}
               </span>
               <div className="mt-1 space-y-0.5">
                 {dayTasks.slice(0, 3).map(t => (
-                  <div key={t.id} onClick={() => onTaskClick(t.id)}
-                    className="text-[10px] px-1.5 py-0.5 rounded bg-brand-50 dark:bg-brand-950/30 text-brand-700 dark:text-brand-300 truncate cursor-pointer hover:bg-brand-100 dark:hover:bg-brand-900/40 transition-colors">
+                  <div
+                    key={t.id}
+                    onClick={() => onTaskClick(t.id)}
+                    className="text-[10px] px-1.5 py-0.5 rounded bg-brand-50 dark:bg-brand-950/30 text-brand-700 dark:text-brand-300 truncate cursor-pointer hover:bg-brand-100 dark:hover:bg-brand-900/40 transition-colors"
+                  >
                     {t.title}
                   </div>
                 ))}
@@ -473,7 +496,11 @@ function NewTaskModal({ projectId, statuses, users, projectTags, onClose, onCrea
 
     const { error } = await apiCall('/api/tasks', {
       method: 'POST',
-      body: JSON.stringify({ projectId, title, description, status, priority, assigneeIds, dueDate: dueDate || null }),
+      body: JSON.stringify({
+        projectId, title, description, status, priority,
+        assigneeIds,
+        dueDate: dueDate || null,
+      }),
     });
 
     if (error) toast.error(error);
@@ -482,11 +509,11 @@ function NewTaskModal({ projectId, statuses, users, projectTags, onClose, onCrea
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="card p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto modal-content" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="card p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto animate-slide-up" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-surface-900 dark:text-white">New Task</h2>
-          <button onClick={onClose} className="p-1 rounded hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors">
+          <button onClick={onClose} className="p-1 rounded hover:bg-surface-100 dark:hover:bg-surface-800">
             <X className="w-4 h-4 text-surface-500" />
           </button>
         </div>
@@ -524,7 +551,7 @@ function NewTaskModal({ projectId, statuses, users, projectTags, onClose, onCrea
               {assigneeIds.map(id => {
                 const user = users?.find((u: any) => u.id === id);
                 return user ? (
-                  <span key={id} onClick={() => toggleAssignee(id)} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-100 dark:bg-brand-900/40 text-brand-800 dark:text-brand-200 text-xs cursor-pointer hover:bg-brand-200 dark:hover:bg-brand-800/40 transition-colors">
+                  <span key={id} onClick={() => toggleAssignee(id)} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-100 dark:bg-brand-900/40 text-brand-800 dark:text-brand-200 text-xs cursor-pointer hover:bg-brand-200 dark:hover:bg-brand-800/40">
                     {user.name} <X className="w-3 h-3" />
                   </span>
                 ) : null;
@@ -590,7 +617,12 @@ function TaskDetailModal({ taskId, statuses, users, projectTags, onClose, onUpda
     const { error, status: httpStatus } = await apiCall(`/api/tasks/${taskId}`, {
       method: 'PATCH',
       body: JSON.stringify({
-        version: task?.version, title, description, status: status, priority, assigneeIds, dueDate: dueDate || null,
+        version: task?.version,
+        title, description,
+        status: status,
+        priority,
+        assigneeIds,
+        dueDate: dueDate || null,
       }),
     });
 
@@ -635,28 +667,22 @@ function TaskDetailModal({ taskId, statuses, users, projectTags, onClose, onUpda
 
   if (loading || !task) {
     return (
-      <div className="modal-overlay" onClick={onClose}>
-        <div className="card p-8 modal-content">
-          <div className="space-y-3">
-            <div className="skeleton h-6 w-48 rounded" />
-            <div className="skeleton h-4 w-32 rounded" />
-            <div className="skeleton h-20 w-full rounded" />
-          </div>
-        </div>
+      <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center" onClick={onClose}>
+        <div className="card p-8 animate-fade-in">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="modal-overlay sm:items-center items-end p-0 sm:p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/30 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
       <div
-        className="card w-full sm:max-w-2xl max-h-[95vh] overflow-y-auto modal-content sm:rounded-xl rounded-t-2xl rounded-b-none sm:rounded-b-xl"
+        className="card w-full sm:max-w-2xl max-h-[95vh] overflow-y-auto animate-slide-up sm:rounded-xl rounded-t-2xl rounded-b-none sm:rounded-b-xl"
         onClick={e => e.stopPropagation()}
       >
         <div className="p-6 space-y-5">
           {/* Conflict Banner */}
           {conflict && (
-            <div className="px-4 py-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-sm animate-slide-down">
+            <div className="px-4 py-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-sm">
               <p className="font-medium">This task was updated by someone else.</p>
               <div className="flex gap-2 mt-2">
                 <button onClick={handleReload} className="btn-sm bg-amber-600 text-white hover:bg-amber-700 rounded-md px-3 py-1 text-xs">
@@ -679,7 +705,7 @@ function TaskDetailModal({ taskId, statuses, users, projectTags, onClose, onUpda
             ) : (
               <h2 className="text-lg font-bold text-surface-900 dark:text-white flex-1">{task.title}</h2>
             )}
-            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-400 transition-colors">
+            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-400">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -719,7 +745,7 @@ function TaskDetailModal({ taskId, statuses, users, projectTags, onClose, onUpda
                     {assigneeIds.map(id => {
                       const user = users?.find((u: any) => u.id === id);
                       return user ? (
-                        <span key={id} onClick={() => toggleAssignee(id)} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-100 dark:bg-brand-900/40 text-brand-800 dark:text-brand-200 text-xs cursor-pointer hover:bg-brand-200 transition-colors">
+                        <span key={id} onClick={() => toggleAssignee(id)} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-100 dark:bg-brand-900/40 text-brand-800 dark:text-brand-200 text-xs cursor-pointer hover:bg-brand-200">
                           {user.name} <X className="w-3 h-3" />
                         </span>
                       ) : null;
@@ -727,7 +753,7 @@ function TaskDetailModal({ taskId, statuses, users, projectTags, onClose, onUpda
                   </div>
                   <div className="flex flex-wrap gap-1 mt-1.5">
                     {users?.filter((u: any) => !u.disabled && !assigneeIds.includes(u.id)).map((u: any) => (
-                      <button key={u.id} type="button" onClick={() => toggleAssignee(u.id)} className="px-2 py-0.5 rounded text-xs bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors">
+                      <button key={u.id} type="button" onClick={() => toggleAssignee(u.id)} className="px-2 py-0.5 rounded text-xs bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700">
                         + {u.name}
                       </button>
                     ))}
@@ -793,12 +819,17 @@ function TaskDetailModal({ taskId, statuses, users, projectTags, onClose, onUpda
               Comments ({task.comments?.length || 0})
             </h3>
             <form onSubmit={handleComment} className="flex gap-2 mb-4">
-              <input value={comment} onChange={e => setComment(e.target.value)} className="input flex-1" placeholder="Add a comment..." />
+              <input
+                value={comment}
+                onChange={e => setComment(e.target.value)}
+                className="input flex-1"
+                placeholder="Add a comment..."
+              />
               <button type="submit" className="btn-primary btn-sm">Post</button>
             </form>
             <div className="space-y-3 max-h-60 overflow-y-auto">
               {task.comments?.map((c: any) => (
-                <div key={c.id} className="text-sm animate-fade-in">
+                <div key={c.id} className="text-sm">
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-surface-900 dark:text-white">{c.author?.name}</span>
                     <span className="text-xs text-surface-400">{format(new Date(c.createdAt), 'MMM d, h:mm a')}</span>

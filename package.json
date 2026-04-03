@@ -1,6 +1,6 @@
 {
   "name": "agency-hub",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "engines": {
     "node": "20.x"
@@ -19,6 +19,8 @@
   "dependencies": {
     "@hello-pangea/dnd": "^16.6.0",
     "@prisma/client": "^5.22.0",
+    "@prisma/extension-accelerate": "^1.2.1",
+    "@tanstack/react-query": "^5.62.0",
     "bcryptjs": "^2.4.3",
     "date-fns": "^4.1.0",
     "jose": "^5.9.6",

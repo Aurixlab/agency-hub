@@ -2,7 +2,7 @@
 
 import { useFetch, apiCall } from '@/hooks/useFetch';
 import { Project, Template } from '@/types';
-import { Plus, FolderKanban, RefreshCw, Trash2, Search, X } from 'lucide-react';
+import { Plus, FolderKanban, RefreshCw, Trash2, RotateCcw, Search } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { format } from 'date-fns';
@@ -10,7 +10,7 @@ import toast from 'react-hot-toast';
 
 export default function ProjectsPage() {
   const { data: projects, loading, refetch } = useFetch<Project[]>('/api/projects');
-  const { data: templates } = useFetch<Template[]>('/api/templates', { pollInterval: false });
+  const { data: templates } = useFetch<Template[]>('/api/templates');
   const [showNew, setShowNew] = useState(false);
   const [newName, setNewName] = useState('');
   const [newClient, setNewClient] = useState('');
@@ -59,8 +59,8 @@ export default function ProjectsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between animate-fade-in">
+    <div className="space-y-6 animate-fade-in">
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-surface-900 dark:text-white">Projects</h1>
           <p className="text-surface-500 dark:text-surface-400 mt-1 text-sm">
@@ -68,8 +68,8 @@ export default function ProjectsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => refetch()} className="btn-ghost btn-sm group">
-            <RefreshCw className="w-3.5 h-3.5 transition-transform duration-300 group-hover:rotate-180" />
+          <button onClick={() => refetch()} className="btn-ghost btn-sm">
+            <RefreshCw className="w-3.5 h-3.5" />
           </button>
           <button onClick={() => setShowNew(true)} className="btn-primary btn-sm">
             <Plus className="w-4 h-4" />
@@ -79,7 +79,7 @@ export default function ProjectsPage() {
       </div>
 
       {/* Search */}
-      <div className="relative animate-stagger-1">
+      <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400" />
         <input
           type="text"
@@ -92,14 +92,9 @@ export default function ProjectsPage() {
 
       {/* Create project modal */}
       {showNew && (
-        <div className="modal-overlay" onClick={() => setShowNew(false)}>
-          <div className="card p-6 w-full max-w-lg modal-content" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-surface-900 dark:text-white">Create Project</h2>
-              <button onClick={() => setShowNew(false)} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors">
-                <X className="w-4 h-4 text-surface-500" />
-              </button>
-            </div>
+        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={() => setShowNew(false)}>
+          <div className="card p-6 w-full max-w-lg animate-slide-up" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-surface-900 dark:text-white mb-4">Create Project</h2>
             <form onSubmit={handleCreate} className="space-y-4">
               <div>
                 <label className="label">Project Name *</label>
@@ -150,27 +145,9 @@ export default function ProjectsPage() {
 
       {/* Projects grid */}
       {loading ? (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[0,1,2,3,4,5].map(i => (
-            <div key={i} className="card p-5" style={{ animationDelay: `${i * 50}ms` }}>
-              <div className="space-y-3">
-                <div className="skeleton h-5 w-3/4 rounded" />
-                <div className="skeleton h-4 w-1/2 rounded" />
-                <div className="flex gap-2 mt-4">
-                  <div className="skeleton h-3 w-16 rounded" />
-                  <div className="skeleton h-3 w-24 rounded" />
-                </div>
-                <div className="flex gap-1 mt-2">
-                  {[0,1,2].map(j => (
-                    <div key={j} className="skeleton h-5 w-14 rounded" />
-                  ))}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        <div className="py-12 text-center text-surface-400">Loading projects...</div>
       ) : filteredProjects.length === 0 ? (
-        <div className="card py-16 text-center animate-fade-in">
+        <div className="card py-16 text-center">
           <FolderKanban className="w-12 h-12 mx-auto mb-3 text-surface-300 dark:text-surface-600" />
           <p className="text-surface-500 dark:text-surface-400">
             {search ? 'No projects match your search' : 'No projects yet'}
@@ -184,18 +161,15 @@ export default function ProjectsPage() {
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredProjects.map((project, idx) => (
+          {filteredProjects.map(project => (
             <Link
               key={project.id}
               href={`/projects/${project.id}`}
               className="card-hover p-5 group"
-              style={{
-                animation: `slideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) ${idx * 40}ms both`,
-              }}
             >
               <div className="flex items-start justify-between">
                 <div className="min-w-0 flex-1">
-                  <h3 className="font-semibold text-surface-900 dark:text-white truncate group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors duration-200">
+                  <h3 className="font-semibold text-surface-900 dark:text-white truncate group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">
                     {project.name}
                   </h3>
                   {project.clientName && (
@@ -204,7 +178,7 @@ export default function ProjectsPage() {
                 </div>
                 <button
                   onClick={e => { e.preventDefault(); e.stopPropagation(); handleDelete(project.id); }}
-                  className="p-1.5 rounded-lg text-surface-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 opacity-0 group-hover:opacity-100 transition-all duration-200 transform translate-x-1 group-hover:translate-x-0"
+                  className="p-1.5 rounded-lg text-surface-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 opacity-0 group-hover:opacity-100 transition-all"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -217,7 +191,7 @@ export default function ProjectsPage() {
               {project.statuses && (
                 <div className="flex gap-1 mt-3">
                   {(project.statuses as string[]).slice(0, 5).map(s => (
-                    <span key={s} className="px-2 py-0.5 rounded text-[10px] bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-400 transition-colors">
+                    <span key={s} className="px-2 py-0.5 rounded text-[10px] bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-400">
                       {s}
                     </span>
                   ))}

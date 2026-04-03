@@ -43,33 +43,32 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 bg-surface-50 dark:bg-surface-950 overflow-hidden">
-      {/* Ambient background */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-32 left-1/4 w-[500px] h-[500px] bg-brand-500/[0.07] rounded-full blur-[100px] animate-pulse-soft" />
-        <div className="absolute -bottom-32 right-1/4 w-[400px] h-[400px] bg-brand-400/[0.05] rounded-full blur-[80px] animate-pulse-soft" style={{ animationDelay: '1s' }} />
+    <div className="min-h-screen flex items-center justify-center px-4 bg-surface-50 dark:bg-surface-950">
+      {/* Background pattern */}
+      <div className="fixed inset-0 pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-brand-500/5 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-brand-400/5 rounded-full blur-3xl" />
       </div>
 
-      <div className="relative w-full max-w-md">
-        {/* Logo — staggered entrance */}
-        <div className="text-center mb-8 animate-fade-in">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-brand-600 mb-4 transition-transform duration-500 hover:scale-110 hover:rotate-3"
-               style={{ boxShadow: '0 8px 32px -4px rgb(184 118 32 / 0.35)' }}>
+      <div className="relative w-full max-w-md animate-fade-in">
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-brand-600 shadow-lg mb-4">
             <span className="text-white font-bold text-base">AL</span>
           </div>
-          <h1 className="text-2xl font-bold text-surface-900 dark:text-white animate-stagger-1">
+          <h1 className="text-2xl font-bold text-surface-900 dark:text-white">
             Welcome to Aurix Lab Notion
           </h1>
-          <p className="text-surface-500 dark:text-surface-400 mt-2 text-sm animate-stagger-2">
+          <p className="text-surface-500 dark:text-surface-400 mt-2 text-sm">
             Sign in with your team credentials
           </p>
         </div>
 
-        {/* Form card — spring entrance */}
-        <div className="card p-8 animate-stagger-3" style={{ boxShadow: '0 12px 40px -8px rgb(0 0 0 / 0.08)' }}>
+        {/* Form */}
+        <div className="card p-8">
           <form onSubmit={handleSubmit} className="space-y-5">
             {error && (
-              <div className="px-4 py-3 rounded-lg bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm animate-slide-down">
+              <div className="px-4 py-3 rounded-lg bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm animate-slide-up">
                 {error}
               </div>
             )}
@@ -127,7 +126,7 @@ export default function LoginPage() {
           </form>
         </div>
 
-        <p className="text-center text-xs text-surface-400 dark:text-surface-600 mt-6 animate-stagger-4">
+        <p className="text-center text-xs text-surface-400 dark:text-surface-600 mt-6">
           Contact your admin if you need access
         </p>
       </div>

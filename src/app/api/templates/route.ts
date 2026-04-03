@@ -10,5 +10,10 @@ export async function GET(request: Request) {
     orderBy: { createdAt: 'asc' },
   });
 
-  return NextResponse.json(templates);
+  // Templates rarely change — cache for 5 minutes, serve stale for 10 min while revalidating
+  return NextResponse.json(templates, {
+    headers: {
+      'Cache-Control': 'private, s-maxage=300, stale-while-revalidate=600',
+    },
+  });
 }

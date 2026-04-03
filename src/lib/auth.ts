@@ -28,7 +28,7 @@ export async function createSession(userId: string): Promise<string> {
   });
   if (!user) throw new Error('User not found');
 
-  // Embed user data in JWT so read-path never hits DB
+  // Embed user data in JWT — read-path never needs DB
   const token = await new SignJWT({
     userId: user.id,
     username: user.username,
@@ -55,11 +55,11 @@ export async function createSession(userId: string): Promise<string> {
   return token;
 }
 
-/**
- * FAST: JWT-only verification. Zero DB queries.
- * Safe for GET requests — JWT is cryptographically signed + has expiry.
- */
-function extractTokenFromRequest(request: Request): string | undefined {
+// ============================================================
+// FAST AUTH — JWT-only, zero DB queries
+// Used for ALL GET/read API routes
+// ============================================================
+function extractToken(request: Request): string | undefined {
   const cookieHeader = request.headers.get('cookie') || '';
   const match = cookieHeader.match(new RegExp(`${SESSION_COOKIE}=([^;]+)`));
   return match?.[1];
@@ -67,12 +67,10 @@ function extractTokenFromRequest(request: Request): string | undefined {
 
 export async function getSessionFromRequest(request: Request): Promise<SessionUser | null> {
   try {
-    const token = extractTokenFromRequest(request);
+    const token = extractToken(request);
     if (!token) return null;
-
     const { payload } = await jwtVerify(token, SECRET);
     if (!payload.userId) return null;
-
     return {
       id: payload.userId as string,
       username: payload.username as string,
@@ -85,15 +83,14 @@ export async function getSessionFromRequest(request: Request): Promise<SessionUs
   }
 }
 
-/**
- * FULL: JWT + DB session check + fresh user data.
- * Use for writes, admin actions, or when you need to verify the session hasn't been revoked.
- */
+// ============================================================
+// FULL AUTH — JWT + DB verification
+// Used for write operations (POST/PATCH/DELETE) and admin actions
+// ============================================================
 export async function getSessionFromRequestFull(request: Request): Promise<SessionUser | null> {
   try {
-    const token = extractTokenFromRequest(request);
+    const token = extractToken(request);
     if (!token) return null;
-
     const { payload } = await jwtVerify(token, SECRET);
     const userId = payload.userId as string;
     if (!userId) return null;
@@ -108,34 +105,30 @@ export async function getSessionFromRequestFull(request: Request): Promise<Sessi
       select: { id: true, username: true, name: true, role: true, mustChangePassword: true, disabled: true },
     });
     if (!user || user.disabled) return null;
-
     return { id: user.id, username: user.username, name: user.name, role: user.role, mustChangePassword: user.mustChangePassword };
   } catch {
     return null;
   }
 }
 
+// Server component auth (full DB check — used once on page load)
 export async function getSession(): Promise<SessionUser | null> {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get(SESSION_COOKIE)?.value;
     if (!token) return null;
-
     const { payload } = await jwtVerify(token, SECRET);
     const userId = payload.userId as string;
     if (!userId) return null;
-
     const session = await prisma.session.findFirst({
       where: { token, expiresAt: { gt: new Date() } },
     });
     if (!session) return null;
-
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { id: true, username: true, name: true, role: true, mustChangePassword: true, disabled: true },
     });
     if (!user || user.disabled) return null;
-
     return { id: user.id, username: user.username, name: user.name, role: user.role, mustChangePassword: user.mustChangePassword };
   } catch {
     return null;
@@ -162,14 +155,11 @@ export async function login(
   const user = await prisma.user.findUnique({ where: { username } });
   if (!user) return { success: false, error: 'Invalid username or password' };
   if (user.disabled) return { success: false, error: 'This account has been disabled' };
-
   if (user.lockedUntil && user.lockedUntil > new Date()) {
     const minutesLeft = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60000);
     return { success: false, error: `Account locked. Try again in ${minutesLeft} minutes` };
   }
-
   const valid = await verifyPassword(user.passwordHash, password);
-
   if (!valid) {
     const attempts = user.loginAttempts + 1;
     const updates: any = { loginAttempts: attempts };
@@ -181,7 +171,6 @@ export async function login(
     if (attempts >= MAX_LOGIN_ATTEMPTS) return { success: false, error: 'Too many failed attempts. Account locked for 15 minutes' };
     return { success: false, error: 'Invalid username or password' };
   }
-
   await prisma.user.update({ where: { id: user.id }, data: { loginAttempts: 0, lockedUntil: null } });
   await createSession(user.id);
   return { success: true, mustChangePassword: user.mustChangePassword };

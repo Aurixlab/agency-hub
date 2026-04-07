@@ -57,7 +57,7 @@ export async function GET(request: Request) {
         select: { id: true, name: true, username: true },
       })
     : [];
-  const userMap = new Map(assigneeUsers.map(u => [u.id, u]));
+  const userMap = new Map(assigneeUsers.map((u: any) => [u.id, u]));
 
   const enriched = tasks.map((t: any) => {
     const ids = Array.isArray(t.assigneeIds) ? t.assigneeIds as string[] : [];

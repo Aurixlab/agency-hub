@@ -266,17 +266,22 @@ function KanbanView({ tasks, statuses, users, projectId, onRefetch, onTaskClick 
                                 </div>
                                 <div className="flex items-center justify-between mt-2.5">
                                   {(task.assignees && task.assignees.length > 0) ? (
-                                    <div className="flex items-center gap-1">
-                                      {task.assignees.slice(0, 3).map((a: any) => (
-                                        <div key={a.id} className="w-5 h-5 rounded-full bg-brand-100 dark:bg-brand-900 flex items-center justify-center" title={a.name}>
-                                          <span className="text-[10px] font-bold text-brand-700 dark:text-brand-300">
-                                            {a.name.charAt(0)}
-                                          </span>
-                                        </div>
-                                      ))}
-                                      {task.assignees.length > 3 && (
-                                        <span className="text-[10px] text-surface-500">+{task.assignees.length - 3}</span>
-                                      )}
+                                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                      <div className="flex items-center -space-x-1 flex-shrink-0">
+                                        {task.assignees.slice(0, 3).map((a: any) => (
+                                          <div key={a.id} className="w-5 h-5 rounded-full bg-brand-100 dark:bg-brand-900 flex items-center justify-center ring-1 ring-white dark:ring-surface-900" title={a.name}>
+                                            <span className="text-[10px] font-bold text-brand-700 dark:text-brand-300">
+                                              {a.name.charAt(0)}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                      <span className="text-[10px] text-surface-500 truncate">
+                                        {task.assignees.length <= 2
+                                          ? task.assignees.map((a: any) => a.name).join(', ')
+                                          : `${task.assignees[0].name} +${task.assignees.length - 1}`
+                                        }
+                                      </span>
                                     </div>
                                   ) : task.assignee ? (
                                     <div className="flex items-center gap-1.5">
@@ -384,7 +389,7 @@ function TableView({ tasks, statuses, users, onTaskClick }: any) {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm text-surface-600 dark:text-surface-400">
-                    {task.assignee?.name || (task.assignees?.length ? task.assignees.map((a: any) => a.name).join(', ') : '—')}
+                    {task.assignees?.length ? task.assignees.map((a: any) => a.name).join(', ') : (task.assignee?.name || '—')}
                   </td>
                   <td className="px-4 py-3 text-sm text-surface-600 dark:text-surface-400">
                     {task.dueDate ? format(new Date(task.dueDate), 'MMM d, yyyy') : '—'}

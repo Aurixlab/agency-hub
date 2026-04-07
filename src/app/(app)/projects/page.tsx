@@ -2,7 +2,7 @@
 
 import { useFetch, apiCall } from '@/hooks/useFetch';
 import { Project, Template } from '@/types';
-import { Plus, FolderKanban, RefreshCw, Trash2, RotateCcw, Search } from 'lucide-react';
+import { Plus, FolderKanban, RefreshCw, Trash2, RotateCcw, Search, X } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { format } from 'date-fns';
@@ -17,6 +17,8 @@ export default function ProjectsPage() {
   const [newTemplate, setNewTemplate] = useState('');
   const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState('');
+  const [customStatuses, setCustomStatuses] = useState<string[]>([]);
+  const [newStatusInput, setNewStatusInput] = useState('');
 
   const filteredProjects = projects?.filter(p =>
     !p.deletedAt &&
@@ -24,9 +26,35 @@ export default function ProjectsPage() {
      p.clientName?.toLowerCase().includes(search.toLowerCase()))
   ) || [];
 
+  const addStatus = () => {
+    const val = newStatusInput.trim();
+    if (!val) return;
+    if (customStatuses.length >= 10) {
+      toast.error('Maximum 10 workflow stages allowed');
+      return;
+    }
+    if (customStatuses.some(s => s.toLowerCase() === val.toLowerCase())) {
+      toast.error('This workflow name already exists');
+      return;
+    }
+    setCustomStatuses([...customStatuses, val]);
+    setNewStatusInput('');
+  };
+
+  const removeStatus = (index: number) => {
+    setCustomStatuses(customStatuses.filter((_, i) => i !== index));
+  };
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return;
+
+    // If no template and no custom statuses, warn user
+    if (!newTemplate && customStatuses.length === 0) {
+      toast.error('Add at least one workflow stage or select a template');
+      return;
+    }
+
     setCreating(true);
 
     const { data, error } = await apiCall('/api/projects', {
@@ -35,6 +63,7 @@ export default function ProjectsPage() {
         name: newName,
         clientName: newClient || null,
         templateId: newTemplate || null,
+        customStatuses: !newTemplate ? customStatuses : undefined,
       }),
     });
 
@@ -46,6 +75,8 @@ export default function ProjectsPage() {
       setNewName('');
       setNewClient('');
       setNewTemplate('');
+      setCustomStatuses([]);
+      setNewStatusInput('');
       refetch();
     }
     setCreating(false);
@@ -56,6 +87,15 @@ export default function ProjectsPage() {
     const { error } = await apiCall(`/api/projects/${id}`, { method: 'DELETE' });
     if (error) toast.error(error);
     else { toast.success('Project moved to trash'); refetch(); }
+  };
+
+  const closeModal = () => {
+    setShowNew(false);
+    setNewName('');
+    setNewClient('');
+    setNewTemplate('');
+    setCustomStatuses([]);
+    setNewStatusInput('');
   };
 
   return (
@@ -92,9 +132,14 @@ export default function ProjectsPage() {
 
       {/* Create project modal */}
       {showNew && (
-        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={() => setShowNew(false)}>
-          <div className="card p-6 w-full max-w-lg animate-slide-up" onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-bold text-surface-900 dark:text-white mb-4">Create Project</h2>
+        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={closeModal}>
+          <div className="card p-6 w-full max-w-lg animate-slide-up max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-surface-900 dark:text-white">Create Project</h2>
+              <button onClick={closeModal} className="p-1 rounded hover:bg-surface-100 dark:hover:bg-surface-800">
+                <X className="w-4 h-4 text-surface-500" />
+              </button>
+            </div>
             <form onSubmit={handleCreate} className="space-y-4">
               <div>
                 <label className="label">Project Name *</label>
@@ -120,20 +165,95 @@ export default function ProjectsPage() {
                 <label className="label">Template</label>
                 <select
                   value={newTemplate}
-                  onChange={e => setNewTemplate(e.target.value)}
+                  onChange={e => {
+                    setNewTemplate(e.target.value);
+                    if (e.target.value) setCustomStatuses([]);
+                  }}
                   className="select"
                 >
-                  <option value="">No template (blank project)</option>
+                  <option value="">No template (custom workflow)</option>
                   {templates?.map(t => (
                     <option key={t.id} value={t.id}>{t.name}</option>
                   ))}
                 </select>
                 <p className="text-xs text-surface-500 mt-1">
-                  Templates pre-fill statuses, tags, and sample tasks
+                  {newTemplate
+                    ? 'Templates pre-fill statuses, tags, and sample tasks'
+                    : 'Define your own workflow stages below'
+                  }
                 </p>
               </div>
+
+              {/* Custom workflow stages — only shown when no template */}
+              {!newTemplate && (
+                <div>
+                  <label className="label">Workflow Stages *</label>
+                  <p className="text-xs text-surface-500 mb-2">
+                    Add up to 10 stages. Tasks will move through these stages left to right on the board.
+                  </p>
+
+                  {/* Current stages */}
+                  {customStatuses.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                      {customStatuses.map((status, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-100 dark:bg-surface-800 text-sm text-surface-700 dark:text-surface-300"
+                        >
+                          <span className="text-[10px] text-surface-400 mr-0.5">{idx + 1}.</span>
+                          {status}
+                          <button
+                            type="button"
+                            onClick={() => removeStatus(idx)}
+                            className="ml-0.5 p-0.5 rounded hover:bg-surface-200 dark:hover:bg-surface-700 text-surface-400 hover:text-red-500"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Add new stage */}
+                  {customStatuses.length < 10 && (
+                    <div className="flex gap-2">
+                      <input
+                        value={newStatusInput}
+                        onChange={e => setNewStatusInput(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            addStatus();
+                          }
+                        }}
+                        className="input flex-1"
+                        placeholder={customStatuses.length === 0 ? 'e.g. Backlog' : `Stage ${customStatuses.length + 1}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={addStatus}
+                        className="btn-secondary btn-sm"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Add
+                      </button>
+                    </div>
+                  )}
+
+                  {customStatuses.length >= 10 && (
+                    <p className="text-xs text-surface-400 mt-1">Maximum 10 stages reached</p>
+                  )}
+
+                  {customStatuses.length === 0 && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                      Add at least one workflow stage to create the project
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setShowNew(false)} className="btn-secondary">Cancel</button>
+                <button type="button" onClick={closeModal} className="btn-secondary">Cancel</button>
                 <button type="submit" disabled={creating} className="btn-primary">
                   {creating ? 'Creating...' : 'Create Project'}
                 </button>
@@ -189,12 +309,15 @@ export default function ProjectsPage() {
                 <span>Updated {format(new Date(project.updatedAt), 'MMM d')}</span>
               </div>
               {project.statuses && (
-                <div className="flex gap-1 mt-3">
+                <div className="flex gap-1 mt-3 flex-wrap">
                   {(project.statuses as string[]).slice(0, 5).map(s => (
                     <span key={s} className="px-2 py-0.5 rounded text-[10px] bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-400">
                       {s}
                     </span>
                   ))}
+                  {(project.statuses as string[]).length > 5 && (
+                    <span className="text-[10px] text-surface-400">+{(project.statuses as string[]).length - 5}</span>
+                  )}
                 </div>
               )}
             </Link>

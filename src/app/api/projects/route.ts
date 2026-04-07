@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSessionFromRequest, getSessionFromRequestFull } from '@/lib/auth';
+import { getSessionFromRequest } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { logActivity } from '@/lib/activity';
 
@@ -23,12 +23,12 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const session = await getSessionFromRequestFull(request);
+  const session = await getSessionFromRequest(request);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
     const body = await request.json();
-    const { name, clientName, templateId } = body;
+    const { name, clientName, templateId, customStatuses } = body;
 
     if (!name?.trim()) {
       return NextResponse.json({ error: 'Project name is required' }, { status: 400 });
@@ -48,6 +48,18 @@ export async function POST(request: Request) {
         priorities = config.priorities || priorities;
         tags = config.tags || [];
         seedTasks = config.sampleTasks || [];
+      }
+    }
+
+    // If no template but custom statuses provided, use those
+    if (!templateId && Array.isArray(customStatuses) && customStatuses.length > 0) {
+      // Filter empty strings, trim whitespace, limit to 10
+      statuses = customStatuses
+        .map((s: string) => s?.trim())
+        .filter((s: string) => s && s.length > 0)
+        .slice(0, 10);
+      if (statuses.length === 0) {
+        statuses = ['Backlog', 'Ready', 'In Progress', 'Review', 'Done'];
       }
     }
 

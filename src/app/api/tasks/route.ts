@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSessionFromRequest, getSessionFromRequestFull } from '@/lib/auth';
+import { getSessionFromRequest } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { logActivity } from '@/lib/activity';
 
@@ -23,9 +23,16 @@ export async function GET(request: Request) {
   if (dueBefore) where.dueDate = { lte: new Date(dueBefore) };
 
   if (myTasks) {
-    where.assigneeId = session.id;
+    // Check BOTH assigneeId (legacy single) AND assigneeIds (multi-assign JSON array)
+    where.OR = [
+      { assigneeId: session.id },
+      { assigneeIds: { array_contains: [session.id] } },
+    ];
   } else if (assigneeId) {
-    where.assigneeId = assigneeId;
+    where.OR = [
+      { assigneeId: assigneeId },
+      { assigneeIds: { array_contains: [assigneeId] } },
+    ];
   }
 
   const tasks = await prisma.task.findMany({
@@ -64,7 +71,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const session = await getSessionFromRequestFull(request);
+  const session = await getSessionFromRequest(request);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {

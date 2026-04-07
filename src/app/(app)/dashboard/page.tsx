@@ -2,9 +2,10 @@
 
 import { useFetch } from '@/hooks/useFetch';
 import { Task, Project } from '@/types';
-import { RefreshCw, Clock, CheckCircle2, AlertTriangle, FolderKanban, ArrowRight } from 'lucide-react';
+import { RefreshCw, Clock, CheckCircle2, AlertTriangle, FolderKanban, ArrowRight, ListTodo } from 'lucide-react';
 import Link from 'next/link';
-import { format, isBefore, addDays } from 'date-fns';
+import { format, isAfter, isBefore, addDays } from 'date-fns';
+import { useState, useEffect } from 'react';
 
 const priorityColors: Record<string, string> = {
   URGENT: 'priority-urgent',
@@ -14,25 +15,26 @@ const priorityColors: Record<string, string> = {
   NONE: 'priority-none',
 };
 
-interface DashboardData {
-  user: { id: string; name: string; username: string; role: string };
-  myTasks: Task[];
-  projects: Project[];
-}
+const priorityOrder: Record<string, number> = { URGENT: 0, HIGH: 1, MEDIUM: 2, LOW: 3, NONE: 4 };
 
 export default function DashboardPage() {
-  // ONE request instead of 3 separate ones
-  const { data, loading, refetch } = useFetch<DashboardData>('/api/dashboard');
+  const { data: myTasks, loading: loadingTasks, refetch: refetchTasks } = useFetch<Task[]>('/api/tasks?myTasks=true');
+  const { data: allTasks, loading: loadingAll, refetch: refetchAll } = useFetch<Task[]>('/api/tasks');
+  const { data: projects, loading: loadingProjects, refetch: refetchProjects } = useFetch<Project[]>('/api/projects');
+  const { data: users } = useFetch<any[]>('/api/users', { pollInterval: false });
+  const [user, setUser] = useState<any>(null);
 
-  const user = data?.user;
-  const myTasks = data?.myTasks || [];
-  const projects = data?.projects || [];
+  useEffect(() => {
+    fetch('/api/auth/me').then(r => r.json()).then(setUser).catch(() => {});
+  }, []);
 
-  const activeTasks = myTasks.filter(t => t.status !== 'Done' && !t.deletedAt);
+  const activeTasks = myTasks?.filter(t => t.status !== 'Done' && !t.deletedAt) || [];
   const dueSoonTasks = activeTasks
     .filter(t => t.dueDate && isBefore(new Date(t.dueDate), addDays(new Date(), 7)))
     .sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime());
-  const activeProjects = projects.filter(p => p.status === 'active' && !p.deletedAt);
+  const activeProjects = projects?.filter(p => p.status === 'active' && !p.deletedAt) || [];
+
+  const refetchEverything = () => { refetchTasks(); refetchAll(); refetchProjects(); };
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -46,7 +48,7 @@ export default function DashboardPage() {
             Here&apos;s what&apos;s on your plate
           </p>
         </div>
-        <button onClick={() => refetch()} className="btn-secondary btn-sm" title="Refresh">
+        <button onClick={refetchEverything} className="btn-secondary btn-sm" title="Refresh">
           <RefreshCw className="w-3.5 h-3.5" />
           Refresh
         </button>
@@ -54,30 +56,14 @@ export default function DashboardPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          label="My Active Tasks"
-          value={activeTasks.length}
-          icon={<CheckCircle2 className="w-5 h-5 text-brand-600" />}
-          color="brand"
-        />
-        <StatCard
-          label="Due This Week"
-          value={dueSoonTasks.length}
-          icon={<Clock className="w-5 h-5 text-orange-600" />}
-          color="orange"
-        />
-        <StatCard
-          label="Urgent"
-          value={activeTasks.filter(t => t.priority === 'URGENT').length}
-          icon={<AlertTriangle className="w-5 h-5 text-red-600" />}
-          color="red"
-        />
-        <StatCard
-          label="Active Projects"
-          value={activeProjects.length}
-          icon={<FolderKanban className="w-5 h-5 text-emerald-600" />}
-          color="emerald"
-        />
+        <StatCard label="My Active Tasks" value={activeTasks.length}
+          icon={<CheckCircle2 className="w-5 h-5 text-brand-600" />} color="brand" />
+        <StatCard label="Due This Week" value={dueSoonTasks.length}
+          icon={<Clock className="w-5 h-5 text-orange-600" />} color="orange" />
+        <StatCard label="Urgent" value={activeTasks.filter(t => t.priority === 'URGENT').length}
+          icon={<AlertTriangle className="w-5 h-5 text-red-600" />} color="red" />
+        <StatCard label="Active Projects" value={activeProjects.length}
+          icon={<FolderKanban className="w-5 h-5 text-emerald-600" />} color="emerald" />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
@@ -88,7 +74,7 @@ export default function DashboardPage() {
             <span className="text-xs text-surface-500">{activeTasks.length} active</span>
           </div>
           <div className="divide-y divide-surface-100 dark:divide-surface-800 max-h-[480px] overflow-y-auto">
-            {loading ? (
+            {loadingTasks ? (
               <div className="p-8 text-center text-surface-400">Loading...</div>
             ) : activeTasks.length === 0 ? (
               <div className="p-8 text-center text-surface-400">
@@ -161,7 +147,7 @@ export default function DashboardPage() {
               </Link>
             </div>
             <div className="divide-y divide-surface-100 dark:divide-surface-800">
-              {loading ? (
+              {loadingProjects ? (
                 <div className="p-6 text-center text-surface-400">Loading...</div>
               ) : activeProjects.length === 0 ? (
                 <div className="p-6 text-center text-surface-400 text-sm">No active projects</div>
@@ -190,6 +176,171 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* ==================== ALL TASKS TABLE ==================== */}
+      <AllTasksTable
+        tasks={allTasks || []}
+        loading={loadingAll}
+        users={users || []}
+      />
+    </div>
+  );
+}
+
+// ==================== ALL TASKS TABLE COMPONENT ====================
+function AllTasksTable({ tasks, loading, users }: { tasks: Task[]; loading: boolean; users: any[] }) {
+  const [sortField, setSortField] = useState<string>('status');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [filterAssignee, setFilterAssignee] = useState('');
+
+  // Filter out deleted tasks, then apply assignee filter
+  const activeTasks = tasks.filter(t => !t.deletedAt);
+
+  const filtered = filterAssignee
+    ? activeTasks.filter(t => {
+        if (t.assigneeId === filterAssignee) return true;
+        if (t.assignees?.some((a: any) => a.id === filterAssignee)) return true;
+        const ids = Array.isArray(t.assigneeIds) ? t.assigneeIds : [];
+        return ids.includes(filterAssignee);
+      })
+    : activeTasks;
+
+  const sorted = [...filtered].sort((a, b) => {
+    let cmp = 0;
+    if (sortField === 'title') cmp = a.title.localeCompare(b.title);
+    else if (sortField === 'status') cmp = a.status.localeCompare(b.status);
+    else if (sortField === 'priority') cmp = (priorityOrder[a.priority] ?? 4) - (priorityOrder[b.priority] ?? 4);
+    else if (sortField === 'dueDate') cmp = (a.dueDate || '9999').localeCompare(b.dueDate || '9999');
+    else if (sortField === 'assignee') {
+      const aName = a.assignees?.[0]?.name || a.assignee?.name || 'zzz';
+      const bName = b.assignees?.[0]?.name || b.assignee?.name || 'zzz';
+      cmp = aName.localeCompare(bName);
+    }
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
+
+  const toggleSort = (field: string) => {
+    if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortField(field); setSortDir('asc'); }
+  };
+
+  const SortHeader = ({ field, children }: { field: string; children: React.ReactNode }) => (
+    <th
+      onClick={() => toggleSort(field)}
+      className="px-4 py-3 text-left text-xs font-medium text-surface-500 dark:text-surface-400 uppercase tracking-wider cursor-pointer hover:text-surface-700 dark:hover:text-surface-200 select-none transition-colors"
+    >
+      {children} {sortField === field && (sortDir === 'asc' ? '↑' : '↓')}
+    </th>
+  );
+
+  const getAssigneeNames = (task: Task): string => {
+    if (task.assignees && task.assignees.length > 0) {
+      return task.assignees.map((a: any) => a.name).join(', ');
+    }
+    if (task.assignee) return task.assignee.name;
+    return '—';
+  };
+
+  return (
+    <div className="card p-0">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-surface-200 dark:border-surface-800">
+        <div className="flex items-center gap-2">
+          <ListTodo className="w-4 h-4 text-surface-500" />
+          <h2 className="font-semibold text-surface-900 dark:text-white">All Tasks</h2>
+          <span className="text-xs text-surface-500 ml-1">({filtered.length})</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <select
+            value={filterAssignee}
+            onChange={e => setFilterAssignee(e.target.value)}
+            className="select py-1.5 text-xs w-40"
+          >
+            <option value="">All members</option>
+            {users.filter(u => !u.disabled).map(u => (
+              <option key={u.id} value={u.id}>{u.name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead className="border-b border-surface-200 dark:border-surface-800">
+            <tr>
+              <SortHeader field="title">Task</SortHeader>
+              <SortHeader field="status">Status</SortHeader>
+              <SortHeader field="assignee">Assigned To</SortHeader>
+              <SortHeader field="priority">Priority</SortHeader>
+              <SortHeader field="dueDate">Due Date</SortHeader>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-surface-100 dark:divide-surface-800">
+            {loading ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-12 text-center text-surface-400 text-sm">Loading all tasks...</td>
+              </tr>
+            ) : sorted.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-12 text-center text-surface-400 text-sm">
+                  {filterAssignee ? 'No tasks assigned to this member' : 'No tasks found'}
+                </td>
+              </tr>
+            ) : (
+              sorted.map((task: Task) => (
+                <tr key={task.id} className="hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors">
+                  <td className="px-4 py-3">
+                    <Link href={`/projects/${task.projectId}`} className="block">
+                      <p className="text-sm font-medium text-surface-900 dark:text-white hover:text-brand-600 dark:hover:text-brand-400 transition-colors">
+                        {task.title}
+                      </p>
+                      <p className="text-xs text-surface-500 mt-0.5">{task.project?.name}</p>
+                    </Link>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="badge bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-surface-300">
+                      {task.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1.5">
+                      {(task.assignees && task.assignees.length > 0) ? (
+                        <>
+                          <div className="flex -space-x-1">
+                            {task.assignees.slice(0, 3).map((a: any) => (
+                              <div key={a.id} className="w-5 h-5 rounded-full bg-brand-100 dark:bg-brand-900 flex items-center justify-center ring-1 ring-white dark:ring-surface-900" title={a.name}>
+                                <span className="text-[10px] font-bold text-brand-700 dark:text-brand-300">{a.name.charAt(0)}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <span className="text-sm text-surface-600 dark:text-surface-400">
+                            {getAssigneeNames(task)}
+                          </span>
+                        </>
+                      ) : task.assignee ? (
+                        <>
+                          <div className="w-5 h-5 rounded-full bg-brand-100 dark:bg-brand-900 flex items-center justify-center">
+                            <span className="text-[10px] font-bold text-brand-700 dark:text-brand-300">{task.assignee.name.charAt(0)}</span>
+                          </div>
+                          <span className="text-sm text-surface-600 dark:text-surface-400">{task.assignee.name}</span>
+                        </>
+                      ) : (
+                        <span className="text-sm text-surface-400">—</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`badge ${priorityColors[task.priority]}`}>
+                      {task.priority === 'NONE' ? '—' : task.priority}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-surface-600 dark:text-surface-400">
+                    {task.dueDate ? format(new Date(task.dueDate), 'MMM d, yyyy') : '—'}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );

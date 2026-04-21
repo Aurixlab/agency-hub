@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   const summary = await summarizeTaskActivity({
     taskTitle: task.title,
     projectName: task.project?.name ?? 'Unknown Project',
-    activities: activities.map((a) => ({
+    activities: activities.map((a: any) => ({
       actor: a.actor.name,
       action: a.action,
       before: a.before,

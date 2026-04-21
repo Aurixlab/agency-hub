@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useState, useEffect, useCallback } from 'react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isSameMonth, addMonths, subMonths } from 'date-fns';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import { Plus, Table, Columns3, Calendar, RefreshCw, ArrowLeft, Search, X, ChevronLeft, ChevronRight, MessageSquare, GripVertical } from 'lucide-react';
+import { Plus, Table, Columns3, Calendar, RefreshCw, ArrowLeft, Search, X, ChevronLeft, ChevronRight, MessageSquare, GripVertical, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 
@@ -599,6 +599,8 @@ function TaskDetailModal({ taskId, statuses, users, projectTags, onClose, onUpda
   const [saving, setSaving] = useState(false);
   const [comment, setComment] = useState('');
   const [conflict, setConflict] = useState(false);
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [summarizing, setSummarizing] = useState(false);
 
   const toggleAssignee = (id: string) => {
     setAssigneeIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -814,9 +816,40 @@ function TaskDetailModal({ taskId, statuses, users, projectTags, onClose, onUpda
               <>
                 <button onClick={() => setEditing(true)} className="btn-primary btn-sm">Edit</button>
                 <button onClick={handleDelete} className="btn-danger btn-sm">Delete</button>
+                <button
+                  onClick={async () => {
+                    setSummarizing(true);
+                    setAiSummary(null);
+                    const res = await fetch('/api/ai/summarize', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ taskId }),
+                    });
+                    const data = await res.json();
+                    if (data.summary) setAiSummary(data.summary);
+                    else toast.error(data.error || 'Failed to summarize');
+                    setSummarizing(false);
+                  }}
+                  disabled={summarizing}
+                  className="btn-ghost btn-sm ml-auto"
+                  title="Summarize activity with AI"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  {summarizing ? 'Summarizing...' : 'AI Summary'}
+                </button>
               </>
             )}
           </div>
+
+          {/* AI Summary */}
+          {aiSummary && (
+            <div className="px-4 py-3 rounded-lg bg-brand-50 dark:bg-brand-950/30 border border-brand-200 dark:border-brand-800 text-sm text-brand-900 dark:text-brand-100">
+              <p className="text-xs font-semibold text-brand-600 dark:text-brand-400 mb-1 flex items-center gap-1">
+                <Sparkles className="w-3 h-3" /> AI Summary
+              </p>
+              {aiSummary}
+            </div>
+          )}
 
           {/* Comments */}
           <div className="pt-4 border-t border-surface-200 dark:border-surface-800">

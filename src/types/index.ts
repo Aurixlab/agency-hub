@@ -2,6 +2,7 @@ export interface User {
   id: string;
   username: string;
   name: string;
+  email?: string | null;
   role: 'ADMIN' | 'MEMBER' | 'GUEST';
   disabled: boolean;
   mustChangePassword: boolean;

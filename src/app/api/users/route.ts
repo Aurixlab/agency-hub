@@ -13,6 +13,7 @@ export async function GET(request: Request) {
       id: true,
       username: true,
       name: true,
+      email: true,
       role: true,
       disabled: true,
       mustChangePassword: true,
@@ -31,7 +32,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { username, name, role, password } = await request.json();
+    const { username, name, role, password, email } = await request.json();
 
     if (!username?.trim() || !name?.trim() || !password) {
       return NextResponse.json({ error: 'Username, name, and password are required' }, { status: 400 });
@@ -53,6 +54,7 @@ export async function POST(request: Request) {
       data: {
         username: username.toLowerCase().trim(),
         name: name.trim(),
+        email: email?.trim() || null,
         role: role || 'MEMBER',
         passwordHash: hash,
         mustChangePassword: true,
@@ -61,6 +63,7 @@ export async function POST(request: Request) {
         id: true,
         username: true,
         name: true,
+        email: true,
         role: true,
         disabled: true,
         mustChangePassword: true,

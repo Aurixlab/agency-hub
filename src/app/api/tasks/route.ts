@@ -14,10 +14,15 @@ export async function GET(request: Request) {
   const priority = searchParams.get('priority');
   const dueBefore = searchParams.get('dueBefore');
   const myTasks = searchParams.get('myTasks') === 'true';
+  const standalone = searchParams.get('standalone') === 'true';
 
   const where: any = { deletedAt: null };
 
-  if (projectId) where.projectId = projectId;
+  if (standalone) {
+    where.projectId = { equals: null };
+  } else if (projectId) {
+    where.projectId = projectId;
+  }
   if (status) where.status = status;
   if (priority) where.priority = priority;
   if (dueBefore) where.dueDate = { lte: new Date(dueBefore) };
@@ -78,21 +83,21 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { projectId, title, description, status, priority, assigneeIds, dueDate, tags } = body;
 
-    if (!projectId || !title?.trim()) {
-      return NextResponse.json({ error: 'Project ID and title are required' }, { status: 400 });
+    if (!title?.trim()) {
+      return NextResponse.json({ error: 'Title is required' }, { status: 400 });
     }
 
     const resolvedIds: string[] = Array.isArray(assigneeIds) ? assigneeIds : [];
 
     const maxOrder = await prisma.task.findFirst({
-      where: { projectId, status: status || 'Backlog', deletedAt: null },
+      where: { projectId: projectId ? projectId : { equals: null }, status: status || 'Backlog', deletedAt: null },
       orderBy: { orderIndex: 'desc' },
       select: { orderIndex: true },
     });
 
     const task = await prisma.task.create({
       data: {
-        projectId,
+        projectId: projectId || undefined,
         title: title.trim(),
         description: description?.trim() || null,
         status: status || 'Backlog',

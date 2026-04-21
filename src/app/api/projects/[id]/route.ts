@@ -29,7 +29,26 @@ export async function GET(
     return NextResponse.json({ error: 'Project not found' }, { status: 404 });
   }
 
-  return NextResponse.json(project);
+  // Resolve assigneeIds → assignees[] the same way the tasks API does
+  const allAssigneeIds = Array.from(new Set(project.tasks.flatMap((t: any) => {
+    const ids = t.assigneeIds as string[] | undefined;
+    return Array.isArray(ids) ? ids : [];
+  })));
+
+  const assigneeUsers = allAssigneeIds.length > 0
+    ? await prisma.user.findMany({
+        where: { id: { in: allAssigneeIds } },
+        select: { id: true, name: true, username: true },
+      })
+    : [];
+  const userMap = new Map(assigneeUsers.map(u => [u.id, u]));
+
+  const enrichedTasks = project.tasks.map((t: any) => {
+    const ids = Array.isArray(t.assigneeIds) ? t.assigneeIds as string[] : [];
+    return { ...t, assignees: ids.map((id: string) => userMap.get(id)).filter(Boolean) };
+  });
+
+  return NextResponse.json({ ...project, tasks: enrichedTasks });
 }
 
 export async function PATCH(

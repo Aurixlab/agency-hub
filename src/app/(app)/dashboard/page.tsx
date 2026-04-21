@@ -19,6 +19,7 @@ const priorityOrder: Record<string, number> = { URGENT: 0, HIGH: 1, MEDIUM: 2, L
 
 export default function DashboardPage() {
   const { data: myTasks, loading: loadingTasks, refetch: refetchTasks } = useFetch<Task[]>('/api/tasks?myTasks=true');
+  const { data: standaloneTasks, refetch: refetchStandalone } = useFetch<Task[]>('/api/tasks?standalone=true');
   const { data: allTasks, loading: loadingAll, refetch: refetchAll } = useFetch<Task[]>('/api/tasks');
   const { data: projects, loading: loadingProjects, refetch: refetchProjects } = useFetch<Project[]>('/api/projects');
   const { data: users } = useFetch<any[]>('/api/users', { pollInterval: false });
@@ -28,13 +29,23 @@ export default function DashboardPage() {
     fetch('/api/auth/me').then(r => r.json()).then(setUser).catch(() => {});
   }, []);
 
-  const activeTasks = myTasks?.filter(t => t.status !== 'Done' && !t.deletedAt) || [];
+  // Merge assigned project tasks + standalone tasks, deduplicated
+  const combinedTasks = [
+    ...(myTasks || []),
+    ...(standaloneTasks || []).filter(s => !(myTasks || []).some(m => m.id === s.id)),
+  ];
+  const activeTasks = combinedTasks.filter(t => {
+    if (t.deletedAt) return false;
+    const statuses = t.project?.statuses as string[] | undefined;
+    const doneStatus = statuses && statuses.length > 0 ? statuses[statuses.length - 1] : 'Done';
+    return t.status !== doneStatus;
+  });
   const dueSoonTasks = activeTasks
     .filter(t => t.dueDate && isBefore(new Date(t.dueDate), addDays(new Date(), 7)))
     .sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime());
   const activeProjects = projects?.filter(p => p.status === 'active' && !p.deletedAt) || [];
 
-  const refetchEverything = () => { refetchTasks(); refetchAll(); refetchProjects(); };
+  const refetchEverything = () => { refetchTasks(); refetchStandalone(); refetchAll(); refetchProjects(); };
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -85,7 +96,7 @@ export default function DashboardPage() {
               activeTasks.slice(0, 15).map(task => (
                 <Link
                   key={task.id}
-                  href={`/projects/${task.projectId}`}
+                  href={task.projectId ? `/projects/${task.projectId}` : '/tasks'}
                   className="flex items-center gap-3 px-5 py-3.5 hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors"
                 >
                   <span className={`badge ${priorityColors[task.priority]}`}>
@@ -96,7 +107,7 @@ export default function DashboardPage() {
                       {task.title}
                     </p>
                     <p className="text-xs text-surface-500 mt-0.5">
-                      {task.project?.name} · {task.status}
+                      {task.project?.name ?? 'Personal'} · {task.status}
                     </p>
                   </div>
                   {task.dueDate && (

@@ -12,9 +12,9 @@ import {
   Sun,
   Moon,
   LogOut,
-  RefreshCw,
   ChevronLeft,
   Menu,
+  ListTodo,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -30,6 +30,7 @@ interface SidebarProps {
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/projects', label: 'Projects', icon: FolderKanban },
+  { href: '/tasks', label: 'My Tasks', icon: ListTodo },
   { href: '/templates', label: 'Templates', icon: LayoutTemplate },
   { href: '/team', label: 'Team', icon: Users },
 ];

@@ -208,7 +208,8 @@ function KanbanView({ tasks, statuses, users, projectId, onRefetch, onTaskClick 
 
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
-      <div className="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4">
+      <div className="overflow-x-auto -mx-4 px-4" style={{ transform: 'rotateX(180deg)' }}>
+        <div className="flex gap-4 pb-4" style={{ transform: 'rotateX(180deg)' }}>
         {statuses.map((status: string) => {
           const columnTasks = tasks
             .filter((t: Task) => t.status === status)
@@ -314,6 +315,7 @@ function KanbanView({ tasks, statuses, users, projectId, onRefetch, onTaskClick 
             </div>
           );
         })}
+        </div>
       </div>
     </DragDropContext>
   );

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSessionFromRequest, getSessionFromRequestFull } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { logActivity } from '@/lib/activity';
+import { createNotification } from '@/lib/notifications';
 
 export async function GET(
   request: Request,
@@ -74,6 +75,8 @@ export async function PATCH(
       );
     }
 
+    const prevAssigneeIds: string[] = Array.isArray(current.assigneeIds) ? current.assigneeIds as string[] : [];
+
     const before = {
       title: current.title,
       status: current.status,
@@ -120,6 +123,41 @@ export async function PATCH(
         dueDate: updated.dueDate,
       },
     });
+
+    // Notify newly added assignees
+    const newAssigneeIds: string[] = Array.isArray(updated.assigneeIds) ? updated.assigneeIds as string[] : [];
+    const addedIds = newAssigneeIds.filter(uid => !prevAssigneeIds.includes(uid) && uid !== session.id);
+    if (addedIds.length > 0) {
+      const actor = await prisma.user.findUnique({ where: { id: session.id }, select: { name: true } });
+      await Promise.all(
+        addedIds.map(uid => createNotification({
+          userId: uid,
+          type: 'task_assigned',
+          taskId: params.id,
+          actorName: actor?.name ?? 'Someone',
+          taskTitle: updated.title,
+        }))
+      );
+    }
+
+    // Log 'completed' when task moves into the done status
+    if (updates.status && current.projectId) {
+      const project = await prisma.project.findUnique({
+        where: { id: current.projectId },
+        select: { statuses: true },
+      });
+      const statuses = Array.isArray(project?.statuses) ? project!.statuses as string[] : [];
+      const doneStatus = statuses.length > 0 ? statuses[statuses.length - 1] : null;
+      if (doneStatus && updates.status === doneStatus && current.status !== doneStatus) {
+        await logActivity({
+          actorId: session.id,
+          entityType: 'task',
+          entityId: params.id,
+          action: 'completed',
+          after: { title: updated.title },
+        });
+      }
+    }
 
     return NextResponse.json(updated);
   } catch (error) {

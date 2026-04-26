@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSessionFromRequest, getSessionFromRequestFull } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { logActivity } from '@/lib/activity';
+import { createNotification } from '@/lib/notifications';
 
 export async function POST(request: Request) {
   const session = await getSessionFromRequestFull(request);
@@ -32,6 +33,26 @@ export async function POST(request: Request) {
       action: 'created',
       after: { taskId, body: body.trim().substring(0, 100) },
     });
+
+    // Notify task assignees (except the commenter)
+    const task = await prisma.task.findUnique({
+      where: { id: taskId },
+      select: { title: true, assigneeId: true, assigneeIds: true },
+    });
+    if (task) {
+      const ids = Array.isArray(task.assigneeIds) ? task.assigneeIds as string[] : [];
+      if (task.assigneeId && !ids.includes(task.assigneeId)) ids.push(task.assigneeId);
+      const uniqueIds = Array.from(new Set(ids)).filter((uid: string) => uid !== session.id);
+      await Promise.all(
+        uniqueIds.map(uid => createNotification({
+          userId: uid,
+          type: 'comment_added',
+          taskId,
+          actorName: session.name,
+          taskTitle: task.title,
+        }))
+      );
+    }
 
     return NextResponse.json(comment, { status: 201 });
   } catch (error) {

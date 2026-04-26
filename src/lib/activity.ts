@@ -4,7 +4,7 @@ export async function logActivity(params: {
   actorId: string;
   entityType: 'project' | 'task' | 'comment' | 'user';
   entityId: string;
-  action: 'created' | 'updated' | 'deleted' | 'restored';
+  action: 'created' | 'updated' | 'deleted' | 'restored' | 'completed';
   before?: any;
   after?: any;
 }) {

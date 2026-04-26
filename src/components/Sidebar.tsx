@@ -15,8 +15,13 @@ import {
   ChevronLeft,
   Menu,
   ListTodo,
+  Bell,
+  UserPlus,
+  MessageSquare,
+  X,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { formatDistanceToNow } from 'date-fns';
 
 interface SidebarProps {
   user: {
@@ -25,6 +30,16 @@ interface SidebarProps {
     username: string;
     role: string;
   };
+}
+
+interface Notification {
+  id: string;
+  type: 'task_assigned' | 'comment_added';
+  taskId?: string | null;
+  actorName: string;
+  taskTitle: string;
+  read: boolean;
+  createdAt: string;
 }
 
 const navItems = [
@@ -45,6 +60,48 @@ export default function Sidebar({ user }: SidebarProps) {
   const { theme, toggle } = useTheme();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  // Poll notifications every 30s
+  useEffect(() => {
+    const fetchNotifs = async () => {
+      try {
+        const res = await fetch('/api/notifications');
+        if (res.ok) {
+          const data = await res.json();
+          setNotifications(data.notifications ?? []);
+          setUnreadCount(data.unreadCount ?? 0);
+        }
+      } catch {}
+    };
+    fetchNotifs();
+    const interval = setInterval(fetchNotifs, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotifOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const openNotifications = async () => {
+    setNotifOpen(o => !o);
+    if (!notifOpen && unreadCount > 0) {
+      // Mark all read
+      await fetch('/api/notifications', { method: 'PATCH' });
+      setUnreadCount(0);
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    }
+  };
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -100,6 +157,67 @@ export default function Sidebar({ user }: SidebarProps) {
 
       {/* Bottom */}
       <div className="border-t border-surface-200 dark:border-surface-800 px-3 py-4 space-y-1">
+        {/* Notifications bell */}
+        <div className="relative" ref={notifRef}>
+          <button
+            onClick={openNotifications}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-surface-600 hover:bg-surface-100 hover:text-surface-900 dark:text-surface-400 dark:hover:bg-surface-800 dark:hover:text-surface-200 w-full transition-all relative"
+          >
+            <div className="relative flex-shrink-0">
+              <Bell className="w-[18px] h-[18px]" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-0.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </div>
+            {!collapsed && <span>Notifications</span>}
+          </button>
+
+          {/* Dropdown */}
+          {notifOpen && (
+            <div className="absolute bottom-full left-0 mb-2 w-80 bg-white dark:bg-surface-900 rounded-xl shadow-elevated border border-surface-200 dark:border-surface-700 z-50 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-surface-200 dark:border-surface-800">
+                <h3 className="text-sm font-semibold text-surface-900 dark:text-white">Notifications</h3>
+                <button onClick={() => setNotifOpen(false)} className="p-0.5 rounded hover:bg-surface-100 dark:hover:bg-surface-800">
+                  <X className="w-4 h-4 text-surface-400" />
+                </button>
+              </div>
+              <div className="max-h-80 overflow-y-auto divide-y divide-surface-100 dark:divide-surface-800">
+                {notifications.length === 0 ? (
+                  <div className="px-4 py-8 text-center text-surface-400 text-sm">No notifications yet</div>
+                ) : (
+                  notifications.slice(0, 10).map(n => (
+                    <div
+                      key={n.id}
+                      className={`flex items-start gap-3 px-4 py-3 ${!n.read ? 'bg-brand-50/50 dark:bg-brand-950/20' : ''}`}
+                    >
+                      <div className="flex-shrink-0 w-7 h-7 rounded-full bg-surface-100 dark:bg-surface-800 flex items-center justify-center mt-0.5">
+                        {n.type === 'task_assigned'
+                          ? <UserPlus className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
+                          : <MessageSquare className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                        }
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-surface-700 dark:text-surface-300 leading-snug">
+                          {n.type === 'task_assigned' ? (
+                            <><span className="font-semibold">{n.actorName}</span> assigned you to <span className="font-semibold">{n.taskTitle}</span></>
+                          ) : (
+                            <><span className="font-semibold">{n.actorName}</span> commented on <span className="font-semibold">{n.taskTitle}</span></>
+                          )}
+                        </p>
+                        <p className="text-[10px] text-surface-400 mt-0.5">
+                          {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}
+                        </p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
         <button
           onClick={toggle}
           className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-surface-600 hover:bg-surface-100 hover:text-surface-900 dark:text-surface-400 dark:hover:bg-surface-800 dark:hover:text-surface-200 w-full transition-all"

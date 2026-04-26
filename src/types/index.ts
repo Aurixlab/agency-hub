@@ -88,6 +88,17 @@ export interface ActivityLog {
   createdAt: string;
 }
 
+export interface Notification {
+  id: string;
+  userId: string;
+  type: 'task_assigned' | 'comment_added';
+  taskId?: string | null;
+  actorName: string;
+  taskTitle: string;
+  read: boolean;
+  createdAt: string;
+}
+
 export interface ConflictError {
   error: 'CONFLICT';
   message: string;

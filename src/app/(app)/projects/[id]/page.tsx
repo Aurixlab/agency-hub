@@ -321,7 +321,7 @@ function KanbanView({ tasks, statuses, users, projectId, onRefetch, onTaskClick 
 
 // ================== TABLE VIEW ==================
 function TableView({ tasks, statuses, users, onTaskClick }: any) {
-  const [sortField, setSortField] = useState<string>('status');
+  const [sortField, setSortField] = useState<string>('dueDate');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   const sorted = [...tasks].sort((a: Task, b: Task) => {

@@ -29,7 +29,13 @@ export default function TasksPage() {
   const activeUsers = (users || []).filter(u => !u.disabled);
 
   const tasksByStatus = STATUSES.reduce<Record<Status, Task[]>>((acc, s) => {
-    acc[s] = (tasks || []).filter(t => t.status === s && !t.deletedAt);
+    acc[s] = (tasks || [])
+      .filter(t => t.status === s && !t.deletedAt)
+      .sort((a: Task, b: Task) => {
+        if (!a.dueDate) return 1;
+        if (!b.dueDate) return -1;
+        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+      });
     return acc;
   }, { Backlog: [], 'In Progress': [], Done: [] });
 

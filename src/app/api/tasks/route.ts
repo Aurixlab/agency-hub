@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { logActivity } from '@/lib/activity';
+import { createNotification } from '@/lib/notifications';
 
 export async function GET(request: Request) {
   const session = await getSessionFromRequest(request);
@@ -120,6 +121,20 @@ export async function POST(request: Request) {
       action: 'created',
       after: { title: task.title, status: task.status, priority: task.priority },
     });
+
+    // Notify newly assigned users (skip self)
+    const actor = await prisma.user.findUnique({ where: { id: session.id }, select: { name: true } });
+    await Promise.all(
+      resolvedIds
+        .filter(uid => uid !== session.id)
+        .map(uid => createNotification({
+          userId: uid,
+          type: 'task_assigned',
+          taskId: task.id,
+          actorName: actor?.name ?? 'Someone',
+          taskTitle: task.title,
+        }))
+    );
 
     return NextResponse.json(task, { status: 201 });
   } catch (error) {

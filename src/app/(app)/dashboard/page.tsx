@@ -4,7 +4,7 @@ import { useFetch } from '@/hooks/useFetch';
 import { Task, Project } from '@/types';
 import { RefreshCw, Clock, CheckCircle2, AlertTriangle, FolderKanban, ArrowRight, ListTodo } from 'lucide-react';
 import Link from 'next/link';
-import { format, isAfter, isBefore, addDays } from 'date-fns';
+import { format, isBefore, addDays, subDays } from 'date-fns';
 import { useState, useEffect } from 'react';
 
 const priorityColors: Record<string, string> = {
@@ -201,21 +201,32 @@ export default function DashboardPage() {
 
 // ==================== ALL TASKS TABLE COMPONENT ====================
 function AllTasksTable({ tasks, loading, users }: { tasks: Task[]; loading: boolean; users: any[] }) {
-  const [sortField, setSortField] = useState<string>('status');
+  const [tab, setTab] = useState<'active' | 'archive'>('active');
+  const [sortField, setSortField] = useState<string>('dueDate');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [filterAssignee, setFilterAssignee] = useState('');
 
-  // Filter out deleted tasks, then apply assignee filter
-  const activeTasks = tasks.filter(t => !t.deletedAt);
+  const tenDaysAgo = subDays(new Date(), 10);
+
+  const isArchived = (task: Task) => {
+    const statuses = task.project?.statuses as string[] | undefined;
+    const doneStatus = statuses && statuses.length > 0 ? statuses[statuses.length - 1] : 'Done';
+    return task.status === doneStatus && new Date((task as any).updatedAt) < tenDaysAgo;
+  };
+
+  const nonDeleted = tasks.filter(t => !t.deletedAt);
+  const activeTasks = nonDeleted.filter(t => !isArchived(t));
+  const archivedTasks = nonDeleted.filter(t => isArchived(t));
+  const source = tab === 'active' ? activeTasks : archivedTasks;
 
   const filtered = filterAssignee
-    ? activeTasks.filter(t => {
+    ? source.filter(t => {
         if (t.assigneeId === filterAssignee) return true;
         if (t.assignees?.some((a: any) => a.id === filterAssignee)) return true;
         const ids = Array.isArray(t.assigneeIds) ? t.assigneeIds : [];
         return ids.includes(filterAssignee);
       })
-    : activeTasks;
+    : source;
 
   const sorted = [...filtered].sort((a, b) => {
     let cmp = 0;
@@ -256,10 +267,28 @@ function AllTasksTable({ tasks, loading, users }: { tasks: Task[]; loading: bool
   return (
     <div className="card p-0">
       <div className="flex items-center justify-between px-5 py-4 border-b border-surface-200 dark:border-surface-800">
-        <div className="flex items-center gap-2">
-          <ListTodo className="w-4 h-4 text-surface-500" />
-          <h2 className="font-semibold text-surface-900 dark:text-white">All Tasks</h2>
-          <span className="text-xs text-surface-500 ml-1">({filtered.length})</span>
+        <div className="flex items-center gap-1 p-1 rounded-lg bg-surface-100 dark:bg-surface-800/50">
+          <button
+            onClick={() => setTab('active')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+              tab === 'active'
+                ? 'bg-white dark:bg-surface-700 text-surface-900 dark:text-white shadow-sm'
+                : 'text-surface-500 hover:text-surface-700 dark:hover:text-surface-300'
+            }`}
+          >
+            <ListTodo className="w-3.5 h-3.5" />
+            All Tasks <span className="opacity-60">({activeTasks.length})</span>
+          </button>
+          <button
+            onClick={() => setTab('archive')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+              tab === 'archive'
+                ? 'bg-white dark:bg-surface-700 text-surface-900 dark:text-white shadow-sm'
+                : 'text-surface-500 hover:text-surface-700 dark:hover:text-surface-300'
+            }`}
+          >
+            Archive <span className="opacity-60">({archivedTasks.length})</span>
+          </button>
         </div>
         <div className="flex items-center gap-2">
           <select
@@ -293,18 +322,18 @@ function AllTasksTable({ tasks, loading, users }: { tasks: Task[]; loading: bool
             ) : sorted.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-4 py-12 text-center text-surface-400 text-sm">
-                  {filterAssignee ? 'No tasks assigned to this member' : 'No tasks found'}
+                  {tab === 'archive' ? 'No archived tasks yet' : filterAssignee ? 'No tasks assigned to this member' : 'No tasks found'}
                 </td>
               </tr>
             ) : (
               sorted.map((task: Task) => (
                 <tr key={task.id} className="hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors">
                   <td className="px-4 py-3">
-                    <Link href={`/projects/${task.projectId}`} className="block">
+                    <Link href={task.projectId ? `/projects/${task.projectId}` : '/tasks'} className="block">
                       <p className="text-sm font-medium text-surface-900 dark:text-white hover:text-brand-600 dark:hover:text-brand-400 transition-colors">
                         {task.title}
                       </p>
-                      <p className="text-xs text-surface-500 mt-0.5">{task.project?.name}</p>
+                      <p className="text-xs text-surface-500 mt-0.5">{task.project?.name ?? 'Personal'}</p>
                     </Link>
                   </td>
                   <td className="px-4 py-3">

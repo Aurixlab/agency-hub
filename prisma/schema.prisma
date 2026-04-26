@@ -36,9 +36,10 @@ model User {
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
 
-  assignedTasks Task[]        @relation("TaskAssignee")
+  assignedTasks Task[]         @relation("TaskAssignee")
   comments      Comment[]
   activities    ActivityLog[]
+  notifications Notification[]
 
   @@map("users")
 }
@@ -132,6 +133,22 @@ model ActivityLog {
   @@index([entityType, entityId])
   @@index([actorId])
   @@map("activity_logs")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  type      String
+  taskId    String?  @map("task_id")
+  actorName String   @map("actor_name")
+  taskTitle String   @map("task_title")
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@map("notifications")
 }
 
 model Session {

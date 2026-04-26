@@ -42,7 +42,7 @@ export default function DashboardPage() {
   const dueSoonTasks = activeTasks
     .filter(t => t.dueDate && isBefore(new Date(t.dueDate), addDays(new Date(), 7)))
     .sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime());
-  const doneTasks = (allTasks || []).filter(t => {
+  const doneTasks = combinedTasks.filter(t => {
     if (t.deletedAt) return false;
     const statuses = t.project?.statuses as string[] | undefined;
     const doneStatus = statuses && statuses.length > 0 ? statuses[statuses.length - 1] : 'Done';
@@ -279,16 +279,17 @@ function AllTasksTable({ tasks, loading, users }: { tasks: Task[]; loading: bool
               <SortHeader field="assignee">Assigned To</SortHeader>
               <SortHeader field="priority">Priority</SortHeader>
               <SortHeader field="dueDate">Due Date</SortHeader>
+              <th className="px-4 py-3 text-left text-xs font-medium text-surface-500 dark:text-surface-400 uppercase tracking-wider">Done Date</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-100 dark:divide-surface-800">
             {loading ? (
               <tr>
-                <td colSpan={5} className="px-4 py-12 text-center text-surface-400 text-sm">Loading all tasks...</td>
+                <td colSpan={6} className="px-4 py-12 text-center text-surface-400 text-sm">Loading all tasks...</td>
               </tr>
             ) : sorted.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-12 text-center text-surface-400 text-sm">
+                <td colSpan={6} className="px-4 py-12 text-center text-surface-400 text-sm">
                   {tab === 'archive' ? 'No archived tasks yet' : filterAssignee ? 'No tasks assigned to this member' : 'No tasks found'}
                 </td>
               </tr>
@@ -342,6 +343,9 @@ function AllTasksTable({ tasks, loading, users }: { tasks: Task[]; loading: bool
                   </td>
                   <td className="px-4 py-3 text-sm text-surface-600 dark:text-surface-400">
                     {task.dueDate ? format(new Date(task.dueDate), 'MMM d, yyyy') : '—'}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-surface-600 dark:text-surface-400">
+                    {(task as any).doneDate ? format(new Date((task as any).doneDate), 'MMM d, yyyy') : '—'}
                   </td>
                 </tr>
               ))

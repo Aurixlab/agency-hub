@@ -2,7 +2,7 @@
 
 import { useFetch } from '@/hooks/useFetch';
 import { Task, Project } from '@/types';
-import { RefreshCw, Clock, CheckCircle2, AlertTriangle, FolderKanban, ArrowRight, ListTodo } from 'lucide-react';
+import { RefreshCw, Clock, CheckCircle2, AlertTriangle, Trophy, ListTodo } from 'lucide-react';
 import Link from 'next/link';
 import { format, isBefore, addDays, subDays } from 'date-fns';
 import { useState, useEffect } from 'react';
@@ -21,7 +21,6 @@ export default function DashboardPage() {
   const { data: myTasks, loading: loadingTasks, refetch: refetchTasks } = useFetch<Task[]>('/api/tasks?myTasks=true');
   const { data: standaloneTasks, refetch: refetchStandalone } = useFetch<Task[]>('/api/tasks?standalone=true');
   const { data: allTasks, loading: loadingAll, refetch: refetchAll } = useFetch<Task[]>('/api/tasks');
-  const { data: projects, loading: loadingProjects, refetch: refetchProjects } = useFetch<Project[]>('/api/projects');
   const { data: users } = useFetch<any[]>('/api/users', { pollInterval: false });
   const [user, setUser] = useState<any>(null);
 
@@ -43,9 +42,14 @@ export default function DashboardPage() {
   const dueSoonTasks = activeTasks
     .filter(t => t.dueDate && isBefore(new Date(t.dueDate), addDays(new Date(), 7)))
     .sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime());
-  const activeProjects = projects?.filter(p => p.status === 'active' && !p.deletedAt) || [];
+  const doneTasks = (allTasks || []).filter(t => {
+    if (t.deletedAt) return false;
+    const statuses = t.project?.statuses as string[] | undefined;
+    const doneStatus = statuses && statuses.length > 0 ? statuses[statuses.length - 1] : 'Done';
+    return t.status === doneStatus;
+  });
 
-  const refetchEverything = () => { refetchTasks(); refetchStandalone(); refetchAll(); refetchProjects(); };
+  const refetchEverything = () => { refetchTasks(); refetchStandalone(); refetchAll(); };
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -73,8 +77,8 @@ export default function DashboardPage() {
           icon={<Clock className="w-5 h-5 text-orange-600" />} color="orange" />
         <StatCard label="Urgent" value={activeTasks.filter(t => t.priority === 'URGENT').length}
           icon={<AlertTriangle className="w-5 h-5 text-red-600" />} color="red" />
-        <StatCard label="Active Projects" value={activeProjects.length}
-          icon={<FolderKanban className="w-5 h-5 text-emerald-600" />} color="emerald" />
+        <StatCard label="Done" value={doneTasks.length}
+          icon={<Trophy className="w-5 h-5 text-amber-600" />} color="amber" />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
@@ -149,43 +153,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Active Projects */}
-          <div className="card p-0">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-surface-200 dark:border-surface-800">
-              <h2 className="font-semibold text-surface-900 dark:text-white">Projects</h2>
-              <Link href="/projects" className="text-xs text-brand-600 hover:text-brand-700">
-                View all
-              </Link>
-            </div>
-            <div className="divide-y divide-surface-100 dark:divide-surface-800">
-              {loadingProjects ? (
-                <div className="p-6 text-center text-surface-400">Loading...</div>
-              ) : activeProjects.length === 0 ? (
-                <div className="p-6 text-center text-surface-400 text-sm">No active projects</div>
-              ) : (
-                activeProjects.slice(0, 5).map(project => (
-                  <Link
-                    key={project.id}
-                    href={`/projects/${project.id}`}
-                    className="flex items-center justify-between px-5 py-3.5 hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-surface-900 dark:text-white truncate">
-                        {project.name}
-                      </p>
-                      {project.clientName && (
-                        <p className="text-xs text-surface-500 mt-0.5">{project.clientName}</p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-surface-500">{project._count?.tasks || 0} tasks</span>
-                      <ArrowRight className="w-3.5 h-3.5 text-surface-400" />
-                    </div>
-                  </Link>
-                ))
-              )}
-            </div>
-          </div>
         </div>
       </div>
 

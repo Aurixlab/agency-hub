@@ -98,6 +98,7 @@ export async function PATCH(
       data.assigneeId = ids[0] || null;
     }
     if (updates.dueDate !== undefined) data.dueDate = updates.dueDate ? new Date(updates.dueDate) : null;
+    if (updates.doneDate !== undefined) data.doneDate = updates.doneDate ? new Date(updates.doneDate) : null;
     if (updates.tags !== undefined) data.tags = updates.tags;
     if (updates.orderIndex !== undefined) data.orderIndex = updates.orderIndex;
 

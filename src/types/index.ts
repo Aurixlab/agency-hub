@@ -37,6 +37,7 @@ export interface Task {
   assignee?: { id: string; name: string; username: string } | null;
   assignees?: { id: string; name: string; username: string }[];
   dueDate: string | null;
+  doneDate: string | null;
   tags: string[];
   orderIndex: number;
   version: number;

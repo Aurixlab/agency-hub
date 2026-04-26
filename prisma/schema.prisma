@@ -88,6 +88,7 @@ model Task {
   assigneeId  String?   @map("assignee_id")
   assigneeIds Json      @default("[]") @map("assignee_ids")
   dueDate     DateTime? @map("due_date")
+  doneDate    DateTime? @map("done_date")
   tags        Json      @default("[]")
   orderIndex  Int       @default(0) @map("order_index")
   version     Int       @default(1)

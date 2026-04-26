@@ -488,6 +488,7 @@ function NewTaskModal({ projectId, statuses, users, projectTags, onClose, onCrea
   const [priority, setPriority] = useState('NONE');
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [dueDate, setDueDate] = useState('');
+  const [doneDate, setDoneDate] = useState('');
   const [creating, setCreating] = useState(false);
 
   const toggleAssignee = (id: string) => {
@@ -505,6 +506,7 @@ function NewTaskModal({ projectId, statuses, users, projectTags, onClose, onCrea
         projectId, title, description, status, priority,
         assigneeIds,
         dueDate: dueDate || null,
+        doneDate: doneDate || null,
       }),
     });
 
@@ -570,9 +572,15 @@ function NewTaskModal({ projectId, statuses, users, projectTags, onClose, onCrea
               ))}
             </div>
           </div>
-          <div>
-            <label className="label">Due Date</label>
-            <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="input" />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Due Date</label>
+              <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="input" />
+            </div>
+            <div>
+              <label className="label">Done Date</label>
+              <input type="date" value={doneDate} onChange={e => setDoneDate(e.target.value)} className="input" />
+            </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} className="btn-secondary">Cancel</button>
@@ -596,6 +604,7 @@ function TaskDetailModal({ taskId, statuses, users, projectTags, onClose, onUpda
   const [priority, setPriority] = useState('');
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [dueDate, setDueDate] = useState('');
+  const [doneDate, setDoneDate] = useState('');
   const [saving, setSaving] = useState(false);
   const [comment, setComment] = useState('');
   const [conflict, setConflict] = useState(false);
@@ -614,6 +623,7 @@ function TaskDetailModal({ taskId, statuses, users, projectTags, onClose, onUpda
       setPriority(task.priority);
       setAssigneeIds(task.assigneeIds && Array.isArray(task.assigneeIds) && task.assigneeIds.length > 0 ? task.assigneeIds : (task.assigneeId ? [task.assigneeId] : []));
       setDueDate(task.dueDate ? task.dueDate.split('T')[0] : '');
+      setDoneDate((task as any).doneDate ? (task as any).doneDate.split('T')[0] : '');
     }
   }, [task]);
 
@@ -630,6 +640,7 @@ function TaskDetailModal({ taskId, statuses, users, projectTags, onClose, onUpda
         priority,
         assigneeIds,
         dueDate: dueDate || null,
+        doneDate: doneDate || null,
       }),
     });
 
@@ -786,6 +797,20 @@ function TaskDetailModal({ taskId, statuses, users, projectTags, onClose, onUpda
               ) : (
                 <p className="text-sm text-surface-700 dark:text-surface-300">
                   {task.dueDate ? format(new Date(task.dueDate), 'MMM d, yyyy') : 'No due date'}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Done Date */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="label">Done Date</label>
+              {editing ? (
+                <input type="date" value={doneDate} onChange={e => setDoneDate(e.target.value)} className="input" />
+              ) : (
+                <p className="text-sm text-surface-700 dark:text-surface-300">
+                  {(task as any).doneDate ? format(new Date((task as any).doneDate), 'MMM d, yyyy') : 'Not marked done'}
                 </p>
               )}
             </div>

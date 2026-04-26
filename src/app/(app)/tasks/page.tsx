@@ -324,6 +324,7 @@ function TaskEditCard({ task, users, onDone, onCancel }: {
   const [status, setStatus] = useState(task.status);
   const [priority, setPriority] = useState(task.priority);
   const [dueDate, setDueDate] = useState(task.dueDate ? task.dueDate.split('T')[0] : '');
+  const [doneDate, setDoneDate] = useState((task as any).doneDate ? (task as any).doneDate.split('T')[0] : '');
   const [assigneeIds, setAssigneeIds] = useState<string[]>(
     task.assigneeIds?.length ? task.assigneeIds : task.assigneeId ? [task.assigneeId] : []
   );
@@ -339,6 +340,7 @@ function TaskEditCard({ task, users, onDone, onCancel }: {
         title, description, status, priority,
         assigneeIds,
         dueDate: dueDate || null,
+        doneDate: doneDate || null,
       }),
     });
     if (error) toast.error(error);
@@ -379,9 +381,15 @@ function TaskEditCard({ task, users, onDone, onCancel }: {
         </div>
       </div>
       <AssigneePicker users={users} selected={assigneeIds} onChange={setAssigneeIds} />
-      <div>
-        <label className="label text-[10px]">Due Date</label>
-        <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="input text-xs py-1.5" />
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="label text-[10px]">Due Date</label>
+          <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="input text-xs py-1.5" />
+        </div>
+        <div>
+          <label className="label text-[10px]">Done Date</label>
+          <input type="date" value={doneDate} onChange={e => setDoneDate(e.target.value)} className="input text-xs py-1.5" />
+        </div>
       </div>
       <div className="flex gap-2 justify-end">
         <button onClick={onCancel} className="btn-secondary btn-sm text-xs">Cancel</button>
@@ -404,6 +412,7 @@ function NewTaskModal({ users, onClose, onCreated }: {
   const [status, setStatus] = useState<Status>('Backlog');
   const [priority, setPriority] = useState('NONE');
   const [dueDate, setDueDate] = useState('');
+  const [doneDate, setDoneDate] = useState('');
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
 
@@ -417,6 +426,7 @@ function NewTaskModal({ users, onClose, onCreated }: {
         title, description, status, priority,
         assigneeIds,
         dueDate: dueDate || null,
+        doneDate: doneDate || null,
       }),
     });
     if (error) toast.error(error);
@@ -473,14 +483,25 @@ function NewTaskModal({ users, onClose, onCreated }: {
             </div>
           </div>
           <AssigneePicker users={users} selected={assigneeIds} onChange={setAssigneeIds} />
-          <div>
-            <label className="label">Due Date</label>
-            <input
-              type="date"
-              value={dueDate}
-              onChange={e => setDueDate(e.target.value)}
-              className="input"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Due Date</label>
+              <input
+                type="date"
+                value={dueDate}
+                onChange={e => setDueDate(e.target.value)}
+                className="input"
+              />
+            </div>
+            <div>
+              <label className="label">Done Date</label>
+              <input
+                type="date"
+                value={doneDate}
+                onChange={e => setDoneDate(e.target.value)}
+                className="input"
+              />
+            </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} className="btn-secondary">Cancel</button>

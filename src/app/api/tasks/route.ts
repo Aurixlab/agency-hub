@@ -82,7 +82,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { projectId, title, description, status, priority, assigneeIds, dueDate, tags } = body;
+    const { projectId, title, description, status, priority, assigneeIds, dueDate, doneDate, tags } = body;
 
     if (!title?.trim()) {
       return NextResponse.json({ error: 'Title is required' }, { status: 400 });
@@ -106,6 +106,7 @@ export async function POST(request: Request) {
         assigneeId: resolvedIds[0] || null,
         assigneeIds: resolvedIds,
         dueDate: dueDate ? new Date(dueDate) : null,
+        doneDate: doneDate ? new Date(doneDate) : null,
         tags: tags || [],
         orderIndex: (maxOrder?.orderIndex ?? 0) + 1000,
       },

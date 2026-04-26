@@ -44,8 +44,9 @@ export async function GET(request: Request) {
     const assigneeIds: string[] = Array.isArray(task.assigneeIds) ? (task.assigneeIds as string[]) : [];
     if (task.assigneeId && !assigneeIds.includes(task.assigneeId)) assigneeIds.push(task.assigneeId);
 
-    // Count for each assignee
-    for (const uid of assigneeIds) {
+    // Count for each unique assignee (deduplicate assigneeId vs assigneeIds)
+    const uniqueIds = Array.from(new Set(assigneeIds));
+    for (const uid of uniqueIds) {
       const name = userMap.get(uid);
       if (!name) continue;
       const key = `${uid}__${month}`;

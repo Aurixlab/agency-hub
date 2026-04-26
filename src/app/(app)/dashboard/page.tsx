@@ -42,12 +42,7 @@ export default function DashboardPage() {
   const dueSoonTasks = activeTasks
     .filter(t => t.dueDate && isBefore(new Date(t.dueDate), addDays(new Date(), 7)))
     .sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime());
-  const doneTasks = combinedTasks.filter(t => {
-    if (t.deletedAt) return false;
-    const statuses = t.project?.statuses as string[] | undefined;
-    const doneStatus = statuses && statuses.length > 0 ? statuses[statuses.length - 1] : 'Done';
-    return t.status === doneStatus;
-  });
+  const doneTasks = combinedTasks.filter(t => !t.deletedAt && !!t.doneDate);
 
   const refetchEverything = () => { refetchTasks(); refetchStandalone(); refetchAll(); };
 

@@ -29,21 +29,9 @@ export default function TeamPage() {
     const userTasks = allTasks?.filter(t =>
       (t.assigneeId === userId || (Array.isArray(t.assigneeIds) && t.assigneeIds.includes(userId))) && !t.deletedAt
     ) || [];
-    const active = userTasks.filter(t => {
-      const statuses = t.project?.statuses as string[] | undefined;
-      const doneStatus = statuses && statuses.length > 0 ? statuses[statuses.length - 1] : 'Done';
-      return t.status !== doneStatus;
-    }).length;
-    const done = userTasks.filter(t => {
-      const statuses = t.project?.statuses as string[] | undefined;
-      const doneStatus = statuses && statuses.length > 0 ? statuses[statuses.length - 1] : 'Done';
-      return t.status === doneStatus;
-    }).length;
-    const urgent = userTasks.filter(t => {
-      const statuses = t.project?.statuses as string[] | undefined;
-      const doneStatus = statuses && statuses.length > 0 ? statuses[statuses.length - 1] : 'Done';
-      return t.priority === 'URGENT' && t.status !== doneStatus;
-    }).length;
+    const done = userTasks.filter(t => !!t.doneDate).length;
+    const active = userTasks.filter(t => !t.doneDate).length;
+    const urgent = userTasks.filter(t => t.priority === 'URGENT' && !t.doneDate).length;
     return {
       total: userTasks.length,
       active,

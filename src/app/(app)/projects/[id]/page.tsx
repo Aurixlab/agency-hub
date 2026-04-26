@@ -3,7 +3,7 @@
 import { useFetch, apiCall } from '@/hooks/useFetch';
 import { Task } from '@/types';
 import { useParams, useRouter } from 'next/navigation';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isSameMonth, addMonths, subMonths } from 'date-fns';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Plus, Table, Columns3, Calendar, RefreshCw, ArrowLeft, Search, X, ChevronLeft, ChevronRight, MessageSquare, GripVertical, Sparkles } from 'lucide-react';
@@ -323,6 +323,8 @@ function KanbanView({ tasks, statuses, users, projectId, onRefetch, onTaskClick 
 function TableView({ tasks, statuses, users, onTaskClick }: any) {
   const [sortField, setSortField] = useState<string>('dueDate');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const tableScrollRef = useRef<HTMLDivElement>(null);
 
   const sorted = [...tasks].sort((a: Task, b: Task) => {
     let cmp = 0;
@@ -348,9 +350,29 @@ function TableView({ tasks, statuses, users, onTaskClick }: any) {
     </th>
   );
 
+  useEffect(() => {
+    const topScroll = topScrollRef.current;
+    const tableScroll = tableScrollRef.current;
+    if (!topScroll || !tableScroll) return;
+    const syncScroll = (source: HTMLDivElement, target: HTMLDivElement) => {
+      target.scrollLeft = source.scrollLeft;
+    };
+    const handleTopScroll = () => syncScroll(topScroll, tableScroll);
+    const handleTableScroll = () => syncScroll(tableScroll, topScroll);
+    topScroll.addEventListener('scroll', handleTopScroll);
+    tableScroll.addEventListener('scroll', handleTableScroll);
+    return () => {
+      topScroll.removeEventListener('scroll', handleTopScroll);
+      tableScroll.removeEventListener('scroll', handleTableScroll);
+    };
+  }, []);
+
   return (
     <div className="card overflow-hidden">
-      <div className="overflow-x-auto">
+      <div ref={topScrollRef} className="overflow-x-auto border-b border-surface-200 dark:border-surface-800">
+        <div className="h-0.5" style={{ minWidth: '100%' }}></div>
+      </div>
+      <div ref={tableScrollRef} className="overflow-x-auto">
         <table className="w-full">
           <thead className="border-b border-surface-200 dark:border-surface-800">
             <tr>

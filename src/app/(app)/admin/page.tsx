@@ -2,7 +2,7 @@
 
 import { useFetch, apiCall } from '@/hooks/useFetch';
 import { User, ActivityLog } from '@/types';
-import { Shield, Plus, UserX, UserCheck, Key, RefreshCw, X, Mail } from 'lucide-react';
+import { Shield, Plus, UserX, UserCheck, Key, RefreshCw, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -18,8 +18,6 @@ export default function AdminPage() {
   const [newUser, setNewUser] = useState({ username: '', name: '', email: '', role: 'MEMBER', password: '' });
   const [resetPassword, setResetPassword] = useState('');
   const [creating, setCreating] = useState(false);
-  const [sendingDigest, setSendingDigest] = useState(false);
-
   // Redirect non-admins
   useEffect(() => {
     if (me && me.role !== 'ADMIN') {
@@ -80,19 +78,6 @@ export default function AdminPage() {
         </div>
         <div className="flex gap-2">
           <button onClick={refetch} className="btn-ghost btn-sm"><RefreshCw className="w-3.5 h-3.5" /></button>
-          <button
-            onClick={async () => {
-              setSendingDigest(true);
-              const { error } = await apiCall('/api/admin/send-digest', { method: 'POST', body: JSON.stringify({ dayRange: 4 }) });
-              if (error) toast.error(error);
-              else toast.success('Digest sent to admin email!');
-              setSendingDigest(false);
-            }}
-            disabled={sendingDigest}
-            className="btn-secondary btn-sm"
-          >
-            <Mail className="w-4 h-4" /> {sendingDigest ? 'Sending...' : 'Send Digest'}
-          </button>
           <button onClick={() => setShowNewUser(true)} className="btn-primary btn-sm"><Plus className="w-4 h-4" /> Add User</button>
         </div>
       </div>

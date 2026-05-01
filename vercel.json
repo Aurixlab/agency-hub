@@ -8,10 +8,6 @@
     {
       "path": "/api/health",
       "schedule": "0 0 * * *"
-    },
-    {
-      "path": "/api/cron/digest",
-      "schedule": "0 9 * * 1"
     }
   ]
 }

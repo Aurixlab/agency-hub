@@ -17,7 +17,6 @@
     "db:studio": "prisma studio"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.90.0",
     "@hello-pangea/dnd": "^16.6.0",
     "@prisma/client": "^5.22.0",
     "@prisma/extension-accelerate": "^1.2.1",
@@ -30,7 +29,6 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hot-toast": "^2.4.1",
-    "resend": "^6.12.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {

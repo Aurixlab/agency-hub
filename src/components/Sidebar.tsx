@@ -19,6 +19,7 @@ import {
   UserPlus,
   MessageSquare,
   X,
+  Search,
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { formatDistanceToNow } from 'date-fns';
@@ -46,6 +47,7 @@ const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/projects', label: 'Projects', icon: FolderKanban },
   { href: '/tasks', label: 'My Tasks', icon: ListTodo },
+  { href: '/seo', label: 'SEO', icon: Search },
   { href: '/templates', label: 'Templates', icon: LayoutTemplate },
   { href: '/team', label: 'Team', icon: Users },
 ];

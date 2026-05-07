@@ -1,0 +1,35 @@
+import './globals.css';
+import { ThemeProvider } from '@/providers/ThemeProvider';
+import { QueryProvider } from '@/providers/QueryProvider';
+import { Toaster } from 'react-hot-toast';
+
+export const metadata = {
+  title: 'Aurix Lab Notion — Project & Task Management',
+  description: 'Internal project management for Aurix Lab',
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <body className="min-h-screen">
+        <QueryProvider>
+          <ThemeProvider>
+            {children}
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                className: 'toast-custom',
+                duration: 3000,
+                style: {
+                  background: 'var(--toast-bg, #fff)',
+                  color: 'var(--toast-color, #1f2937)',
+                  border: '1px solid var(--toast-border, #e5e8ed)',
+                },
+              }}
+            />
+          </ThemeProvider>
+        </QueryProvider>
+      </body>
+    </html>
+  );
+}

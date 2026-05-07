@@ -82,49 +82,49 @@ export default function ReportsTab({ slug }: { slug: string }) {
   };
 
   if (slug === 'overview') return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
-      <div className="bg-blue-50 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4">
-        <FileText className="w-8 h-8 text-blue-600" />
+    <div className="bg-white dark:bg-surface-900 rounded-2xl border border-surface-100 dark:border-surface-800 p-12 text-center">
+      <div className="bg-brand-50 dark:bg-brand-900/30 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4">
+        <FileText className="w-8 h-8 text-brand-600 dark:text-brand-400" />
       </div>
-      <h3 className="text-lg font-bold text-gray-900">Agency Overview Reports</h3>
-      <p className="text-gray-500 max-w-sm mx-auto mt-2">Select a specific client to view and download their detailed SEO reports and monthly summaries.</p>
+      <h3 className="text-lg font-bold text-surface-900 dark:text-white">Agency Overview Reports</h3>
+      <p className="text-surface-500 dark:text-surface-400 max-w-sm mx-auto mt-2">Select a specific client to view and download their detailed SEO reports and monthly summaries.</p>
     </div>
   );
 
-  if (loading) return <div className="space-y-4">{[1,2,3].map(i => <div key={i} className="h-20 bg-gray-50 animate-pulse rounded-xl" />)}</div>;
+  if (loading) return <div className="space-y-4">{[1,2,3].map(i => <div key={i} className="h-20 bg-surface-50 dark:bg-surface-800 animate-pulse rounded-xl" />)}</div>;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="font-bold text-gray-900">Generated Reports</h3>
+        <h3 className="font-bold text-surface-900 dark:text-white">Generated Reports</h3>
         <button 
           onClick={() => downloadPDF(format(new Date(), 'yyyy-MM'))}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white rounded-xl text-sm font-medium hover:bg-brand-700 transition-colors"
         >
           <Download className="w-4 h-4" />
-          Generate April Report
+          Generate Report
         </button>
       </div>
 
       <div className="grid grid-cols-1 gap-4">
         {reports.length === 0 ? (
-          <div className="bg-gray-50 rounded-2xl border border-dashed border-gray-200 p-12 text-center">
-            <Clock className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-            <p className="text-sm text-gray-400">Reports are automatically generated at the end of every week and month.</p>
+          <div className="bg-surface-50 dark:bg-surface-800/30 rounded-2xl border border-dashed border-surface-200 dark:border-surface-700 p-12 text-center">
+            <Clock className="w-8 h-8 text-surface-300 dark:text-surface-600 mx-auto mb-2" />
+            <p className="text-sm text-surface-400 dark:text-surface-500">Reports are automatically generated at the end of every week and month.</p>
           </div>
         ) : (
           reports.map((report) => (
-            <div key={report.id} className="bg-white border border-gray-100 rounded-2xl p-5 hover:border-blue-200 transition-all flex items-center justify-between group">
+            <div key={report.id} className="bg-white dark:bg-surface-900 border border-surface-100 dark:border-surface-800 rounded-2xl p-5 hover:border-brand-200 dark:hover:border-brand-800 transition-all flex items-center justify-between group">
               <div className="flex items-center gap-4">
                 <div className={`p-3 rounded-xl ${
-                  report.report_type === 'monthly' ? 'bg-purple-50 text-purple-600' :
-                  report.report_type === 'weekly' ? 'bg-blue-50 text-blue-600' : 'bg-gray-50 text-gray-600'
+                  report.report_type === 'monthly' ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400' :
+                  report.report_type === 'weekly' ? 'bg-surface-50 dark:bg-surface-800 text-surface-600 dark:text-surface-400' : 'bg-gray-50 text-gray-600'
                 }`}>
                   <Calendar className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="font-bold text-gray-900 capitalize">{report.report_type} Performance Report</h4>
-                  <p className="text-xs text-gray-500">
+                  <h4 className="font-bold text-surface-900 dark:text-white capitalize">{report.report_type} Performance Report</h4>
+                  <p className="text-xs text-surface-500 dark:text-surface-400">
                     {format(parseISO(report.period_start), 'MMM d')} - {format(parseISO(report.period_end), 'MMM d, yyyy')}
                   </p>
                 </div>
@@ -132,7 +132,7 @@ export default function ReportsTab({ slug }: { slug: string }) {
               
               <button 
                 onClick={() => downloadPDF(format(parseISO(report.period_start), 'yyyy-MM'))}
-                className="p-2 rounded-lg bg-gray-50 text-gray-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-all"
+                className="p-2 rounded-lg bg-surface-50 dark:bg-surface-800 text-surface-400 group-hover:bg-brand-50 dark:group-hover:bg-brand-900/50 group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-all"
               >
                 <Download className="w-5 h-5" />
               </button>

@@ -7,7 +7,8 @@ import KeywordTable from '@/components/seo/KeywordTable';
 import RankingComparison from '@/components/seo/RankingComparison';
 import IndexingStatus from '@/components/seo/IndexingStatus';
 import ReportsTab from '@/components/seo/ReportsTab';
-import { Calendar, ChevronDown, BarChart3, Search, RefreshCw, Layers, FileText, TrendingUp, Key } from 'lucide-react';
+import QueriesSection from '@/components/seo/QueriesSection';
+import { Calendar, ChevronDown, BarChart3, Search, RefreshCw, Layers, FileText, TrendingUp, Key, Info } from 'lucide-react';
 
 const CLIENTS = [
   { name: 'Overview', slug: 'overview' },
@@ -25,7 +26,6 @@ const PERIODS = [
 const TABS = [
   { id: 'performance', label: 'Performance', icon: TrendingUp },
   { id: 'keywords', label: 'Keywords', icon: Key },
-  { id: 'indexing', label: 'Indexing', icon: Layers },
   { id: 'reports', label: 'Reports', icon: FileText },
 ];
 
@@ -36,6 +36,7 @@ export default function SEODashboard() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [periodOpen, setPeriodOpen] = useState(false);
 
   async function fetchData() {
     setLoading(true);
@@ -78,55 +79,63 @@ export default function SEODashboard() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <BarChart3 className="w-6 h-6 text-blue-600" />
+          <h1 className="text-2xl font-bold text-surface-900 dark:text-white flex items-center gap-2">
+            <BarChart3 className="w-6 h-6 text-brand-500" />
             SEO Rankings
           </h1>
-          <p className="text-gray-500 text-sm mt-1">Real-time Google Search Console performance tracking.</p>
+          <p className="text-surface-500 dark:text-surface-400 text-sm mt-1">Real-time Google Search Console performance tracking.</p>
         </div>
         
         <div className="flex items-center gap-3">
           <button 
             onClick={handleSync}
             disabled={syncing}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl border border-gray-200 bg-white hover:bg-gray-50 transition-all ${syncing ? 'opacity-50' : ''}`}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl border border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900 text-surface-900 dark:text-surface-100 hover:bg-surface-50 dark:hover:bg-surface-800 transition-all ${syncing ? 'opacity-50' : ''}`}
           >
             <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
             {syncing ? 'Syncing...' : 'Sync Now'}
           </button>
 
-          <div className="relative group">
-            <button className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl border border-gray-200 bg-white hover:bg-gray-50 transition-all">
-              <Calendar className="w-4 h-4 text-gray-400" />
+          <div className="relative">
+            <button 
+              onClick={() => setPeriodOpen(!periodOpen)}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl border border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900 text-surface-900 dark:text-surface-100 hover:bg-surface-50 dark:hover:bg-surface-800 transition-all"
+            >
+              <Calendar className="w-4 h-4 text-surface-400" />
               {period.label}
-              <ChevronDown className="w-4 h-4 text-gray-400" />
+              <ChevronDown className="w-4 h-4 text-surface-400" />
             </button>
-            <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-100 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 overflow-hidden">
-              {PERIODS.map((p) => (
-                <button
-                  key={p.value}
-                  onClick={() => setPeriod(p)}
-                  className={`w-full text-left px-4 py-3 text-sm hover:bg-gray-50 transition-colors ${period.value === p.value ? 'text-blue-600 font-bold bg-blue-50' : 'text-gray-600'}`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
+            {periodOpen && (
+              <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-surface-900 border border-surface-100 dark:border-surface-800 rounded-xl shadow-xl transition-all z-50 overflow-hidden">
+                {PERIODS.map((p) => (
+                  <button
+                    key={p.value}
+                    onClick={() => {
+                      setPeriod(p);
+                      setPeriodOpen(false);
+                    }}
+                    className={`w-full text-left px-4 py-3 text-sm hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors ${period.value === p.value ? 'text-brand-600 font-bold bg-brand-50 dark:bg-brand-950/20' : 'text-surface-600 dark:text-surface-400'}`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
 
       {/* Client Tabs & Tab Navigation */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 border-b border-gray-100 pb-2">
-        <div className="flex items-center gap-1 p-1 bg-gray-100/50 rounded-2xl w-fit">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 border-b border-surface-100 dark:border-surface-800 pb-2">
+        <div className="flex items-center gap-1 p-1 bg-surface-100/50 dark:bg-surface-800/50 rounded-2xl w-fit">
           {CLIENTS.map((client) => (
             <button
               key={client.slug}
               onClick={() => setActiveClient(client)}
               className={`px-6 py-2 text-sm font-medium rounded-xl transition-all ${
                 activeClient.slug === client.slug 
-                  ? 'bg-white text-gray-900 shadow-sm' 
-                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
+                  ? 'bg-white dark:bg-surface-700 text-surface-900 dark:text-white shadow-sm' 
+                  : 'text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-200 hover:bg-surface-200/50 dark:hover:bg-surface-700/50'
               }`}
             >
               {client.name}
@@ -141,8 +150,8 @@ export default function SEODashboard() {
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 pb-3 px-1 text-sm font-medium transition-all border-b-2 ${
                 activeTab === tab.id
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-400 hover:text-gray-600'
+                  ? 'border-brand-500 text-brand-600 dark:text-brand-400'
+                  : 'border-transparent text-surface-400 hover:text-surface-600 dark:hover:text-surface-200'
               }`}
             >
               <tab.icon className="w-4 h-4" />
@@ -175,6 +184,10 @@ export default function SEODashboard() {
                   <RankingComparison slug={activeClient.slug} />
                 </div>
               </div>
+
+              <div className="grid grid-cols-1 gap-6">
+                <QueriesSection slug={activeClient.slug} />
+              </div>
             </>
           )}
 
@@ -182,9 +195,6 @@ export default function SEODashboard() {
             <KeywordTable keywords={data?.keywords} />
           )}
 
-          {activeTab === 'indexing' && (
-            <IndexingStatus slug={activeClient.slug} />
-          )}
 
           {activeTab === 'reports' && (
             <ReportsTab slug={activeClient.slug} />

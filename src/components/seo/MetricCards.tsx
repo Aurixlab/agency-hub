@@ -22,15 +22,15 @@ export default function MetricCards({ data, latestMetrics }: { data: any, latest
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       {cards.map((card) => (
-        <div key={card.label} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+        <div key={card.label} className="bg-white dark:bg-surface-900 p-6 rounded-2xl border border-surface-100 dark:border-surface-800 shadow-sm hover:shadow-md transition-all">
           <div className="flex items-center justify-between mb-4">
-            <div className={`p-2 rounded-xl ${card.bg}`}>
+            <div className={`p-2 rounded-xl ${card.bg} dark:bg-opacity-10`}>
               <card.icon className={`w-5 h-5 ${card.color}`} />
             </div>
           </div>
           <div>
-            <p className="text-sm font-medium text-gray-500">{card.label}</p>
-            <h3 className="text-2xl font-bold text-gray-900 mt-1">{card.value}</h3>
+            <p className="text-sm font-medium text-surface-500 dark:text-surface-400">{card.label}</p>
+            <h3 className="text-2xl font-bold text-surface-900 dark:text-white mt-1">{card.value}</h3>
           </div>
         </div>
       ))}

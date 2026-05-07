@@ -72,3 +72,38 @@ export async function getKeywordRankings(
     throw error;
   }
 }
+
+/**
+ * Fetches indexing status (indexed vs total) from Sitemaps API
+ */
+export async function getIndexingStatus(propertyUrl: string) {
+  try {
+    const res = await searchConsole.sitemaps.list({
+      siteUrl: propertyUrl,
+    });
+    
+    const sitemaps = res.data.sitemap || [];
+    let indexedPages = 0;
+    
+    for (const sitemap of sitemaps) {
+      // Sum up indexed pages from all sitemaps
+      // Note: contents[0].indexed is a common pattern in the API response
+      const contents = sitemap.contents || [];
+      for (const content of contents) {
+        indexedPages += Number(content.indexed) || 0;
+      }
+    }
+
+    // Since we don't have a direct "not indexed" total from GSC API, 
+    // we use the impressions as a proxy for "discovered" pages or 
+    // just return the indexed count and let the sync job handle the 'not indexed' logic
+    return {
+      indexed: indexedPages,
+      // For the sake of the dashboard, we'll estimate not_indexed as a small % or based on sitemap submitted count
+      submitted: sitemaps.reduce((acc, s) => acc + (s.contents?.[0]?.submitted || 0), 0)
+    };
+  } catch (error) {
+    console.error(`Error fetching indexing status for ${propertyUrl}:`, error);
+    return { indexed: 0, submitted: 0 };
+  }
+}

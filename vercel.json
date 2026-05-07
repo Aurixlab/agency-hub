@@ -6,8 +6,16 @@
   },
   "crons": [
     {
-      "path": "/api/health",
-      "schedule": "0 0 * * *"
+      "path": "/api/cron/sync-seo",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/weekly-digest",
+      "schedule": "0 10 * * 1"
+    },
+    {
+      "path": "/api/cron/monthly-report",
+      "schedule": "0 11 1 * *"
     }
   ]
 }

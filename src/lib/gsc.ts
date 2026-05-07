@@ -100,7 +100,7 @@ export async function getIndexingStatus(propertyUrl: string) {
     return {
       indexed: indexedPages,
       // For the sake of the dashboard, we'll estimate not_indexed as a small % or based on sitemap submitted count
-      submitted: sitemaps.reduce((acc, s) => acc + (s.contents?.[0]?.submitted || 0), 0)
+      submitted: sitemaps.reduce((acc, s) => acc + Number(s.contents?.[0]?.submitted || 0), 0)
     };
   } catch (error) {
     console.error(`Error fetching indexing status for ${propertyUrl}:`, error);

@@ -60,10 +60,13 @@ export async function getKeywordRankings(
         }],
         */
         rowLimit,
-        orderBy: [{ fieldName: 'clicks', sortOrder: 'DESCENDING' }],
       },
     });
-    return res.data.rows || [];
+
+    const rows = res.data.rows || [];
+
+    // Sort by clicks descending (since orderBy is not supported in current types)
+    return rows.sort((a, b) => (Number(b.clicks) || 0) - (Number(a.clicks) || 0));
   } catch (error) {
     console.error(`Error fetching keyword rankings for ${propertyUrl}:`, error);
     throw error;

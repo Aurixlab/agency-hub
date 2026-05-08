@@ -40,7 +40,7 @@ export async function GET(
 
     if (snapshotError) throw snapshotError;
 
-    // 3. Get top keywords for the period (aggregated by keyword name)
+    // 3. Get top keywords for the period from Supabase
     const { data: rawKeywords, error: kwError } = await supabase
       .from('seo_keyword_rankings')
       .select('keyword, clicks, impressions, ctr, position')
@@ -49,7 +49,6 @@ export async function GET(
 
     if (kwError) throw kwError;
 
-    // Aggregate across all dates in the period
     const kwMap = new Map<string, { clicks: number; impressions: number; posSum: number; ctrSum: number; count: number }>();
     for (const row of rawKeywords || []) {
       const existing = kwMap.get(row.keyword);

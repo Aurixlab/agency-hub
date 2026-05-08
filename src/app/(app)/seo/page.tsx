@@ -172,7 +172,7 @@ export default function SEODashboard() {
             <>
               <MetricCards 
                 data={data} 
-                latestMetrics={activeClient.slug === 'overview' ? data?.latestMetrics : data?.snapshots?.slice(-1)} 
+                latestMetrics={activeClient.slug === 'overview' ? data?.latestMetrics : data?.snapshots} 
               />
 
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">

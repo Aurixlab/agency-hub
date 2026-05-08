@@ -5,10 +5,9 @@ import MetricCards from '@/components/seo/MetricCards';
 import TrendChart from '@/components/seo/TrendChart';
 import KeywordTable from '@/components/seo/KeywordTable';
 import RankingComparison from '@/components/seo/RankingComparison';
-import IndexingStatus from '@/components/seo/IndexingStatus';
 import ReportsTab from '@/components/seo/ReportsTab';
 import QueriesSection from '@/components/seo/QueriesSection';
-import { Calendar, ChevronDown, BarChart3, Search, RefreshCw, Layers, FileText, TrendingUp, Key, Info } from 'lucide-react';
+import { Calendar, ChevronDown, BarChart3, RefreshCw, FileText, TrendingUp, Key } from 'lucide-react';
 
 const CLIENTS = [
   { name: 'Overview', slug: 'overview' },
@@ -186,7 +185,7 @@ export default function SEODashboard() {
               </div>
 
               <div className="grid grid-cols-1 gap-6">
-                <QueriesSection slug={activeClient.slug} />
+                <QueriesSection slug={activeClient.slug} period={period.value} />
               </div>
             </>
           )}

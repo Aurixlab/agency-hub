@@ -13,6 +13,9 @@ export async function GET(
 ) {
   const { slug } = params;
 
+  const { searchParams } = new URL(req.url);
+  const period = parseInt(searchParams.get('period') || '7');
+
   try {
     // 1. Get client info
     const { data: client, error: clientError } = await supabase
@@ -25,18 +28,18 @@ export async function GET(
       return NextResponse.json({ success: false, error: 'Client not found' }, { status: 404 });
     }
 
-    // Define periods: Current (Last 7 days) vs Previous (7 days before that)
+    // Define periods based on selected period length, with 2-day GSC delay
     const today = new Date();
-    
+
     const currentEnd = new Date(today);
-    currentEnd.setDate(today.getDate() - 2); // GSC delay
+    currentEnd.setDate(today.getDate() - 2);
     const currentStart = new Date(currentEnd);
-    currentStart.setDate(currentStart.getDate() - 7);
+    currentStart.setDate(currentEnd.getDate() - (period - 1));
 
     const previousEnd = new Date(currentStart);
-    previousEnd.setDate(previousEnd.getDate() - 1);
+    previousEnd.setDate(currentStart.getDate() - 1);
     const previousStart = new Date(previousEnd);
-    previousStart.setDate(previousStart.getDate() - 7);
+    previousStart.setDate(previousEnd.getDate() - (period - 1));
 
     const currentStartStr = currentStart.toISOString().split('T')[0];
     const currentEndStr = currentEnd.toISOString().split('T')[0];

@@ -11,7 +11,7 @@ interface QueryItem {
   isNew: boolean;
 }
 
-export default function QueriesSection({ slug }: { slug: string }) {
+export default function QueriesSection({ slug, period = '7' }: { slug: string; period?: string }) {
   const [activeTab, setActiveTab] = useState<'top' | 'up' | 'down'>('top');
   const [data, setData] = useState<{ top: QueryItem[], up: QueryItem[], down: QueryItem[] }>({
     top: [],
@@ -28,7 +28,7 @@ export default function QueriesSection({ slug }: { slug: string }) {
       }
       setLoading(true);
       try {
-        const res = await fetch(`/api/seo/queries/${slug}`);
+        const res = await fetch(`/api/seo/queries/${slug}?period=${period}`);
         const json = await res.json();
         if (json.success) {
           setData(json.data);
@@ -40,7 +40,7 @@ export default function QueriesSection({ slug }: { slug: string }) {
       }
     }
     fetchQueries();
-  }, [slug]);
+  }, [slug, period]);
 
   if (slug === 'overview') return null;
 

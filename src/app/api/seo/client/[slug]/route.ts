@@ -40,16 +40,46 @@ export async function GET(
 
     if (snapshotError) throw snapshotError;
 
-    // 3. Get top keywords for the period (aggregated)
-    const { data: keywords, error: kwError } = await supabase
+    // 3. Get top keywords for the period (aggregated by keyword name)
+    const { data: rawKeywords, error: kwError } = await supabase
       .from('seo_keyword_rankings')
-      .select('*')
+      .select('keyword, clicks, impressions, ctr, position')
       .eq('client_id', client.id)
-      .gte('date', startStr)
-      .order('clicks', { ascending: false })
-      .limit(50);
+      .gte('date', startStr);
 
     if (kwError) throw kwError;
+
+    // Aggregate across all dates in the period
+    const kwMap = new Map<string, { clicks: number; impressions: number; posSum: number; ctrSum: number; count: number }>();
+    for (const row of rawKeywords || []) {
+      const existing = kwMap.get(row.keyword);
+      if (existing) {
+        existing.clicks += row.clicks || 0;
+        existing.impressions += row.impressions || 0;
+        existing.posSum += row.position || 0;
+        existing.ctrSum += row.ctr || 0;
+        existing.count += 1;
+      } else {
+        kwMap.set(row.keyword, {
+          clicks: row.clicks || 0,
+          impressions: row.impressions || 0,
+          posSum: row.position || 0,
+          ctrSum: row.ctr || 0,
+          count: 1,
+        });
+      }
+    }
+
+    const keywords = Array.from(kwMap.entries())
+      .map(([keyword, v]) => ({
+        keyword,
+        clicks: v.clicks,
+        impressions: v.impressions,
+        position: v.posSum / v.count,
+        ctr: v.ctrSum / v.count,
+      }))
+      .sort((a, b) => b.clicks - a.clicks)
+      .slice(0, 100);
 
     return NextResponse.json({
       client,

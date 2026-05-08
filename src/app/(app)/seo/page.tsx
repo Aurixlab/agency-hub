@@ -10,7 +10,6 @@ import QueriesSection from '@/components/seo/QueriesSection';
 import { Calendar, ChevronDown, BarChart3, RefreshCw, FileText, TrendingUp, Key } from 'lucide-react';
 
 const CLIENTS = [
-  { name: 'Overview', slug: 'overview' },
   { name: 'Aurix Lab', slug: 'aurixlab' },
   { name: 'Budget Promotion', slug: 'budget-promotion' },
   { name: 'CPC Clinics', slug: 'cpc-clinics' },
@@ -40,9 +39,7 @@ export default function SEODashboard() {
   async function fetchData() {
     setLoading(true);
     try {
-      const url = activeClient.slug === 'overview' 
-        ? `/api/seo/overview?period=${period.value}`
-        : `/api/seo/client/${activeClient.slug}?period=${period.value}`;
+      const url = `/api/seo/client/${activeClient.slug}?period=${period.value}`;
       
       const res = await fetch(url);
       const json = await res.json();
@@ -172,7 +169,7 @@ export default function SEODashboard() {
             <>
               <MetricCards 
                 data={data} 
-                latestMetrics={activeClient.slug === 'overview' ? data?.latestMetrics : data?.snapshots} 
+                latestMetrics={data?.snapshots}
               />
 
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">

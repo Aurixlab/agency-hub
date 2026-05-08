@@ -1,29 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { getKeywordRankings } from '@/lib/gsc';
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-function buildMap(rows: any[]): Map<string, { posSum: number; clicks: number; count: number }> {
-  const map = new Map<string, { posSum: number; clicks: number; count: number }>();
-  for (const row of rows) {
-    // GSC rows use row.keys[0] for query, DB rows use row.keyword
-    const keyword = row.keys ? row.keys[0] : row.keyword;
-    const position = row.keys ? (row.position || 0) : (row.position || 0);
-    const clicks = Math.round(row.clicks || 0);
-    const existing = map.get(keyword);
-    if (existing) {
-      existing.posSum += position;
-      existing.clicks += clicks;
-      existing.count += 1;
-    } else {
-      map.set(keyword, { posSum: position, clicks, count: 1 });
-    }
-  }
-  return map;
+function fmt(d: Date) {
+  return d.toISOString().split('T')[0];
 }
 
 export async function GET(
@@ -31,105 +15,110 @@ export async function GET(
   { params }: { params: { slug: string } }
 ) {
   const { slug } = params;
-  const { searchParams } = new URL(req.url);
-  const type = searchParams.get('type') || 'monthly'; // 'weekly' | 'monthly'
+  const type = req.nextUrl.searchParams.get('type') || 'monthly';
 
-  try {
-    const { data: client, error: clientError } = await supabase
-      .from('seo_clients')
-      .select('id, gsc_property_url')
-      .eq('slug', slug)
-      .single();
+  const { data: client } = await supabase
+    .from('seo_clients')
+    .select('id, name')
+    .eq('slug', slug === 'overview' ? 'cpc-clinics' : slug)
+    .single();
 
-    if (clientError || !client) {
-      return NextResponse.json({ error: 'Client not found' }, { status: 404 });
-    }
+  if (!client) return NextResponse.json({ error: 'Client not found' }, { status: 404 });
 
-    const today = new Date();
-    let currentStart: string, currentEnd: string, previousStart: string, previousEnd: string;
-    let periodLabel: string, prevPeriodLabel: string;
+  const now = new Date();
+  let currentStart: Date, currentEnd: Date, prevStart: Date, prevEnd: Date;
 
-    if (type === 'weekly') {
-      // Current: last 7 days (with 2-day GSC delay)
-      const ce = new Date(today);
-      ce.setDate(today.getDate() - 2);
-      const cs = new Date(ce);
-      cs.setDate(ce.getDate() - 6);
-      // Previous: 7 days before current
-      const pe = new Date(cs);
-      pe.setDate(cs.getDate() - 1);
-      const ps = new Date(pe);
-      ps.setDate(pe.getDate() - 6);
+  if (type === 'weekly') {
+    const day = now.getDay();
+    const diffToMon = day === 0 ? -6 : 1 - day;
+    currentStart = new Date(now);
+    currentStart.setDate(now.getDate() + diffToMon);
+    currentEnd = new Date(currentStart);
+    currentEnd.setDate(currentStart.getDate() + 6);
 
-      currentStart = cs.toISOString().split('T')[0];
-      currentEnd = ce.toISOString().split('T')[0];
-      previousStart = ps.toISOString().split('T')[0];
-      previousEnd = pe.toISOString().split('T')[0];
-      periodLabel = `${currentStart} – ${currentEnd}`;
-      prevPeriodLabel = `${previousStart} – ${previousEnd}`;
+    prevStart = new Date(currentStart);
+    prevStart.setDate(currentStart.getDate() - 7);
+    prevEnd = new Date(currentStart);
+    prevEnd.setDate(currentStart.getDate() - 1);
+  } else {
+    currentStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    currentEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    prevStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    prevEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+  }
+
+  const [{ data: current }, { data: previous }] = await Promise.all([
+    supabase
+      .from('seo_keyword_rankings')
+      .select('keyword, position, clicks, impressions')
+      .eq('client_id', client.id)
+      .gte('date', fmt(currentStart))
+      .lte('date', fmt(currentEnd)),
+    supabase
+      .from('seo_keyword_rankings')
+      .select('keyword, position, clicks')
+      .eq('client_id', client.id)
+      .gte('date', fmt(prevStart))
+      .lte('date', fmt(prevEnd)),
+  ]);
+
+  const currentMap = new Map<string, { posSum: number; count: number; clicks: number; impressions: number }>();
+  for (const row of current || []) {
+    const ex = currentMap.get(row.keyword);
+    if (ex) {
+      ex.posSum += row.position;
+      ex.count += 1;
+      ex.clicks += row.clicks || 0;
+      ex.impressions += row.impressions || 0;
     } else {
-      // Current: this calendar month up to 2 days ago (GSC delay)
-      const ce = new Date(today);
-      ce.setDate(today.getDate() - 2);
-      const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-      // Previous: full previous calendar month
-      const prevMonthEnd = new Date(currentMonthStart);
-      prevMonthEnd.setDate(prevMonthEnd.getDate() - 1);
-      const prevMonthStart = new Date(prevMonthEnd.getFullYear(), prevMonthEnd.getMonth(), 1);
-
-      currentStart = currentMonthStart.toISOString().split('T')[0];
-      currentEnd = ce.toISOString().split('T')[0];
-      previousStart = prevMonthStart.toISOString().split('T')[0];
-      previousEnd = prevMonthEnd.toISOString().split('T')[0];
-
-      const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      periodLabel = `${monthNames[today.getMonth()]} ${today.getFullYear()}`;
-      prevPeriodLabel = `${monthNames[prevMonthEnd.getMonth()]} ${prevMonthEnd.getFullYear()}`;
-    }
-
-    // Fetch directly from GSC for both periods — no DB history required
-    const [currentRows, previousRows] = await Promise.all([
-      getKeywordRankings(client.gsc_property_url, currentStart, currentEnd, 200),
-      getKeywordRankings(client.gsc_property_url, previousStart, previousEnd, 200),
-    ]);
-
-    const currentMap = buildMap(currentRows);
-    const previousMap = buildMap(previousRows);
-
-    const results: {
-      keyword: string;
-      current_position: number;
-      prev_position: number;
-      position_delta: number;
-      clicks: number;
-    }[] = [];
-
-    for (const [keyword, curr] of Array.from(currentMap.entries())) {
-      const prev = previousMap.get(keyword);
-      if (!prev) continue;
-      const currentPos = curr.posSum / curr.count;
-      const prevPos = prev.posSum / prev.count;
-      // Positive delta = improved (position number decreased)
-      results.push({
-        keyword,
-        current_position: currentPos,
-        prev_position: prevPos,
-        position_delta: prevPos - currentPos,
-        clicks: curr.clicks,
+      currentMap.set(row.keyword, {
+        posSum: row.position,
+        count: 1,
+        clicks: row.clicks || 0,
+        impressions: row.impressions || 0,
       });
     }
-
-    results.sort((a, b) => b.position_delta - a.position_delta);
-
-    return NextResponse.json({
-      success: true,
-      type,
-      periodLabel,
-      prevPeriodLabel,
-      data: results.slice(0, 20),
-    });
-  } catch (error: any) {
-    console.error('Comparison API Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  const prevMap = new Map<string, { posSum: number; count: number }>();
+  for (const row of previous || []) {
+    const ex = prevMap.get(row.keyword);
+    if (ex) {
+      ex.posSum += row.position;
+      ex.count += 1;
+    } else {
+      prevMap.set(row.keyword, { posSum: row.position, count: 1 });
+    }
+  }
+
+  const comparison = Array.from(currentMap.entries())
+    .map(([keyword, cur]) => {
+      const prev = prevMap.get(keyword);
+      const currentPos = cur.posSum / cur.count;
+      const prevPos = prev ? prev.posSum / prev.count : null;
+      const delta = prevPos !== null ? prevPos - currentPos : null;
+
+      return {
+        keyword,
+        currentPosition: parseFloat(currentPos.toFixed(1)),
+        previousPosition: prevPos !== null ? parseFloat(prevPos.toFixed(1)) : null,
+        delta: delta !== null ? parseFloat(delta.toFixed(1)) : null,
+        clicks: cur.clicks,
+        impressions: cur.impressions,
+      };
+    })
+    .filter(k => k.delta !== null)
+    .sort((a, b) => (b.delta ?? 0) - (a.delta ?? 0));
+
+  return NextResponse.json({
+    type,
+    periods: {
+      current: { start: fmt(currentStart), end: fmt(currentEnd) },
+      previous: { start: fmt(prevStart), end: fmt(prevEnd) },
+    },
+    improved: comparison.filter(k => (k.delta ?? 0) > 0).slice(0, 10),
+    declined: comparison.filter(k => (k.delta ?? 0) < 0).slice(0, 10),
+    unchanged: comparison.filter(k => k.delta === 0).slice(0, 5),
+    total: comparison.length,
+  });
 }

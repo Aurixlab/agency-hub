@@ -57,7 +57,7 @@ export default function LoginPage() {
             <span className="text-white font-bold text-base">AL</span>
           </div>
           <h1 className="text-2xl font-bold text-surface-900 dark:text-white">
-            Welcome to Aurix Lab Notion
+            Welcome to Mission Control
           </h1>
           <p className="text-surface-500 dark:text-surface-400 mt-2 text-sm">
             Sign in with your team credentials

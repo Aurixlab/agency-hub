@@ -123,7 +123,7 @@ export default function Sidebar({ user }: SidebarProps) {
         {!collapsed && (
           <div className="min-w-0">
             <h1 className="text-base font-bold text-surface-900 dark:text-white truncate">
-            Aurix Lab Notion
+            Mission Control
             </h1>
           </div>
         )}

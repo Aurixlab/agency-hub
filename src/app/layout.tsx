@@ -4,7 +4,7 @@ import { QueryProvider } from '@/providers/QueryProvider';
 import { Toaster } from 'react-hot-toast';
 
 export const metadata = {
-  title: 'Aurix Lab Notion — Project & Task Management',
+  title: 'Mission Control — Project & Task Management',
   description: 'Internal project management for Aurix Lab',
 };
 

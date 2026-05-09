@@ -6,6 +6,9 @@ import { Toaster } from 'react-hot-toast';
 export const metadata = {
   title: 'Mission Control — Project & Task Management',
   description: 'Internal project management for Aurix Lab',
+  icons: {
+    icon: '/favicon.png',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

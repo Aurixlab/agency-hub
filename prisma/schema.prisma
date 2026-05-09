@@ -27,6 +27,7 @@ model User {
   username           String    @unique
   name               String
   email              String?
+  altEmail           String?   @map("alt_email")
   role               Role      @default(MEMBER)
   passwordHash       String    @map("password_hash")
   mustChangePassword Boolean   @default(true) @map("must_change_password")

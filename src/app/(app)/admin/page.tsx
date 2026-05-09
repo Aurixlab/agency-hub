@@ -202,8 +202,9 @@ export default function AdminPage() {
                 <input value={newUser.username} onChange={e => setNewUser({...newUser, username: e.target.value})} className="input" placeholder="lowercase, no spaces" required />
               </div>
               <div>
-                <label className="label">Email</label>
-                <input value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} className="input" placeholder="user@example.com (optional)" type="email" />
+                <label className="label">Gmail Address *</label>
+                <input value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} className="input" placeholder="user@gmail.com" type="email" required />
+                <p className="text-xs text-surface-500 mt-1">Used for Google sign-in</p>
               </div>
               <div>
                 <label className="label">Initial Password *</label>

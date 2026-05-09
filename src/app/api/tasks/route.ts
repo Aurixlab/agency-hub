@@ -87,6 +87,9 @@ export async function POST(request: Request) {
     if (!title?.trim()) {
       return NextResponse.json({ error: 'Title is required' }, { status: 400 });
     }
+    if (!dueDate) {
+      return NextResponse.json({ error: 'Due date is required' }, { status: 400 });
+    }
 
     const resolvedIds: string[] = Array.isArray(assigneeIds) ? assigneeIds : [];
 

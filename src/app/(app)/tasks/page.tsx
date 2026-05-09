@@ -419,6 +419,7 @@ function NewTaskModal({ users, onClose, onCreated }: {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
+    if (!dueDate) { toast.error('Due date is required'); return; }
     setCreating(true);
     const { error } = await apiCall('/api/tasks', {
       method: 'POST',
@@ -485,12 +486,13 @@ function NewTaskModal({ users, onClose, onCreated }: {
           <AssigneePicker users={users} selected={assigneeIds} onChange={setAssigneeIds} />
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="label">Due Date</label>
+              <label className="label">Due Date *</label>
               <input
                 type="date"
                 value={dueDate}
                 onChange={e => setDueDate(e.target.value)}
                 className="input"
+                required
               />
             </div>
             <div>

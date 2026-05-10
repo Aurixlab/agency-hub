@@ -50,8 +50,8 @@ export async function GET(req: NextRequest) {
         await supabase.from('seo_daily_snapshots').upsert(snapshots, { onConflict: 'client_id,date' });
       }
 
-      // 2. Sync Top Keywords (for the latest available date)
-      const keywords = await getKeywordRankings(client.gsc_property_url, endStr, endStr);
+      // 2. Sync Top Keywords for yesterday (endStr = today - 2, accounting for GSC 2-day delay)
+      const keywords = await getKeywordRankings(client.gsc_property_url, endStr, endStr, 50);
       if (keywords.length > 0) {
         const kwRows = keywords.map((row: any) => ({
           client_id: client.id,
@@ -60,10 +60,11 @@ export async function GET(req: NextRequest) {
           position: row.position,
           clicks: Math.round(row.clicks),
           impressions: Math.round(row.impressions),
-          ctr: row.ctr
+          ctr: Math.round(row.ctr * 10000) / 10000,
         }));
 
         await supabase.from('seo_keyword_rankings').upsert(kwRows, { onConflict: 'client_id,date,keyword' });
+        console.log(`    Stored ${kwRows.length} keyword rankings for ${client.name} on ${endStr}`);
       }
 
       // 3. Sync Indexing Status

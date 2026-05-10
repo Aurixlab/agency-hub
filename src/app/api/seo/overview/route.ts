@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const days = parseInt(searchParams.get('period') || '30');
   
   const startDate = new Date();
-  startDate.setDate(startDate.getDate() - days);
+  startDate.setDate(startDate.getDate() - days - 1);
   const startStr = startDate.toISOString().split('T')[0];
 
   try {

@@ -172,17 +172,11 @@ export default function SEODashboard() {
                 latestMetrics={data?.snapshots}
               />
 
-              <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                <div className="xl:col-span-2">
-                  <TrendChart snapshots={data?.snapshots} />
-                </div>
-                <div className="xl:col-span-1">
-                  <RankingComparison slug={activeClient.slug} />
-                </div>
-              </div>
+              <TrendChart snapshots={data?.snapshots} />
 
-              <div className="grid grid-cols-1 gap-6">
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                 <QueriesSection slug={activeClient.slug} period={period.value} />
+                <RankingComparison slug={activeClient.slug} />
               </div>
             </>
           )}

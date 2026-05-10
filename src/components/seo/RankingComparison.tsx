@@ -96,7 +96,7 @@ export default function RankingComparison({ slug }: { slug: string }) {
     : null;
 
   return (
-    <div className="bg-white dark:bg-surface-900 rounded-2xl border border-surface-100 dark:border-surface-800 shadow-sm p-6 h-full flex flex-col">
+    <div className="bg-white dark:bg-surface-900 rounded-2xl border border-surface-100 dark:border-surface-800 shadow-sm p-6 flex flex-col max-h-[600px]">
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <div>

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTheme } from '@/providers/ThemeProvider';
 import {
@@ -117,8 +118,8 @@ export default function Sidebar({ user }: SidebarProps) {
     <div className="flex flex-col h-full">
       {/* Logo */}
       <div className="flex items-center gap-3 px-5 py-5 border-b border-surface-200 dark:border-surface-800">
-        <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center flex-shrink-0">
-          <span className="text-white font-bold text-sm">AL</span>
+        <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0">
+          <Image src="/favicon.png" alt="Mission Control" width={32} height={32} className="w-full h-full object-cover" />
         </div>
         {!collapsed && (
           <div className="min-w-0">

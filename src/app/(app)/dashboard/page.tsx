@@ -3,9 +3,9 @@
 import { useFetch } from '@/hooks/useFetch';
 import { Task, Project } from '@/types';
 import { RefreshCw, Clock, CheckCircle2, AlertTriangle, Trophy, ListTodo } from 'lucide-react';
-import Link from 'next/link';
 import { format, isBefore, addDays, subDays } from 'date-fns';
 import { useState, useEffect } from 'react';
+import TaskDetailModal from '@/components/TaskDetailModal';
 
 const priorityColors: Record<string, string> = {
   URGENT: 'priority-urgent',
@@ -44,6 +44,7 @@ export default function DashboardPage() {
     .sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime());
   const doneTasks = combinedTasks.filter(t => !t.deletedAt && !!t.doneDate);
 
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const refetchEverything = () => { refetchTasks(); refetchStandalone(); refetchAll(); };
 
   return (
@@ -93,10 +94,10 @@ export default function DashboardPage() {
               </div>
             ) : (
               activeTasks.slice(0, 15).map(task => (
-                <Link
+                <button
                   key={task.id}
-                  href={task.projectId ? `/projects/${task.projectId}` : '/tasks'}
-                  className="flex items-center gap-3 px-5 py-3.5 hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors"
+                  onClick={() => setSelectedTaskId(task.id)}
+                  className="flex items-center gap-3 px-5 py-3.5 hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors w-full text-left"
                 >
                   <span className={`badge ${priorityColors[task.priority]}`}>
                     {task.priority === 'NONE' ? '—' : task.priority.charAt(0)}
@@ -116,15 +117,14 @@ export default function DashboardPage() {
                       {format(new Date(task.dueDate), 'MMM d')}
                     </span>
                   )}
-                </Link>
+                </button>
               ))
             )}
           </div>
         </div>
 
-        {/* Due Soon + Projects */}
+        {/* Due Soon */}
         <div className="space-y-6">
-          {/* Due Soon */}
           <div className="card p-0">
             <div className="px-5 py-4 border-b border-surface-200 dark:border-surface-800">
               <h2 className="font-semibold text-surface-900 dark:text-white">Due Soon</h2>
@@ -134,7 +134,11 @@ export default function DashboardPage() {
                 <div className="p-6 text-center text-surface-400 text-sm">Nothing due soon</div>
               ) : (
                 dueSoonTasks.slice(0, 5).map(task => (
-                  <div key={task.id} className="px-5 py-3">
+                  <button
+                    key={task.id}
+                    onClick={() => setSelectedTaskId(task.id)}
+                    className="w-full text-left px-5 py-3 hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors"
+                  >
                     <p className="text-sm font-medium text-surface-900 dark:text-white truncate">{task.title}</p>
                     <p className={`text-xs mt-0.5 ${
                       isBefore(new Date(task.dueDate!), new Date()) ? 'text-red-600 font-medium' : 'text-surface-500'
@@ -142,27 +146,36 @@ export default function DashboardPage() {
                       {isBefore(new Date(task.dueDate!), new Date()) ? 'Overdue — ' : ''}
                       {format(new Date(task.dueDate!), 'EEEE, MMM d')}
                     </p>
-                  </div>
+                  </button>
                 ))
               )}
             </div>
           </div>
-
         </div>
       </div>
+
+      {selectedTaskId && (
+        <TaskDetailModal
+          taskId={selectedTaskId}
+          users={users ?? []}
+          onClose={() => setSelectedTaskId(null)}
+          onUpdated={() => { setSelectedTaskId(null); refetchEverything(); }}
+        />
+      )}
 
       {/* ==================== ALL TASKS TABLE ==================== */}
       <AllTasksTable
         tasks={allTasks || []}
         loading={loadingAll}
         users={users || []}
+        onTaskClick={setSelectedTaskId}
       />
     </div>
   );
 }
 
 // ==================== ALL TASKS TABLE COMPONENT ====================
-function AllTasksTable({ tasks, loading, users }: { tasks: Task[]; loading: boolean; users: any[] }) {
+function AllTasksTable({ tasks, loading, users, onTaskClick }: { tasks: Task[]; loading: boolean; users: any[]; onTaskClick: (id: string) => void }) {
   const [tab, setTab] = useState<'active' | 'archive'>('active');
   const [sortField, setSortField] = useState<string>('dueDate');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
@@ -290,14 +303,12 @@ function AllTasksTable({ tasks, loading, users }: { tasks: Task[]; loading: bool
               </tr>
             ) : (
               sorted.map((task: Task) => (
-                <tr key={task.id} className="hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors">
+                <tr key={task.id} className="hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors cursor-pointer" onClick={() => onTaskClick(task.id)}>
                   <td className="px-4 py-3">
-                    <Link href={task.projectId ? `/projects/${task.projectId}` : '/tasks'} className="block">
-                      <p className="text-sm font-medium text-surface-900 dark:text-white hover:text-brand-600 dark:hover:text-brand-400 transition-colors">
-                        {task.title}
-                      </p>
-                      <p className="text-xs text-surface-500 mt-0.5">{task.project?.name ?? 'Personal'}</p>
-                    </Link>
+                    <p className="text-sm font-medium text-surface-900 dark:text-white hover:text-brand-600 dark:hover:text-brand-400 transition-colors">
+                      {task.title}
+                    </p>
+                    <p className="text-xs text-surface-500 mt-0.5">{task.project?.name ?? 'Personal'}</p>
                   </td>
                   <td className="px-4 py-3">
                     <span className="badge bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-surface-300">

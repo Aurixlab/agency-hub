@@ -2,8 +2,11 @@
 
 import { useFetch } from '@/hooks/useFetch';
 import { Task } from '@/types';
-import { Users, RefreshCw, Trophy } from 'lucide-react';
-import { format, subMonths, startOfMonth } from 'date-fns';
+import { RefreshCw, Trophy, Camera, X } from 'lucide-react';
+import { format, subMonths } from 'date-fns';
+import { useRef, useState } from 'react';
+import Image from 'next/image';
+import toast from 'react-hot-toast';
 
 interface CompletionEntry {
   userId: string;
@@ -14,11 +17,13 @@ interface CompletionEntry {
 
 export default function TeamPage() {
   const { data: users, loading, refetch } = useFetch<any[]>('/api/users');
+  const { data: me } = useFetch<any>('/api/me', { pollInterval: false });
   const { data: allTasks } = useFetch<Task[]>('/api/tasks');
   const { data: completions } = useFetch<CompletionEntry[]>('/api/stats/completions', { pollInterval: false });
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const activeUsers = users?.filter(u => !u.disabled) || [];
-
   const thisMonth = format(new Date(), 'yyyy-MM');
   const lastMonth = format(subMonths(new Date(), 1), 'yyyy-MM');
 
@@ -29,15 +34,57 @@ export default function TeamPage() {
     const userTasks = allTasks?.filter(t =>
       (t.assigneeId === userId || (Array.isArray(t.assigneeIds) && t.assigneeIds.includes(userId))) && !t.deletedAt
     ) || [];
-    const done = userTasks.filter(t => !!t.doneDate).length;
-    const active = userTasks.filter(t => !t.doneDate).length;
-    const urgent = userTasks.filter(t => t.priority === 'URGENT' && !t.doneDate).length;
     return {
       total: userTasks.length,
-      active,
-      done,
-      urgent,
+      active: userTasks.filter(t => !t.doneDate).length,
+      done: userTasks.filter(t => !!t.doneDate).length,
+      urgent: userTasks.filter(t => t.priority === 'URGENT' && !t.doneDate).length,
     };
+  };
+
+  const handleAvatarUpload = async (file: File) => {
+    if (file.size > 500 * 1024) {
+      toast.error('Image must be under 500 KB');
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      toast.error('File must be an image');
+      return;
+    }
+    setUploading(true);
+    const form = new FormData();
+    form.append('avatar', file);
+    const res = await fetch('/api/me/avatar', { method: 'POST', body: form });
+    const data = await res.json();
+    if (!res.ok) {
+      toast.error(data.error || 'Upload failed');
+    } else {
+      toast.success('Profile picture updated');
+      refetch();
+    }
+    setUploading(false);
+  };
+
+  const handleRemoveAvatar = async () => {
+    setUploading(true);
+    await fetch('/api/me/avatar', { method: 'DELETE' });
+    toast.success('Profile picture removed');
+    refetch();
+    setUploading(false);
+  };
+
+  const Avatar = ({ user, size = 'md' }: { user: any; size?: 'sm' | 'md' | 'lg' }) => {
+    const dim = size === 'lg' ? 'w-16 h-16' : size === 'md' ? 'w-11 h-11' : 'w-8 h-8';
+    const text = size === 'lg' ? 'text-xl' : size === 'md' ? 'text-base' : 'text-xs';
+    return user.avatarUrl ? (
+      <Image src={user.avatarUrl} alt={user.name} width={64} height={64} className={`${dim} rounded-full object-cover flex-shrink-0`} />
+    ) : (
+      <div className={`${dim} rounded-full bg-brand-100 dark:bg-brand-900 flex items-center justify-center flex-shrink-0`}>
+        <span className={`${text} font-bold text-brand-700 dark:text-brand-300`}>
+          {user.name.charAt(0).toUpperCase()}
+        </span>
+      </div>
+    );
   };
 
   return (
@@ -62,16 +109,43 @@ export default function TeamPage() {
             const stats = getTaskStats(user.id);
             const thisMonthCount = getCompletions(user.id, thisMonth);
             const lastMonthCount = getCompletions(user.id, lastMonth);
+            const isMe = me?.id === user.id;
+
             return (
               <div key={user.id} className="card p-5 space-y-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-full bg-brand-100 dark:bg-brand-900 flex items-center justify-center">
-                    <span className="text-brand-700 dark:text-brand-300 font-bold">
-                      {user.name.charAt(0).toUpperCase()}
-                    </span>
+                  {/* Avatar — editable only for own card */}
+                  <div className="relative flex-shrink-0 group">
+                    <Avatar user={user} size="md" />
+                    {isMe && (
+                      <>
+                        <button
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={uploading}
+                          className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                          title="Change photo"
+                        >
+                          <Camera className="w-4 h-4 text-white" />
+                        </button>
+                        {user.avatarUrl && (
+                          <button
+                            onClick={handleRemoveAvatar}
+                            disabled={uploading}
+                            className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full items-center justify-center hidden group-hover:flex"
+                            title="Remove photo"
+                          >
+                            <X className="w-2.5 h-2.5 text-white" />
+                          </button>
+                        )}
+                      </>
+                    )}
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-surface-900 dark:text-white">{user.name}</h3>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <h3 className="font-semibold text-surface-900 dark:text-white truncate">{user.name}</h3>
+                      {isMe && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-300 font-medium flex-shrink-0">You</span>}
+                    </div>
                     <p className="text-xs text-surface-500">@{user.username} · {user.role}</p>
                   </div>
                 </div>
@@ -118,6 +192,19 @@ export default function TeamPage() {
           })}
         </div>
       )}
+
+      {/* Hidden file input for avatar upload */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={e => {
+          const file = e.target.files?.[0];
+          if (file) handleAvatarUpload(file);
+          e.target.value = '';
+        }}
+      />
     </div>
   );
 }

@@ -17,6 +17,7 @@ export async function GET(request: Request) {
       role: true,
       disabled: true,
       mustChangePassword: true,
+      avatarUrl: true,
       createdAt: true,
     },
     orderBy: { createdAt: 'asc' },
@@ -67,6 +68,7 @@ export async function POST(request: Request) {
         role: true,
         disabled: true,
         mustChangePassword: true,
+        avatarUrl: true,
         createdAt: true,
       },
     });

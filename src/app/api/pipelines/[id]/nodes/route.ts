@@ -23,6 +23,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
         positionX: n.position?.x ?? 0,
         positionY: n.position?.y ?? 0,
         edges: n.edges || [],
+        done: n.done ?? false,
       })),
     });
   }

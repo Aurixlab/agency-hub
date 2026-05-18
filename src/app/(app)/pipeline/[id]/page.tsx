@@ -27,6 +27,7 @@ interface Callbacks {
   onLabelChange: (nodeId: string, label: string) => void;
   onDescChange: (nodeId: string, desc: string) => void;
   onAssigneesChange: (nodeId: string, userId: string) => void;
+  onDoneToggle: (nodeId: string) => void;
 }
 
 // ── Custom Node ───────────────────────────────────────────────────────────
@@ -62,10 +63,11 @@ function PipelineNodeCard({ id, data, selected }: NodeProps) {
   const assigneeIds: string[] = (data.assigneeIds as string[]) || [];
   const users: any[] = (data.users as any[]) || [];
   const assignedUsers = users.filter(u => assigneeIds.includes(u.id));
+  const done = data.done as boolean;
 
   return (
     <div className={`relative bg-white dark:bg-surface-900 rounded-xl shadow-md border-2 transition-all min-w-[200px] max-w-[240px] ${
-      selected ? 'border-brand-500' : 'border-surface-200 dark:border-surface-700'
+      done ? 'border-emerald-500' : selected ? 'border-brand-500' : 'border-red-400 dark:border-red-500'
     }`}>
       <Handle id="left" type="target" position={Position.Left} className="!w-3 !h-3 !bg-brand-500 !border-2 !border-white" />
       <Handle id="right" type="source" position={Position.Right} className="!w-3 !h-3 !bg-brand-500 !border-2 !border-white" />
@@ -73,30 +75,43 @@ function PipelineNodeCard({ id, data, selected }: NodeProps) {
       <Handle id="bottom" type="source" position={Position.Bottom} className="!w-3 !h-3 !bg-brand-400 !border-2 !border-white" />
 
       <div className="p-3 space-y-2">
-        {/* Label */}
-        {editingLabel ? (
-          <div className="flex items-center gap-1">
-            <input
-              ref={labelRef}
-              value={label}
-              onChange={e => setLabel(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') saveLabel();
-                if (e.key === 'Escape') { setEditingLabel(false); setLabel(data.label as string); }
-              }}
-              className="text-sm font-semibold bg-transparent border-b border-brand-500 outline-none flex-1 text-surface-900 dark:text-white"
-            />
-            <button onClick={saveLabel} className="p-0.5 text-brand-600"><Check className="w-3.5 h-3.5" /></button>
-          </div>
-        ) : (
-          <p
-            onDoubleClick={() => setEditingLabel(true)}
-            className="text-sm font-semibold text-surface-900 dark:text-white cursor-pointer truncate"
-            title="Double-click to edit"
+        {/* Label row with done toggle */}
+        <div className="flex items-center gap-1.5">
+          {editingLabel ? (
+            <>
+              <input
+                ref={labelRef}
+                value={label}
+                onChange={e => setLabel(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') saveLabel();
+                  if (e.key === 'Escape') { setEditingLabel(false); setLabel(data.label as string); }
+                }}
+                className="text-sm font-semibold bg-transparent border-b border-brand-500 outline-none flex-1 text-surface-900 dark:text-white min-w-0"
+              />
+              <button onClick={saveLabel} className="p-0.5 text-brand-600 flex-shrink-0"><Check className="w-3.5 h-3.5" /></button>
+            </>
+          ) : (
+            <p
+              onDoubleClick={() => setEditingLabel(true)}
+              className="text-sm font-semibold text-surface-900 dark:text-white cursor-pointer truncate flex-1"
+              title="Double-click to edit"
+            >
+              {data.label as string}
+            </p>
+          )}
+          <button
+            onClick={() => cbs.onDoneToggle(id)}
+            title={done ? 'Mark as not done' : 'Mark as done'}
+            className={`flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+              done
+                ? 'bg-emerald-500 border-emerald-500 text-white'
+                : 'border-red-400 dark:border-red-500 text-transparent hover:border-emerald-400'
+            }`}
           >
-            {data.label as string}
-          </p>
-        )}
+            <Check className="w-3 h-3" />
+          </button>
+        </div>
 
         {/* Description */}
         {editingDesc ? (
@@ -179,7 +194,7 @@ function PipelineNodeCard({ id, data, selected }: NodeProps) {
 
 const nodeTypes = { pipelineNode: PipelineNodeCard };
 
-interface NodeMeta { label: string; description: string; assigneeIds: string[]; }
+interface NodeMeta { label: string; description: string; assigneeIds: string[]; done: boolean; }
 
 // ── Editor Page ───────────────────────────────────────────────────────────
 export default function PipelineEditorPage() {
@@ -204,6 +219,7 @@ export default function PipelineEditorPage() {
     onLabelChange: () => {},
     onDescChange: () => {},
     onAssigneesChange: () => {},
+    onDoneToggle: () => {},
   });
 
   useEffect(() => { nodesRef.current = nodes; }, [nodes]);
@@ -220,8 +236,8 @@ export default function PipelineEditorPage() {
         edgeMap[e.source].push(e.target);
       }
       const nodesToSave = nodesRef.current.map(n => {
-        const meta = metaRef.current[n.id] || { label: n.data.label as string, description: '', assigneeIds: [] };
-        return { id: n.id, label: meta.label, description: meta.description, assigneeIds: meta.assigneeIds, position: n.position, edges: edgeMap[n.id] || [] };
+        const meta = metaRef.current[n.id] || { label: n.data.label as string, description: '', assigneeIds: [], done: false };
+        return { id: n.id, label: meta.label, description: meta.description, assigneeIds: meta.assigneeIds, done: meta.done, position: n.position, edges: edgeMap[n.id] || [] };
       });
       const { error } = await apiCall(`/api/pipelines/${id}/nodes`, {
         method: 'PUT',
@@ -235,20 +251,20 @@ export default function PipelineEditorPage() {
     setNodes(nds => nds.map(n => {
       if (n.id !== nodeId) return n;
       const meta = metaRef.current[nodeId];
-      return { ...n, data: { ...n.data, label: meta.label, description: meta.description, assigneeIds: meta.assigneeIds } };
+      return { ...n, data: { ...n.data, label: meta.label, description: meta.description, assigneeIds: meta.assigneeIds, done: meta.done } };
     }));
   }, []);
 
   // Wire up callbacksRef so node cards always get the latest handlers
   useEffect(() => {
     callbacksRef.current.onLabelChange = (nodeId, newLabel) => {
-      if (!metaRef.current[nodeId]) metaRef.current[nodeId] = { label: newLabel, description: '', assigneeIds: [] };
+      if (!metaRef.current[nodeId]) metaRef.current[nodeId] = { label: newLabel, description: '', assigneeIds: [], done: false };
       else metaRef.current[nodeId].label = newLabel;
       syncNodeData(nodeId);
       scheduleAutoSave();
     };
     callbacksRef.current.onDescChange = (nodeId, newDesc) => {
-      if (!metaRef.current[nodeId]) metaRef.current[nodeId] = { label: 'New Stage', description: newDesc, assigneeIds: [] };
+      if (!metaRef.current[nodeId]) metaRef.current[nodeId] = { label: 'New Stage', description: newDesc, assigneeIds: [], done: false };
       else metaRef.current[nodeId].description = newDesc;
       syncNodeData(nodeId);
       scheduleAutoSave();
@@ -261,6 +277,13 @@ export default function PipelineEditorPage() {
       syncNodeData(nodeId);
       scheduleAutoSave();
     };
+    callbacksRef.current.onDoneToggle = (nodeId) => {
+      const meta = metaRef.current[nodeId];
+      if (!meta) return;
+      meta.done = !meta.done;
+      syncNodeData(nodeId);
+      scheduleAutoSave();
+    };
   }, [syncNodeData, scheduleAutoSave]);
 
   // Load saved nodes from DB
@@ -270,11 +293,12 @@ export default function PipelineEditorPage() {
     const loadedNodes: Node[] = (pipeline.nodes || []).map((n: any) => {
       const assigneeIds = Array.isArray(n.assigneeIds) ? n.assigneeIds : [];
       const description = n.description || '';
-      metaRef.current[n.id] = { label: n.label, description, assigneeIds };
+      const done = n.done ?? false;
+      metaRef.current[n.id] = { label: n.label, description, assigneeIds, done };
       return {
         id: n.id, type: 'pipelineNode',
         position: { x: n.positionX, y: n.positionY },
-        data: { label: n.label, description, assigneeIds, users: [], callbacks: callbacksRef.current },
+        data: { label: n.label, description, assigneeIds, done, users: [], callbacks: callbacksRef.current },
       };
     });
     const loadedEdges: Edge[] = [];
@@ -311,11 +335,11 @@ export default function PipelineEditorPage() {
 
   const addNode = useCallback(() => {
     const nodeId = `node-${Date.now()}`;
-    metaRef.current[nodeId] = { label: 'New Stage', description: '', assigneeIds: [] };
+    metaRef.current[nodeId] = { label: 'New Stage', description: '', assigneeIds: [], done: false };
     setNodes(nds => [...nds, {
       id: nodeId, type: 'pipelineNode',
       position: { x: 100 + Math.random() * 200, y: 100 + Math.random() * 200 },
-      data: { label: 'New Stage', description: '', assigneeIds: [], users: users || [], callbacks: callbacksRef.current },
+      data: { label: 'New Stage', description: '', assigneeIds: [], done: false, users: users || [], callbacks: callbacksRef.current },
     }]);
     scheduleAutoSave();
   }, [users, scheduleAutoSave]);

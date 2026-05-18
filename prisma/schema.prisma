@@ -187,6 +187,7 @@ model PipelineNode {
   positionX   Float    @map("position_x")
   positionY   Float    @map("position_y")
   edges       Json     @default("[]")
+  done        Boolean  @default(false)
   createdAt   DateTime @default(now()) @map("created_at")
   pipeline    Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
 

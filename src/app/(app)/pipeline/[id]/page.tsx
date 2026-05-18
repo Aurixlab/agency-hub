@@ -12,22 +12,57 @@ import {
   useEdgesState,
   Connection,
   Edge,
+  EdgeProps,
   Node,
   Handle,
   Position,
   NodeProps,
   BackgroundVariant,
+  BaseEdge,
+  EdgeLabelRenderer,
+  getSmoothStepPath,
+  useReactFlow,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useFetch, apiCall } from '@/hooks/useFetch';
-import { ArrowLeft, Plus, Check, Cloud } from 'lucide-react';
+import { ArrowLeft, Plus, Check, Cloud, Trash2, X } from 'lucide-react';
 
-// Stable callback bag — passed by ref so node cards always call the latest version
+// ── Deletable Edge ────────────────────────────────────────────────────────
+function DeletableEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, selected }: EdgeProps) {
+  const { setEdges } = useReactFlow();
+  const [edgePath, labelX, labelY] = getSmoothStepPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition });
+
+  return (
+    <>
+      <BaseEdge path={edgePath} style={{ strokeWidth: 2, stroke: selected ? '#3b82f6' : '#94a3b8' }} />
+      <EdgeLabelRenderer>
+        <div
+          style={{ position: 'absolute', transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`, pointerEvents: 'all' }}
+          className="nodrag nopan"
+        >
+          <button
+            onClick={() => {
+              setEdges(eds => eds.filter(e => e.id !== id));
+            }}
+            className="w-5 h-5 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center opacity-0 hover:opacity-100 group-hover:opacity-100 transition-opacity shadow-md"
+            style={{ opacity: selected ? 1 : undefined }}
+            title="Delete connection"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      </EdgeLabelRenderer>
+    </>
+  );
+}
+
+// ── Stable callback bag — passed by ref so node cards always call the latest version
 interface Callbacks {
   onLabelChange: (nodeId: string, label: string) => void;
   onDescChange: (nodeId: string, desc: string) => void;
   onAssigneesChange: (nodeId: string, userId: string) => void;
   onDoneToggle: (nodeId: string) => void;
+  onDelete: (nodeId: string) => void;
 }
 
 // ── Custom Node ───────────────────────────────────────────────────────────
@@ -75,7 +110,7 @@ function PipelineNodeCard({ id, data, selected }: NodeProps) {
       <Handle id="bottom" type="source" position={Position.Bottom} className="!w-3 !h-3 !bg-brand-400 !border-2 !border-white" />
 
       <div className="p-3 space-y-2">
-        {/* Label row with done toggle */}
+        {/* Label row with done toggle + delete */}
         <div className="flex items-center gap-1.5">
           {editingLabel ? (
             <>
@@ -89,7 +124,7 @@ function PipelineNodeCard({ id, data, selected }: NodeProps) {
                 }}
                 className="text-sm font-semibold bg-transparent border-b border-brand-500 outline-none flex-1 text-surface-900 dark:text-white min-w-0"
               />
-              <button onClick={saveLabel} className="p-0.5 text-brand-600 flex-shrink-0"><Check className="w-3.5 h-3.5" /></button>
+              <button onClick={saveLabel} className="p-0.5 text-brand-600 flex-shrink-0"><Check className="w-3 h-3" /></button>
             </>
           ) : (
             <p
@@ -100,16 +135,23 @@ function PipelineNodeCard({ id, data, selected }: NodeProps) {
               {data.label as string}
             </p>
           )}
+          {/* Done toggle */}
           <button
             onClick={() => cbs.onDoneToggle(id)}
             title={done ? 'Mark as not done' : 'Mark as done'}
-            className={`flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
-              done
-                ? 'bg-emerald-500 border-emerald-500 text-white'
-                : 'border-red-400 dark:border-red-500 text-transparent hover:border-emerald-400'
+            className={`flex-shrink-0 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${
+              done ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-red-400 dark:border-red-500 text-transparent hover:border-emerald-400'
             }`}
           >
-            <Check className="w-3 h-3" />
+            <Check className="w-2.5 h-2.5" />
+          </button>
+          {/* Delete node */}
+          <button
+            onClick={() => cbs.onDelete(id)}
+            title="Delete node"
+            className="flex-shrink-0 w-4 h-4 rounded flex items-center justify-center text-surface-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
+          >
+            <Trash2 className="w-2.5 h-2.5" />
           </button>
         </div>
 
@@ -193,6 +235,7 @@ function PipelineNodeCard({ id, data, selected }: NodeProps) {
 }
 
 const nodeTypes = { pipelineNode: PipelineNodeCard };
+const edgeTypes = { deletable: DeletableEdge };
 
 interface NodeMeta { label: string; description: string; assigneeIds: string[]; done: boolean; }
 
@@ -220,6 +263,7 @@ export default function PipelineEditorPage() {
     onDescChange: () => {},
     onAssigneesChange: () => {},
     onDoneToggle: () => {},
+    onDelete: () => {},
   });
 
   useEffect(() => { nodesRef.current = nodes; }, [nodes]);
@@ -284,7 +328,13 @@ export default function PipelineEditorPage() {
       syncNodeData(nodeId);
       scheduleAutoSave();
     };
-  }, [syncNodeData, scheduleAutoSave]);
+    callbacksRef.current.onDelete = (nodeId) => {
+      delete metaRef.current[nodeId];
+      setNodes(nds => nds.filter(n => n.id !== nodeId));
+      setEdges(eds => eds.filter(e => e.source !== nodeId && e.target !== nodeId));
+      scheduleAutoSave();
+    };
+  }, [syncNodeData, scheduleAutoSave, setNodes, setEdges]);
 
   // Load saved nodes from DB
   useEffect(() => {
@@ -387,9 +437,10 @@ export default function PipelineEditorPage() {
       <div className="flex-1">
         <ReactFlow nodes={nodes} edges={edges}
           onNodesChange={handleNodesChange} onEdgesChange={handleEdgesChange}
-          onConnect={onConnect} nodeTypes={nodeTypes}
+          onConnect={onConnect} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
+          deleteKeyCode={['Backspace', 'Delete']}
           fitView fitViewOptions={{ padding: 0.3 }}
-          defaultEdgeOptions={{ type: 'smoothstep', style: { strokeWidth: 2 } }}>
+          defaultEdgeOptions={{ type: 'deletable', style: { strokeWidth: 2 } }}>
           <Background variant={BackgroundVariant.Dots} gap={20} size={1}
             className="!bg-surface-50 dark:!bg-surface-950" color="var(--color-surface-300, #cbd5e1)" />
           <Controls style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }} />

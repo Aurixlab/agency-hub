@@ -52,10 +52,10 @@ function PipelineNodeCard({ id, data, selected }: NodeProps) {
     <div className={`relative bg-white dark:bg-surface-900 rounded-xl shadow-md border-2 transition-all min-w-[180px] max-w-[220px] ${
       selected ? 'border-brand-500' : 'border-surface-200 dark:border-surface-700'
     }`}>
-      <Handle type="target" position={Position.Left} className="!w-3 !h-3 !bg-brand-500 !border-2 !border-white" />
-      <Handle type="source" position={Position.Right} className="!w-3 !h-3 !bg-brand-500 !border-2 !border-white" />
-      <Handle type="target" position={Position.Top} className="!w-3 !h-3 !bg-brand-400 !border-2 !border-white" />
-      <Handle type="source" position={Position.Bottom} className="!w-3 !h-3 !bg-brand-400 !border-2 !border-white" />
+      <Handle id="left" type="target" position={Position.Left} className="!w-3 !h-3 !bg-brand-500 !border-2 !border-white" />
+      <Handle id="right" type="source" position={Position.Right} className="!w-3 !h-3 !bg-brand-500 !border-2 !border-white" />
+      <Handle id="top" type="target" position={Position.Top} className="!w-3 !h-3 !bg-brand-400 !border-2 !border-white" />
+      <Handle id="bottom" type="source" position={Position.Bottom} className="!w-3 !h-3 !bg-brand-400 !border-2 !border-white" />
 
       <div className="p-3">
         {/* Label */}

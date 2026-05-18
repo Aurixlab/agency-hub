@@ -20,7 +20,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useFetch, apiCall } from '@/hooks/useFetch';
-import { ArrowLeft, Plus, Check, CloudIcon } from 'lucide-react';
+import { ArrowLeft, Plus, Check, Cloud } from 'lucide-react';
 
 // ── Custom Node ───────────────────────────────────────────────────────────
 function PipelineNodeCard({ id, data, selected }: NodeProps) {
@@ -34,13 +34,10 @@ function PipelineNodeCard({ id, data, selected }: NodeProps) {
 
   const saveLabel = () => {
     setEditing(false);
-    if (label.trim() && label !== data.label) {
-      (data.onLabelChange as any)(id, label.trim());
+    const trimmed = label.trim();
+    if (trimmed && trimmed !== data.label) {
+      (data.onLabelChange as (id: string, label: string) => void)(id, trimmed);
     }
-  };
-
-  const toggleAssignee = (userId: string) => {
-    (data.onAssigneesChange as any)(id, userId);
   };
 
   const assigneeIds: string[] = (data.assigneeIds as string[]) || [];
@@ -63,7 +60,10 @@ function PipelineNodeCard({ id, data, selected }: NodeProps) {
               ref={inputRef}
               value={label}
               onChange={e => setLabel(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') saveLabel(); if (e.key === 'Escape') { setEditing(false); setLabel(data.label as string); } }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') saveLabel();
+                if (e.key === 'Escape') { setEditing(false); setLabel(data.label as string); }
+              }}
               className="text-sm font-semibold bg-transparent border-b border-brand-500 outline-none flex-1 text-surface-900 dark:text-white"
             />
             <button onClick={saveLabel} className="p-0.5 text-brand-600"><Check className="w-3.5 h-3.5" /></button>
@@ -103,7 +103,7 @@ function PipelineNodeCard({ id, data, selected }: NodeProps) {
             {users.filter(u => !u.disabled).map(u => (
               <button
                 key={u.id}
-                onClick={() => toggleAssignee(u.id)}
+                onClick={() => (data.onAssigneesChange as (id: string, uid: string) => void)(id, u.id)}
                 className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs transition-colors ${
                   assigneeIds.includes(u.id)
                     ? 'bg-brand-50 dark:bg-brand-950 text-brand-700 dark:text-brand-300'
@@ -129,12 +129,19 @@ function PipelineNodeCard({ id, data, selected }: NodeProps) {
 
 const nodeTypes = { pipelineNode: PipelineNodeCard };
 
+// ── Node metadata stored separately from ReactFlow state ──────────────────
+interface NodeMeta {
+  label: string;
+  assigneeIds: string[];
+}
+
 // ── Editor Page ───────────────────────────────────────────────────────────
 export default function PipelineEditorPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { data: pipeline, loading } = useFetch<any>(`/api/pipelines/${id}`, { pollInterval: false });
   const { data: users } = useFetch<any[]>('/api/users', { pollInterval: false });
+
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [pipelineName, setPipelineName] = useState('');
@@ -142,36 +149,102 @@ export default function PipelineEditorPage() {
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const [initialized, setInitialized] = useState(false);
 
-  // Always-fresh refs for autosave
+  // Source of truth for label + assigneeIds — lives outside ReactFlow
+  const metaRef = useRef<Record<string, NodeMeta>>({});
   const nodesRef = useRef<Node[]>([]);
   const edgesRef = useRef<Edge[]>([]);
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pipelineId = useRef(id);
 
   useEffect(() => { nodesRef.current = nodes; }, [nodes]);
   useEffect(() => { edgesRef.current = edges; }, [edges]);
+
+  const scheduleAutoSave = useCallback(() => {
+    setSaveStatus('unsaved');
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(async () => {
+      setSaveStatus('saving');
+      const currentNodes = nodesRef.current;
+      const currentEdges = edgesRef.current;
+
+      const edgeMap: Record<string, string[]> = {};
+      for (const e of currentEdges) {
+        if (!edgeMap[e.source]) edgeMap[e.source] = [];
+        edgeMap[e.source].push(e.target);
+      }
+
+      // Merge ReactFlow positions with our metadata
+      const nodesToSave = currentNodes.map(n => {
+        const meta = metaRef.current[n.id] || { label: n.data.label as string, assigneeIds: [] };
+        return {
+          id: n.id,
+          label: meta.label,
+          assigneeIds: meta.assigneeIds,
+          position: n.position,
+          edges: edgeMap[n.id] || [],
+        };
+      });
+
+      const { error } = await apiCall(`/api/pipelines/${id}/nodes`, {
+        method: 'PUT',
+        body: JSON.stringify({ nodes: nodesToSave }),
+      });
+      setSaveStatus(error ? 'unsaved' : 'saved');
+    }, 1500);
+  }, [id]);
+
+  // Sync node data from meta into ReactFlow so the card renders correctly
+  const syncNodeData = useCallback((nodeId: string) => {
+    setNodes(nds => nds.map(n => {
+      if (n.id !== nodeId) return n;
+      const meta = metaRef.current[nodeId];
+      return { ...n, data: { ...n.data, label: meta.label, assigneeIds: meta.assigneeIds } };
+    }));
+  }, []);
+
+  const handleLabelChange = useCallback((nodeId: string, newLabel: string) => {
+    if (!metaRef.current[nodeId]) metaRef.current[nodeId] = { label: newLabel, assigneeIds: [] };
+    else metaRef.current[nodeId].label = newLabel;
+    syncNodeData(nodeId);
+    scheduleAutoSave();
+  }, [syncNodeData, scheduleAutoSave]);
+
+  const handleAssigneesChange = useCallback((nodeId: string, userId: string) => {
+    const meta = metaRef.current[nodeId];
+    if (!meta) return;
+    const has = meta.assigneeIds.includes(userId);
+    meta.assigneeIds = has ? meta.assigneeIds.filter(i => i !== userId) : [...meta.assigneeIds, userId];
+    syncNodeData(nodeId);
+    scheduleAutoSave();
+  }, [syncNodeData, scheduleAutoSave]);
+
+  // Build a node with callbacks and synced data
+  const makeNodeData = useCallback((nodeId: string, label: string, assigneeIds: string[]) => ({
+    label,
+    assigneeIds,
+    users: users || [],
+    onLabelChange: handleLabelChange,
+    onAssigneesChange: handleAssigneesChange,
+  }), [users, handleLabelChange, handleAssigneesChange]);
 
   // Load saved nodes from DB
   useEffect(() => {
     if (!pipeline || initialized) return;
     setPipelineName(pipeline.name);
-    const loadedNodes: Node[] = (pipeline.nodes || []).map((n: any) => ({
-      id: n.id,
-      type: 'pipelineNode',
-      position: { x: n.positionX, y: n.positionY },
-      data: {
-        label: n.label,
-        assigneeIds: Array.isArray(n.assigneeIds) ? n.assigneeIds : [],
-        users: users || [],
-        onLabelChange: handleLabelChange,
-        onAssigneesChange: handleAssigneesChange,
-      },
-    }));
+
+    const loadedNodes: Node[] = (pipeline.nodes || []).map((n: any) => {
+      const assigneeIds = Array.isArray(n.assigneeIds) ? n.assigneeIds : [];
+      metaRef.current[n.id] = { label: n.label, assigneeIds };
+      return {
+        id: n.id,
+        type: 'pipelineNode',
+        position: { x: n.positionX, y: n.positionY },
+        data: makeNodeData(n.id, n.label, assigneeIds),
+      };
+    });
 
     const loadedEdges: Edge[] = [];
     for (const n of pipeline.nodes || []) {
-      const edgeList = Array.isArray(n.edges) ? n.edges : [];
-      for (const target of edgeList) {
+      for (const target of (Array.isArray(n.edges) ? n.edges : [])) {
         loadedEdges.push({ id: `e-${n.id}-${target}`, source: n.id, target });
       }
     }
@@ -179,103 +252,42 @@ export default function PipelineEditorPage() {
     setNodes(loadedNodes);
     setEdges(loadedEdges);
     setInitialized(true);
-  }, [pipeline, users, initialized]);
+  }, [pipeline, initialized, makeNodeData]);
 
-  // Keep users ref fresh in node data
+  // Keep users fresh in node data
   useEffect(() => {
-    if (!users) return;
-    setNodes(nds => nds.map(n => ({
-      ...n,
-      data: { ...n.data, users, onLabelChange: handleLabelChange, onAssigneesChange: handleAssigneesChange },
-    })));
-  }, [users]);
-
-  const handleLabelChange = useCallback((nodeId: string, newLabel: string) => {
-    setNodes(nds => nds.map(n => n.id === nodeId ? { ...n, data: { ...n.data, label: newLabel } } : n));
-    scheduleAutoSave();
-  }, []);
-
-  const handleAssigneesChange = useCallback((nodeId: string, userId: string) => {
-    setNodes(nds => nds.map(n => {
-      if (n.id !== nodeId) return n;
-      const ids: string[] = (n.data.assigneeIds as string[]) || [];
-      const newIds = ids.includes(userId) ? ids.filter(i => i !== userId) : [...ids, userId];
-      return { ...n, data: { ...n.data, assigneeIds: newIds } };
-    }));
-    scheduleAutoSave();
-  }, []);
-
-  const scheduleAutoSave = useCallback(() => {
-    setSaveStatus('unsaved');
-    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
-    autoSaveTimer.current = setTimeout(() => {
-      performSave();
-    }, 1500);
-  }, []);
-
-  const performSave = useCallback(async () => {
-    setSaveStatus('saving');
-    const currentNodes = nodesRef.current;
-    const currentEdges = edgesRef.current;
-
-    const edgeMap: Record<string, string[]> = {};
-    for (const e of currentEdges) {
-      if (!edgeMap[e.source]) edgeMap[e.source] = [];
-      edgeMap[e.source].push(e.target);
-    }
-
-    const nodesToSave = currentNodes.map(n => ({
-      id: n.id,
-      label: n.data.label,
-      assigneeIds: n.data.assigneeIds || [],
-      position: n.position,
-      edges: edgeMap[n.id] || [],
-    }));
-
-    const { error } = await apiCall(`/api/pipelines/${pipelineId.current}/nodes`, {
-      method: 'PUT',
-      body: JSON.stringify({ nodes: nodesToSave }),
-    });
-
-    setSaveStatus(error ? 'unsaved' : 'saved');
-  }, []);
+    if (!users || !initialized) return;
+    setNodes(nds => nds.map(n => ({ ...n, data: { ...n.data, users } })));
+  }, [users, initialized]);
 
   const onConnect = useCallback((connection: Connection) => {
     setEdges(eds => addEdge({ ...connection, animated: false }, eds));
     scheduleAutoSave();
   }, [scheduleAutoSave]);
 
-  // Auto-save when nodes move (position change)
   const handleNodesChange = useCallback((changes: any) => {
     onNodesChange(changes);
-    const hasMoved = changes.some((c: any) => c.type === 'position' && !c.dragging);
+    const hasMoved = changes.some((c: any) => c.type === 'position' && c.dragging === false);
     if (hasMoved) scheduleAutoSave();
   }, [onNodesChange, scheduleAutoSave]);
 
-  // Auto-save when edges are deleted
   const handleEdgesChange = useCallback((changes: any) => {
     onEdgesChange(changes);
-    const hasRemoval = changes.some((c: any) => c.type === 'remove');
-    if (hasRemoval) scheduleAutoSave();
+    if (changes.some((c: any) => c.type === 'remove')) scheduleAutoSave();
   }, [onEdgesChange, scheduleAutoSave]);
 
-  const addNode = () => {
+  const addNode = useCallback(() => {
     const nodeId = `node-${Date.now()}`;
+    metaRef.current[nodeId] = { label: 'New Stage', assigneeIds: [] };
     const newNode: Node = {
       id: nodeId,
       type: 'pipelineNode',
       position: { x: 100 + Math.random() * 200, y: 100 + Math.random() * 200 },
-      data: {
-        label: 'New Stage',
-        assigneeIds: [],
-        users: users || [],
-        onLabelChange: handleLabelChange,
-        onAssigneesChange: handleAssigneesChange,
-      },
+      data: makeNodeData(nodeId, 'New Stage', []),
     };
     setNodes(nds => [...nds, newNode]);
     scheduleAutoSave();
-  };
+  }, [makeNodeData, scheduleAutoSave]);
 
   const saveName = async () => {
     setEditingName(false);
@@ -318,16 +330,14 @@ export default function PipelineEditorPage() {
         )}
 
         <div className="ml-auto flex items-center gap-3">
-          {/* Save status indicator */}
           <span className={`text-xs flex items-center gap-1.5 transition-colors ${
             saveStatus === 'saved' ? 'text-emerald-500' :
             saveStatus === 'saving' ? 'text-surface-400 animate-pulse' :
             'text-amber-500'
           }`}>
-            <CloudIcon className="w-3.5 h-3.5" />
+            <Cloud className="w-3.5 h-3.5" />
             {saveStatus === 'saved' ? 'Saved' : saveStatus === 'saving' ? 'Saving…' : 'Unsaved'}
           </span>
-
           <button onClick={addNode} className="btn-secondary btn-sm">
             <Plus className="w-4 h-4" /> Add Node
           </button>

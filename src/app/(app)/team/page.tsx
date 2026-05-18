@@ -21,6 +21,7 @@ export default function TeamPage() {
   const { data: allTasks } = useFetch<Task[]>('/api/tasks');
   const { data: completions } = useFetch<CompletionEntry[]>('/api/stats/completions', { pollInterval: false });
   const [uploading, setUploading] = useState(false);
+  const [uploadTargetId, setUploadTargetId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const activeUsers = users?.filter(u => !u.disabled) || [];
@@ -42,35 +43,31 @@ export default function TeamPage() {
     };
   };
 
-  const handleAvatarUpload = async (file: File) => {
-    if (file.size > 500 * 1024) {
-      toast.error('Image must be under 500 KB');
-      return;
-    }
-    if (!file.type.startsWith('image/')) {
-      toast.error('File must be an image');
-      return;
-    }
+  const handleAvatarUpload = async (file: File, targetUserId: string) => {
+    if (file.size > 500 * 1024) { toast.error('Image must be under 500 KB'); return; }
+    if (!file.type.startsWith('image/')) { toast.error('File must be an image'); return; }
     setUploading(true);
     const form = new FormData();
     form.append('avatar', file);
+    form.append('userId', targetUserId);
     const res = await fetch('/api/me/avatar', { method: 'POST', body: form });
     const data = await res.json();
-    if (!res.ok) {
-      toast.error(data.error || 'Upload failed');
-    } else {
-      toast.success('Profile picture updated');
-      refetch();
-    }
+    if (!res.ok) toast.error(data.error || 'Upload failed');
+    else { toast.success('Profile picture updated'); refetch(); }
     setUploading(false);
   };
 
-  const handleRemoveAvatar = async () => {
+  const handleRemoveAvatar = async (targetUserId: string) => {
     setUploading(true);
-    await fetch('/api/me/avatar', { method: 'DELETE' });
+    await fetch(`/api/me/avatar?userId=${targetUserId}`, { method: 'DELETE' });
     toast.success('Profile picture removed');
     refetch();
     setUploading(false);
+  };
+
+  const openUploadFor = (userId: string) => {
+    setUploadTargetId(userId);
+    fileInputRef.current?.click();
   };
 
   const Avatar = ({ user, size = 'md' }: { user: any; size?: 'sm' | 'md' | 'lg' }) => {
@@ -114,13 +111,13 @@ export default function TeamPage() {
             return (
               <div key={user.id} className="card p-5 space-y-4">
                 <div className="flex items-center gap-3">
-                  {/* Avatar — editable only for own card */}
+                  {/* Avatar — editable for own card or by admin */}
                   <div className="relative flex-shrink-0 group">
                     <Avatar user={user} size="md" />
-                    {isMe && (
+                    {(isMe || me?.role === 'ADMIN') && (
                       <>
                         <button
-                          onClick={() => fileInputRef.current?.click()}
+                          onClick={() => openUploadFor(user.id)}
                           disabled={uploading}
                           className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
                           title="Change photo"
@@ -129,7 +126,7 @@ export default function TeamPage() {
                         </button>
                         {user.avatarUrl && (
                           <button
-                            onClick={handleRemoveAvatar}
+                            onClick={() => handleRemoveAvatar(user.id)}
                             disabled={uploading}
                             className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full items-center justify-center hidden group-hover:flex"
                             title="Remove photo"
@@ -201,7 +198,7 @@ export default function TeamPage() {
         className="hidden"
         onChange={e => {
           const file = e.target.files?.[0];
-          if (file) handleAvatarUpload(file);
+          if (file && uploadTargetId) handleAvatarUpload(file, uploadTargetId);
           e.target.value = '';
         }}
       />

@@ -22,6 +22,13 @@ import '@xyflow/react/dist/style.css';
 import { useFetch, apiCall } from '@/hooks/useFetch';
 import { ArrowLeft, Plus, Check, Cloud } from 'lucide-react';
 
+// Stable callback bag — passed by ref so node cards always call the latest version
+interface Callbacks {
+  onLabelChange: (nodeId: string, label: string) => void;
+  onDescChange: (nodeId: string, desc: string) => void;
+  onAssigneesChange: (nodeId: string, userId: string) => void;
+}
+
 // ── Custom Node ───────────────────────────────────────────────────────────
 function PipelineNodeCard({ id, data, selected }: NodeProps) {
   const [editingLabel, setEditingLabel] = useState(false);
@@ -32,24 +39,24 @@ function PipelineNodeCard({ id, data, selected }: NodeProps) {
   const labelRef = useRef<HTMLInputElement>(null);
   const descRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => { setLabel(data.label as string); }, [data.label]);
-  useEffect(() => { setDesc((data.description as string) || ''); }, [data.description]);
+  // Only sync from parent when not actively editing, prevents overwriting mid-type
+  useEffect(() => { if (!editingLabel) setLabel(data.label as string); }, [data.label, editingLabel]);
+  useEffect(() => { if (!editingDesc) setDesc((data.description as string) || ''); }, [data.description, editingDesc]);
   useEffect(() => { if (editingLabel) labelRef.current?.focus(); }, [editingLabel]);
   useEffect(() => { if (editingDesc) descRef.current?.focus(); }, [editingDesc]);
+
+  // Always call through the stable callbacks ref — never goes stale
+  const cbs = data.callbacks as Callbacks;
 
   const saveLabel = () => {
     setEditingLabel(false);
     const trimmed = label.trim();
-    if (trimmed && trimmed !== data.label) {
-      (data.onLabelChange as (id: string, val: string) => void)(id, trimmed);
-    }
+    if (trimmed) cbs.onLabelChange(id, trimmed);
   };
 
   const saveDesc = () => {
     setEditingDesc(false);
-    if (desc !== data.description) {
-      (data.onDescChange as (id: string, val: string) => void)(id, desc);
-    }
+    cbs.onDescChange(id, desc);
   };
 
   const assigneeIds: string[] = (data.assigneeIds as string[]) || [];
@@ -123,29 +130,19 @@ function PipelineNodeCard({ id, data, selected }: NodeProps) {
         <div className="flex items-center gap-1 flex-wrap pt-0.5">
           {assignedUsers.map(u => (
             u.avatarUrl ? (
-              <img
-                key={u.id}
-                src={u.avatarUrl}
-                alt={u.name}
-                title={u.name}
+              <img key={u.id} src={u.avatarUrl} alt={u.name} title={u.name}
                 className="w-6 h-6 rounded-full object-cover cursor-pointer hover:ring-2 ring-brand-400"
-                onClick={() => setShowAssignees(v => !v)}
-              />
+                onClick={() => setShowAssignees(v => !v)} />
             ) : (
-              <div
-                key={u.id}
-                title={u.name}
+              <div key={u.id} title={u.name}
                 className="w-6 h-6 rounded-full bg-brand-100 dark:bg-brand-900 flex items-center justify-center text-[10px] font-bold text-brand-700 dark:text-brand-300 cursor-pointer hover:ring-2 ring-brand-400"
-                onClick={() => setShowAssignees(v => !v)}
-              >
+                onClick={() => setShowAssignees(v => !v)}>
                 {u.name.charAt(0).toUpperCase()}
               </div>
             )
           ))}
-          <button
-            onClick={() => setShowAssignees(v => !v)}
-            className="w-6 h-6 rounded-full border border-dashed border-surface-300 dark:border-surface-600 flex items-center justify-center text-surface-400 hover:border-brand-400 hover:text-brand-500 text-xs"
-          >
+          <button onClick={() => setShowAssignees(v => !v)}
+            className="w-6 h-6 rounded-full border border-dashed border-surface-300 dark:border-surface-600 flex items-center justify-center text-surface-400 hover:border-brand-400 hover:text-brand-500 text-xs">
             +
           </button>
         </div>
@@ -155,15 +152,12 @@ function PipelineNodeCard({ id, data, selected }: NodeProps) {
           <div className="absolute top-full left-0 mt-1 z-50 bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-lg shadow-elevated p-2 w-48">
             <p className="text-xs font-medium text-surface-500 mb-1.5 px-1">Assign members</p>
             {users.filter(u => !u.disabled).map(u => (
-              <button
-                key={u.id}
-                onClick={() => (data.onAssigneesChange as (id: string, uid: string) => void)(id, u.id)}
+              <button key={u.id} onClick={() => cbs.onAssigneesChange(id, u.id)}
                 className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs transition-colors ${
                   assigneeIds.includes(u.id)
                     ? 'bg-brand-50 dark:bg-brand-950 text-brand-700 dark:text-brand-300'
                     : 'hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-700 dark:text-surface-300'
-                }`}
-              >
+                }`}>
                 {u.avatarUrl ? (
                   <img src={u.avatarUrl} alt={u.name} className="w-5 h-5 rounded-full object-cover flex-shrink-0" />
                 ) : (
@@ -175,9 +169,7 @@ function PipelineNodeCard({ id, data, selected }: NodeProps) {
                 {assigneeIds.includes(u.id) && <Check className="w-3 h-3 ml-auto" />}
               </button>
             ))}
-            <button onClick={() => setShowAssignees(false)} className="mt-1 w-full text-xs text-surface-400 hover:text-surface-600 py-1">
-              Done
-            </button>
+            <button onClick={() => setShowAssignees(false)} className="mt-1 w-full text-xs text-surface-400 hover:text-surface-600 py-1">Done</button>
           </div>
         )}
       </div>
@@ -187,11 +179,7 @@ function PipelineNodeCard({ id, data, selected }: NodeProps) {
 
 const nodeTypes = { pipelineNode: PipelineNodeCard };
 
-interface NodeMeta {
-  label: string;
-  description: string;
-  assigneeIds: string[];
-}
+interface NodeMeta { label: string; description: string; assigneeIds: string[]; }
 
 // ── Editor Page ───────────────────────────────────────────────────────────
 export default function PipelineEditorPage() {
@@ -211,6 +199,12 @@ export default function PipelineEditorPage() {
   const nodesRef = useRef<Node[]>([]);
   const edgesRef = useRef<Edge[]>([]);
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Stable callbacks bag — mutated in place, never recreated
+  const callbacksRef = useRef<Callbacks>({
+    onLabelChange: () => {},
+    onDescChange: () => {},
+    onAssigneesChange: () => {},
+  });
 
   useEffect(() => { nodesRef.current = nodes; }, [nodes]);
   useEffect(() => { edgesRef.current = edges; }, [edges]);
@@ -220,27 +214,15 @@ export default function PipelineEditorPage() {
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     autoSaveTimer.current = setTimeout(async () => {
       setSaveStatus('saving');
-      const currentNodes = nodesRef.current;
-      const currentEdges = edgesRef.current;
-
       const edgeMap: Record<string, string[]> = {};
-      for (const e of currentEdges) {
+      for (const e of edgesRef.current) {
         if (!edgeMap[e.source]) edgeMap[e.source] = [];
         edgeMap[e.source].push(e.target);
       }
-
-      const nodesToSave = currentNodes.map(n => {
+      const nodesToSave = nodesRef.current.map(n => {
         const meta = metaRef.current[n.id] || { label: n.data.label as string, description: '', assigneeIds: [] };
-        return {
-          id: n.id,
-          label: meta.label,
-          description: meta.description,
-          assigneeIds: meta.assigneeIds,
-          position: n.position,
-          edges: edgeMap[n.id] || [],
-        };
+        return { id: n.id, label: meta.label, description: meta.description, assigneeIds: meta.assigneeIds, position: n.position, edges: edgeMap[n.id] || [] };
       });
-
       const { error } = await apiCall(`/api/pipelines/${id}/nodes`, {
         method: 'PUT',
         body: JSON.stringify({ nodes: nodesToSave }),
@@ -257,69 +239,56 @@ export default function PipelineEditorPage() {
     }));
   }, []);
 
-  const handleLabelChange = useCallback((nodeId: string, newLabel: string) => {
-    if (!metaRef.current[nodeId]) metaRef.current[nodeId] = { label: newLabel, description: '', assigneeIds: [] };
-    else metaRef.current[nodeId].label = newLabel;
-    syncNodeData(nodeId);
-    scheduleAutoSave();
+  // Wire up callbacksRef so node cards always get the latest handlers
+  useEffect(() => {
+    callbacksRef.current.onLabelChange = (nodeId, newLabel) => {
+      if (!metaRef.current[nodeId]) metaRef.current[nodeId] = { label: newLabel, description: '', assigneeIds: [] };
+      else metaRef.current[nodeId].label = newLabel;
+      syncNodeData(nodeId);
+      scheduleAutoSave();
+    };
+    callbacksRef.current.onDescChange = (nodeId, newDesc) => {
+      if (!metaRef.current[nodeId]) metaRef.current[nodeId] = { label: 'New Stage', description: newDesc, assigneeIds: [] };
+      else metaRef.current[nodeId].description = newDesc;
+      syncNodeData(nodeId);
+      scheduleAutoSave();
+    };
+    callbacksRef.current.onAssigneesChange = (nodeId, userId) => {
+      const meta = metaRef.current[nodeId];
+      if (!meta) return;
+      const has = meta.assigneeIds.includes(userId);
+      meta.assigneeIds = has ? meta.assigneeIds.filter(i => i !== userId) : [...meta.assigneeIds, userId];
+      syncNodeData(nodeId);
+      scheduleAutoSave();
+    };
   }, [syncNodeData, scheduleAutoSave]);
-
-  const handleDescChange = useCallback((nodeId: string, newDesc: string) => {
-    if (!metaRef.current[nodeId]) metaRef.current[nodeId] = { label: 'New Stage', description: newDesc, assigneeIds: [] };
-    else metaRef.current[nodeId].description = newDesc;
-    syncNodeData(nodeId);
-    scheduleAutoSave();
-  }, [syncNodeData, scheduleAutoSave]);
-
-  const handleAssigneesChange = useCallback((nodeId: string, userId: string) => {
-    const meta = metaRef.current[nodeId];
-    if (!meta) return;
-    const has = meta.assigneeIds.includes(userId);
-    meta.assigneeIds = has ? meta.assigneeIds.filter(i => i !== userId) : [...meta.assigneeIds, userId];
-    syncNodeData(nodeId);
-    scheduleAutoSave();
-  }, [syncNodeData, scheduleAutoSave]);
-
-  const makeNodeData = useCallback((nodeId: string, label: string, description: string, assigneeIds: string[]) => ({
-    label,
-    description,
-    assigneeIds,
-    users: users || [],
-    onLabelChange: handleLabelChange,
-    onDescChange: handleDescChange,
-    onAssigneesChange: handleAssigneesChange,
-  }), [users, handleLabelChange, handleDescChange, handleAssigneesChange]);
 
   // Load saved nodes from DB
   useEffect(() => {
     if (!pipeline || initialized) return;
     setPipelineName(pipeline.name);
-
     const loadedNodes: Node[] = (pipeline.nodes || []).map((n: any) => {
       const assigneeIds = Array.isArray(n.assigneeIds) ? n.assigneeIds : [];
       const description = n.description || '';
       metaRef.current[n.id] = { label: n.label, description, assigneeIds };
       return {
-        id: n.id,
-        type: 'pipelineNode',
+        id: n.id, type: 'pipelineNode',
         position: { x: n.positionX, y: n.positionY },
-        data: makeNodeData(n.id, n.label, description, assigneeIds),
+        data: { label: n.label, description, assigneeIds, users: [], callbacks: callbacksRef.current },
       };
     });
-
     const loadedEdges: Edge[] = [];
     for (const n of pipeline.nodes || []) {
       for (const target of (Array.isArray(n.edges) ? n.edges : [])) {
         loadedEdges.push({ id: `e-${n.id}-${target}`, source: n.id, target });
       }
     }
-
     setNodes(loadedNodes);
     setEdges(loadedEdges);
     setInitialized(true);
-  }, [pipeline, initialized, makeNodeData]);
+  }, [pipeline, initialized]);
 
-  // Keep users fresh in node data (also picks up avatarUrl changes)
+  // Keep users fresh in node data
   useEffect(() => {
     if (!users || !initialized) return;
     setNodes(nds => nds.map(n => ({ ...n, data: { ...n.data, users } })));
@@ -332,8 +301,7 @@ export default function PipelineEditorPage() {
 
   const handleNodesChange = useCallback((changes: any) => {
     onNodesChange(changes);
-    const hasMoved = changes.some((c: any) => c.type === 'position' && c.dragging === false);
-    if (hasMoved) scheduleAutoSave();
+    if (changes.some((c: any) => c.type === 'position' && c.dragging === false)) scheduleAutoSave();
   }, [onNodesChange, scheduleAutoSave]);
 
   const handleEdgesChange = useCallback((changes: any) => {
@@ -344,23 +312,18 @@ export default function PipelineEditorPage() {
   const addNode = useCallback(() => {
     const nodeId = `node-${Date.now()}`;
     metaRef.current[nodeId] = { label: 'New Stage', description: '', assigneeIds: [] };
-    const newNode: Node = {
-      id: nodeId,
-      type: 'pipelineNode',
+    setNodes(nds => [...nds, {
+      id: nodeId, type: 'pipelineNode',
       position: { x: 100 + Math.random() * 200, y: 100 + Math.random() * 200 },
-      data: makeNodeData(nodeId, 'New Stage', '', []),
-    };
-    setNodes(nds => [...nds, newNode]);
+      data: { label: 'New Stage', description: '', assigneeIds: [], users: users || [], callbacks: callbacksRef.current },
+    }]);
     scheduleAutoSave();
-  }, [makeNodeData, scheduleAutoSave]);
+  }, [users, scheduleAutoSave]);
 
   const saveName = async () => {
     setEditingName(false);
     if (pipelineName.trim() && pipelineName !== pipeline?.name) {
-      await apiCall(`/api/pipelines/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ name: pipelineName }),
-      });
+      await apiCall(`/api/pipelines/${id}`, { method: 'PATCH', body: JSON.stringify({ name: pipelineName }) });
     }
   };
 
@@ -369,36 +332,24 @@ export default function PipelineEditorPage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-2rem)] -m-6 animate-fade-in">
-      {/* Toolbar */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-950 flex-shrink-0">
         <button onClick={() => router.push('/pipeline')} className="p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500">
           <ArrowLeft className="w-4 h-4" />
         </button>
-
         {editingName ? (
-          <input
-            value={pipelineName}
-            onChange={e => setPipelineName(e.target.value)}
+          <input value={pipelineName} onChange={e => setPipelineName(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') { setEditingName(false); setPipelineName(pipeline.name); } }}
-            onBlur={saveName}
-            className="text-lg font-bold bg-transparent border-b-2 border-brand-500 outline-none text-surface-900 dark:text-white"
-            autoFocus
-          />
+            onBlur={saveName} autoFocus
+            className="text-lg font-bold bg-transparent border-b-2 border-brand-500 outline-none text-surface-900 dark:text-white" />
         ) : (
-          <h1
-            onClick={() => setEditingName(true)}
-            className="text-lg font-bold text-surface-900 dark:text-white cursor-pointer hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
-            title="Click to rename"
-          >
+          <h1 onClick={() => setEditingName(true)} title="Click to rename"
+            className="text-lg font-bold text-surface-900 dark:text-white cursor-pointer hover:text-brand-600 dark:hover:text-brand-400 transition-colors">
             {pipelineName}
           </h1>
         )}
-
         <div className="ml-auto flex items-center gap-3">
           <span className={`text-xs flex items-center gap-1.5 transition-colors ${
-            saveStatus === 'saved' ? 'text-emerald-500' :
-            saveStatus === 'saving' ? 'text-surface-400 animate-pulse' :
-            'text-amber-500'
+            saveStatus === 'saved' ? 'text-emerald-500' : saveStatus === 'saving' ? 'text-surface-400 animate-pulse' : 'text-amber-500'
           }`}>
             <Cloud className="w-3.5 h-3.5" />
             {saveStatus === 'saved' ? 'Saved' : saveStatus === 'saving' ? 'Saving…' : 'Unsaved'}
@@ -409,27 +360,16 @@ export default function PipelineEditorPage() {
         </div>
       </div>
 
-      {/* Canvas */}
       <div className="flex-1">
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={handleNodesChange}
-          onEdgesChange={handleEdgesChange}
-          onConnect={onConnect}
-          nodeTypes={nodeTypes}
-          fitView
-          fitViewOptions={{ padding: 0.3 }}
-          defaultEdgeOptions={{ type: 'smoothstep', style: { strokeWidth: 2 } }}
-        >
-          <Background variant={BackgroundVariant.Dots} gap={20} size={1} className="!bg-surface-50 dark:!bg-surface-950" color="var(--color-surface-300, #cbd5e1)" />
-          <Controls
-            style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}
-          />
-          <MiniMap
-            className="!border-surface-200 dark:!border-surface-700 !bg-white dark:!bg-surface-900"
-            nodeColor="#3b82f6"
-          />
+        <ReactFlow nodes={nodes} edges={edges}
+          onNodesChange={handleNodesChange} onEdgesChange={handleEdgesChange}
+          onConnect={onConnect} nodeTypes={nodeTypes}
+          fitView fitViewOptions={{ padding: 0.3 }}
+          defaultEdgeOptions={{ type: 'smoothstep', style: { strokeWidth: 2 } }}>
+          <Background variant={BackgroundVariant.Dots} gap={20} size={1}
+            className="!bg-surface-50 dark:!bg-surface-950" color="var(--color-surface-300, #cbd5e1)" />
+          <Controls style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }} />
+          <MiniMap className="!border-surface-200 dark:!border-surface-700 !bg-white dark:!bg-surface-900" nodeColor="#3b82f6" />
         </ReactFlow>
       </div>
     </div>

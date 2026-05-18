@@ -20,8 +20,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useFetch, apiCall } from '@/hooks/useFetch';
-import { ArrowLeft, Plus, Save, X, Check } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { ArrowLeft, Plus, Check, CloudIcon } from 'lucide-react';
 
 // ── Custom Node ───────────────────────────────────────────────────────────
 function PipelineNodeCard({ id, data, selected }: NodeProps) {
@@ -58,7 +57,6 @@ function PipelineNodeCard({ id, data, selected }: NodeProps) {
       <Handle id="bottom" type="source" position={Position.Bottom} className="!w-3 !h-3 !bg-brand-400 !border-2 !border-white" />
 
       <div className="p-3">
-        {/* Label */}
         {editing ? (
           <div className="flex items-center gap-1">
             <input
@@ -80,7 +78,6 @@ function PipelineNodeCard({ id, data, selected }: NodeProps) {
           </p>
         )}
 
-        {/* Assignees */}
         <div className="mt-2 flex items-center gap-1 flex-wrap">
           {assignedUsers.map(u => (
             <div
@@ -100,7 +97,6 @@ function PipelineNodeCard({ id, data, selected }: NodeProps) {
           </button>
         </div>
 
-        {/* Assignee picker */}
         {showAssignees && (
           <div className="absolute top-full left-0 mt-1 z-50 bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded-lg shadow-elevated p-2 w-48">
             <p className="text-xs font-medium text-surface-500 mb-1.5 px-1">Assign members</p>
@@ -143,8 +139,17 @@ export default function PipelineEditorPage() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [pipelineName, setPipelineName] = useState('');
   const [editingName, setEditingName] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const [initialized, setInitialized] = useState(false);
+
+  // Always-fresh refs for autosave
+  const nodesRef = useRef<Node[]>([]);
+  const edgesRef = useRef<Edge[]>([]);
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pipelineId = useRef(id);
+
+  useEffect(() => { nodesRef.current = nodes; }, [nodes]);
+  useEffect(() => { edgesRef.current = edges; }, [edges]);
 
   // Load saved nodes from DB
   useEffect(() => {
@@ -187,6 +192,7 @@ export default function PipelineEditorPage() {
 
   const handleLabelChange = useCallback((nodeId: string, newLabel: string) => {
     setNodes(nds => nds.map(n => n.id === nodeId ? { ...n, data: { ...n.data, label: newLabel } } : n));
+    scheduleAutoSave();
   }, []);
 
   const handleAssigneesChange = useCallback((nodeId: string, userId: string) => {
@@ -196,16 +202,67 @@ export default function PipelineEditorPage() {
       const newIds = ids.includes(userId) ? ids.filter(i => i !== userId) : [...ids, userId];
       return { ...n, data: { ...n.data, assigneeIds: newIds } };
     }));
+    scheduleAutoSave();
+  }, []);
+
+  const scheduleAutoSave = useCallback(() => {
+    setSaveStatus('unsaved');
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(() => {
+      performSave();
+    }, 1500);
+  }, []);
+
+  const performSave = useCallback(async () => {
+    setSaveStatus('saving');
+    const currentNodes = nodesRef.current;
+    const currentEdges = edgesRef.current;
+
+    const edgeMap: Record<string, string[]> = {};
+    for (const e of currentEdges) {
+      if (!edgeMap[e.source]) edgeMap[e.source] = [];
+      edgeMap[e.source].push(e.target);
+    }
+
+    const nodesToSave = currentNodes.map(n => ({
+      id: n.id,
+      label: n.data.label,
+      assigneeIds: n.data.assigneeIds || [],
+      position: n.position,
+      edges: edgeMap[n.id] || [],
+    }));
+
+    const { error } = await apiCall(`/api/pipelines/${pipelineId.current}/nodes`, {
+      method: 'PUT',
+      body: JSON.stringify({ nodes: nodesToSave }),
+    });
+
+    setSaveStatus(error ? 'unsaved' : 'saved');
   }, []);
 
   const onConnect = useCallback((connection: Connection) => {
     setEdges(eds => addEdge({ ...connection, animated: false }, eds));
-  }, []);
+    scheduleAutoSave();
+  }, [scheduleAutoSave]);
+
+  // Auto-save when nodes move (position change)
+  const handleNodesChange = useCallback((changes: any) => {
+    onNodesChange(changes);
+    const hasMoved = changes.some((c: any) => c.type === 'position' && !c.dragging);
+    if (hasMoved) scheduleAutoSave();
+  }, [onNodesChange, scheduleAutoSave]);
+
+  // Auto-save when edges are deleted
+  const handleEdgesChange = useCallback((changes: any) => {
+    onEdgesChange(changes);
+    const hasRemoval = changes.some((c: any) => c.type === 'remove');
+    if (hasRemoval) scheduleAutoSave();
+  }, [onEdgesChange, scheduleAutoSave]);
 
   const addNode = () => {
-    const id = `node-${Date.now()}`;
+    const nodeId = `node-${Date.now()}`;
     const newNode: Node = {
-      id,
+      id: nodeId,
       type: 'pipelineNode',
       position: { x: 100 + Math.random() * 200, y: 100 + Math.random() * 200 },
       data: {
@@ -217,34 +274,7 @@ export default function PipelineEditorPage() {
       },
     };
     setNodes(nds => [...nds, newNode]);
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
-
-    // Build edge map per node
-    const edgeMap: Record<string, string[]> = {};
-    for (const e of edges) {
-      if (!edgeMap[e.source]) edgeMap[e.source] = [];
-      edgeMap[e.source].push(e.target);
-    }
-
-    const nodesToSave = nodes.map(n => ({
-      id: n.id,
-      label: n.data.label,
-      assigneeIds: n.data.assigneeIds || [],
-      position: n.position,
-      edges: edgeMap[n.id] || [],
-    }));
-
-    const { error } = await apiCall(`/api/pipelines/${id}/nodes`, {
-      method: 'PUT',
-      body: JSON.stringify({ nodes: nodesToSave }),
-    });
-
-    if (error) { toast.error(error); }
-    else { toast.success('Pipeline saved'); }
-    setSaving(false);
+    scheduleAutoSave();
   };
 
   const saveName = async () => {
@@ -269,16 +299,14 @@ export default function PipelineEditorPage() {
         </button>
 
         {editingName ? (
-          <div className="flex items-center gap-2">
-            <input
-              value={pipelineName}
-              onChange={e => setPipelineName(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') { setEditingName(false); setPipelineName(pipeline.name); } }}
-              onBlur={saveName}
-              className="text-lg font-bold bg-transparent border-b-2 border-brand-500 outline-none text-surface-900 dark:text-white"
-              autoFocus
-            />
-          </div>
+          <input
+            value={pipelineName}
+            onChange={e => setPipelineName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') { setEditingName(false); setPipelineName(pipeline.name); } }}
+            onBlur={saveName}
+            className="text-lg font-bold bg-transparent border-b-2 border-brand-500 outline-none text-surface-900 dark:text-white"
+            autoFocus
+          />
         ) : (
           <h1
             onClick={() => setEditingName(true)}
@@ -289,13 +317,19 @@ export default function PipelineEditorPage() {
           </h1>
         )}
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-3">
+          {/* Save status indicator */}
+          <span className={`text-xs flex items-center gap-1.5 transition-colors ${
+            saveStatus === 'saved' ? 'text-emerald-500' :
+            saveStatus === 'saving' ? 'text-surface-400 animate-pulse' :
+            'text-amber-500'
+          }`}>
+            <CloudIcon className="w-3.5 h-3.5" />
+            {saveStatus === 'saved' ? 'Saved' : saveStatus === 'saving' ? 'Saving…' : 'Unsaved'}
+          </span>
+
           <button onClick={addNode} className="btn-secondary btn-sm">
             <Plus className="w-4 h-4" /> Add Node
-          </button>
-          <button onClick={handleSave} disabled={saving} className="btn-primary btn-sm">
-            <Save className="w-4 h-4" />
-            {saving ? 'Saving...' : 'Save'}
           </button>
         </div>
       </div>
@@ -305,8 +339,8 @@ export default function PipelineEditorPage() {
         <ReactFlow
           nodes={nodes}
           edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
+          onNodesChange={handleNodesChange}
+          onEdgesChange={handleEdgesChange}
           onConnect={onConnect}
           nodeTypes={nodeTypes}
           fitView

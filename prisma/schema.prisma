@@ -41,6 +41,7 @@ model User {
   comments      Comment[]
   activities    ActivityLog[]
   notifications Notification[]
+  pipelines     Pipeline[]
 
   @@map("users")
 }
@@ -162,4 +163,31 @@ model Session {
 
   @@index([token])
   @@map("sessions")
+}
+
+model Pipeline {
+  id        String         @id @default(cuid())
+  name      String
+  createdBy String         @map("created_by")
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @updatedAt @map("updated_at")
+  nodes     PipelineNode[]
+  creator   User           @relation(fields: [createdBy], references: [id])
+
+  @@map("pipelines")
+}
+
+model PipelineNode {
+  id          String   @id @default(cuid())
+  pipelineId  String   @map("pipeline_id")
+  label       String
+  description String?
+  assigneeIds Json     @default("[]") @map("assignee_ids")
+  positionX   Float    @map("position_x")
+  positionY   Float    @map("position_y")
+  edges       Json     @default("[]")
+  createdAt   DateTime @default(now()) @map("created_at")
+  pipeline    Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+
+  @@map("pipeline_nodes")
 }

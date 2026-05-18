@@ -154,3 +154,23 @@ body {
 .toast-custom {
   @apply text-sm font-medium;
 }
+
+/* ReactFlow Controls — force visible in both light and dark mode */
+.react-flow__controls {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;
+}
+.react-flow__controls-button {
+  background: #ffffff !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  color: #374151 !important;
+  fill: #374151 !important;
+}
+.react-flow__controls-button:hover {
+  background: #f1f5f9 !important;
+}
+.react-flow__controls-button svg {
+  fill: #374151 !important;
+}

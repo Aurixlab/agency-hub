@@ -91,7 +91,7 @@ export default function RankingComparison({ slug }: { slug: string }) {
     <div key={i} className="h-8 bg-surface-50 dark:bg-surface-800 animate-pulse rounded-lg" />
   ));
 
-  const periodLabel = response
+  const periodLabel = response?.periods
     ? `${response.periods.previous.start} – ${response.periods.current.end}`
     : null;
 
@@ -125,7 +125,7 @@ export default function RankingComparison({ slug }: { slug: string }) {
       <div className="flex-1 overflow-y-auto space-y-5">
         {loading ? (
           <div className="space-y-3">{skeletonRows}</div>
-        ) : !response || response.total === 0 ? (
+        ) : !response || !response.periods || response.total === 0 ? (
           <p className="text-center text-surface-400 dark:text-surface-500 py-8 text-sm">
             No comparison data yet. Need at least 2 {mode === 'weekly' ? 'weeks' : 'months'} of history.
           </p>

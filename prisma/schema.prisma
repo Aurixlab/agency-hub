@@ -29,6 +29,7 @@ model User {
   email              String?
   altEmail           String?   @map("alt_email")
   avatarUrl          String?   @map("avatar_url")
+  bio                String?
   role               Role      @default(MEMBER)
   passwordHash       String    @map("password_hash")
   mustChangePassword Boolean   @default(true) @map("must_change_password")

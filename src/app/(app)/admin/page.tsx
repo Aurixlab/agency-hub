@@ -2,7 +2,7 @@
 
 import { useFetch, apiCall } from '@/hooks/useFetch';
 import { User, ActivityLog } from '@/types';
-import { Shield, Plus, UserX, UserCheck, Key, RefreshCw, X } from 'lucide-react';
+import { Shield, Plus, UserX, UserCheck, Key, RefreshCw, X, FileText } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -15,6 +15,9 @@ export default function AdminPage() {
   const router = useRouter();
   const [showNewUser, setShowNewUser] = useState(false);
   const [showResetPw, setShowResetPw] = useState<string | null>(null);
+  const [editBioFor, setEditBioFor] = useState<string | null>(null);
+  const [bioText, setBioText] = useState('');
+  const [savingBio, setSavingBio] = useState(false);
   const [newUser, setNewUser] = useState({ username: '', name: '', email: '', role: 'MEMBER', password: '' });
   const [resetPassword, setResetPassword] = useState('');
   const [creating, setCreating] = useState(false);
@@ -64,6 +67,18 @@ export default function AdminPage() {
     else { toast.success('Password reset. User must change it on next login.'); setShowResetPw(null); setResetPassword(''); }
   };
 
+  const handleSaveBio = async () => {
+    if (!editBioFor) return;
+    setSavingBio(true);
+    const { error } = await apiCall(`/api/users/${editBioFor}/bio`, {
+      method: 'PATCH',
+      body: JSON.stringify({ bio: bioText.trim() || null }),
+    });
+    if (error) toast.error(error);
+    else { toast.success('Bio saved'); setEditBioFor(null); refetch(); }
+    setSavingBio(false);
+  };
+
   if (me && me.role !== 'ADMIN') return null;
 
   return (
@@ -103,13 +118,20 @@ export default function AdminPage() {
                 <tr><td colSpan={5} className="px-5 py-8 text-center text-surface-400">Loading...</td></tr>
               ) : (
                 users?.map(user => (
+                  <>
                   <tr key={user.id} className={user.disabled ? 'opacity-50' : ''}>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-brand-100 dark:bg-brand-900 flex items-center justify-center">
-                          <span className="text-xs font-bold text-brand-700 dark:text-brand-300">{user.name.charAt(0)}</span>
+                        <div className="w-8 h-8 rounded-full bg-brand-100 dark:bg-brand-900 flex items-center justify-center overflow-hidden">
+                          {(user as any).avatarUrl
+                            ? <img src={(user as any).avatarUrl} alt={user.name} className="w-full h-full object-cover" />
+                            : <span className="text-xs font-bold text-brand-700 dark:text-brand-300">{user.name.charAt(0)}</span>
+                          }
                         </div>
-                        <span className="text-sm font-medium text-surface-900 dark:text-white">{user.name}</span>
+                        <div>
+                          <span className="text-sm font-medium text-surface-900 dark:text-white">{user.name}</span>
+                          {(user as any).bio && <p className="text-xs text-surface-400 truncate max-w-[180px]">{(user as any).bio}</p>}
+                        </div>
                       </div>
                     </td>
                     <td className="px-5 py-3 text-sm text-surface-600 dark:text-surface-400">@{user.username}</td>
@@ -134,6 +156,13 @@ export default function AdminPage() {
                     <td className="px-5 py-3">
                       <div className="flex items-center justify-end gap-1">
                         <button
+                          onClick={() => { setEditBioFor(user.id); setBioText((user as any).bio || ''); }}
+                          className="btn-ghost btn-sm"
+                          title="Edit bio"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                        </button>
+                        <button
                           onClick={() => handleToggleUser(user.id, user.disabled)}
                           className="btn-ghost btn-sm"
                           title={user.disabled ? 'Enable user' : 'Disable user'}
@@ -150,6 +179,30 @@ export default function AdminPage() {
                       </div>
                     </td>
                   </tr>
+                  {editBioFor === user.id && (
+                    <tr key={`bio-${user.id}`}>
+                      <td colSpan={5} className="px-5 py-3 bg-surface-50 dark:bg-surface-800/50 border-t border-surface-100 dark:border-surface-800">
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium text-surface-500">Profile description for <span className="text-surface-900 dark:text-white">{user.name}</span></p>
+                          <textarea
+                            value={bioText}
+                            onChange={e => setBioText(e.target.value)}
+                            rows={3}
+                            placeholder="Describe this team member's role and responsibilities…"
+                            className="input text-sm resize-none w-full"
+                            autoFocus
+                          />
+                          <div className="flex gap-2">
+                            <button onClick={handleSaveBio} disabled={savingBio} className="btn-primary btn-sm">
+                              {savingBio ? 'Saving…' : 'Save'}
+                            </button>
+                            <button onClick={() => setEditBioFor(null)} className="btn-secondary btn-sm">Cancel</button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </>
                 ))
               )}
             </tbody>

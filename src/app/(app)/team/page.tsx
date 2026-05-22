@@ -144,6 +144,7 @@ export default function TeamPage() {
                       {isMe && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-300 font-medium flex-shrink-0">You</span>}
                     </div>
                     <p className="text-xs text-surface-500">@{user.username} · {user.role}</p>
+                    {user.bio && <p className="text-xs text-surface-500 dark:text-surface-400 mt-1 line-clamp-2 leading-relaxed">{user.bio}</p>}
                   </div>
                 </div>
 

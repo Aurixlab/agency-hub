@@ -18,6 +18,7 @@ export async function GET(request: Request) {
       disabled: true,
       mustChangePassword: true,
       avatarUrl: true,
+      bio: true,
       createdAt: true,
     },
     orderBy: { createdAt: 'asc' },

@@ -138,25 +138,6 @@ export default function Sidebar({ user }: SidebarProps) {
         </button>
       </div>
 
-      {/* Powered by */}
-      {!collapsed && (
-        <div className="px-5 py-4 flex flex-col items-center gap-2">
-          <p className="text-sm font-semibold text-surface-600 dark:text-surface-300">Powered by</p>
-          <Link href="https://aurixlab.com/" target="_blank" rel="noopener noreferrer" className="hover:opacity-80 transition-opacity">
-            <Image
-              src={theme === 'dark' ? '/assets/White-Gold-Logo.png' : '/assets/Black-Gold-Logo.png'}
-              alt="Powered by"
-              width={120}
-              height={32}
-              className="h-8 w-auto object-contain"
-            />
-          </Link>
-        </div>
-      )}
-
-      {/* Divider */}
-      <div className="border-b border-surface-200 dark:border-surface-800" />
-
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {allItems.map(({ href, label, icon: Icon }) => {
@@ -276,22 +257,6 @@ export default function Sidebar({ user }: SidebarProps) {
             </div>
           </div>
         )}
-
-        {/* Powered by - Bottom Sticky */}
-        {!collapsed && (
-          <div className="mt-4 pt-4 border-t border-surface-200 dark:border-surface-800 flex flex-col items-center gap-2">
-            <p className="text-xs font-semibold text-surface-600 dark:text-surface-300">Powered by</p>
-            <Link href="https://aurixlab.com/" target="_blank" rel="noopener noreferrer" className="hover:opacity-80 transition-opacity">
-              <Image
-                src={theme === 'dark' ? '/assets/White-Gold-Logo.png' : '/assets/Black-Gold-Logo.png'}
-                alt="Powered by"
-                width={100}
-                height={28}
-                className="h-7 w-auto object-contain"
-              />
-            </Link>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -334,6 +299,24 @@ export default function Sidebar({ user }: SidebarProps) {
 
       {/* Spacer */}
       <div className={`hidden lg:block flex-shrink-0 transition-all duration-200 ${collapsed ? 'w-[68px]' : 'w-[260px]'}`} />
+
+      <div className="fixed bottom-5 right-5 z-[60] flex flex-col items-center gap-1.5 pointer-events-auto sm:right-6">
+        <p className="text-xs font-semibold text-surface-600 dark:text-surface-300 drop-shadow-sm">Powered by</p>
+        <Link
+          href="https://aurixlab.com/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:opacity-80 transition-opacity"
+        >
+          <Image
+            src={theme === 'dark' ? '/assets/White-Gold-Logo.png' : '/assets/Black-Gold-Logo.png'}
+            alt="Powered by Aurixlab"
+            width={118}
+            height={32}
+            className="h-8 w-auto object-contain drop-shadow-sm"
+          />
+        </Link>
+      </div>
     </>
   );
 }

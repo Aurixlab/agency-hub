@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
+import whiteGoldIcon from '../../assets/White-Gold-icon.png';
+import blackGoldIcon from '../../assets/Black-Gold-icon.png';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTheme } from '@/providers/ThemeProvider';
 import {
@@ -323,20 +325,22 @@ export default function Sidebar({ user }: SidebarProps) {
       {/* Spacer */}
       <div className={`hidden lg:block flex-shrink-0 transition-all duration-200 ${collapsed ? 'w-[68px]' : 'w-[260px]'}`} />
 
-      <div className="fixed bottom-3 right-3 sm:bottom-5 sm:right-6 z-[35] flex flex-col items-center gap-1 pointer-events-auto">
-        <p className="text-[10px] sm:text-xs font-semibold text-surface-600 dark:text-surface-300 drop-shadow-sm">Powered by</p>
+      <div className="fixed bottom-3 right-3 sm:bottom-5 sm:right-6 z-[35] pointer-events-auto">
         <Link
           href="https://aurixlab.com/"
           target="_blank"
           rel="noopener noreferrer"
-          className="hover:opacity-80 transition-opacity"
+          className="flex items-center gap-2 hover:opacity-80 transition-opacity"
         >
+          <span className="text-[10px] sm:text-xs font-semibold text-surface-600 dark:text-surface-300 drop-shadow-sm whitespace-nowrap">
+            Powered by
+          </span>
           <Image
-            src={theme === 'dark' ? '/assets/White-Gold-Logo.png' : '/assets/Black-Gold-Logo.png'}
+            src={theme === 'dark' ? whiteGoldIcon : blackGoldIcon}
             alt="Powered by Aurixlab"
-            width={118}
-            height={32}
-            className="h-6 sm:h-8 w-auto object-contain drop-shadow-sm"
+            width={36}
+            height={36}
+            className="h-7 w-7 sm:h-9 sm:w-9 object-contain drop-shadow-sm"
           />
         </Link>
       </div>

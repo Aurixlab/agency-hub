@@ -46,9 +46,9 @@ export default function TemplatesPage() {
   };
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-6 sm:space-y-8 animate-fade-in max-w-full overflow-x-hidden">
       <div>
-        <h1 className="text-2xl font-bold text-surface-900 dark:text-white">Templates</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-surface-900 dark:text-white">Templates</h1>
         <p className="text-surface-500 dark:text-surface-400 mt-1 text-sm">
           Start a new project with a pre-built workflow
         </p>
@@ -57,7 +57,7 @@ export default function TemplatesPage() {
       {loading ? (
         <div className="py-20 text-center text-surface-400">Loading templates...</div>
       ) : (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
           {templates?.map(template => {
             const Icon = iconMap[template.icon] || LayoutTemplate;
             const config = template.seedConfig as any;
@@ -81,7 +81,7 @@ export default function TemplatesPage() {
                     >
                       <Icon className="w-5 h-5" style={{ color: template.color }} />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <h3 className="font-semibold text-surface-900 dark:text-white">
                         {template.name}
                       </h3>

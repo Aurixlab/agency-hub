@@ -96,10 +96,10 @@ export default function RankingComparison({ slug }: { slug: string }) {
     : null;
 
   return (
-    <div className="bg-white dark:bg-surface-900 rounded-2xl border border-surface-100 dark:border-surface-800 shadow-sm p-6 flex flex-col max-h-[600px]">
+    <div className="bg-white dark:bg-surface-900 rounded-2xl border border-surface-100 dark:border-surface-800 shadow-sm p-4 sm:p-6 flex flex-col max-h-[600px] max-w-full overflow-hidden">
       {/* Header */}
-      <div className="flex items-start justify-between mb-4">
-        <div>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+        <div className="min-w-0">
           <h3 className="font-bold text-surface-900 dark:text-white">Ranking Comparison</h3>
           {periodLabel && (
             <p className="text-xs text-surface-400 dark:text-surface-500 mt-0.5">{periodLabel}</p>

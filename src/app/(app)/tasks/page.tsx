@@ -40,19 +40,19 @@ export default function TasksPage() {
   }, { Backlog: [], 'In Progress': [], Done: [] });
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in max-w-full overflow-x-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3 min-w-0">
           <ListTodo className="w-6 h-6 text-brand-600" />
-          <div>
-            <h1 className="text-2xl font-bold text-surface-900 dark:text-white">Tasks</h1>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-surface-900 dark:text-white">Tasks</h1>
             <p className="text-surface-500 dark:text-surface-400 text-sm">
               Team tasks not linked to any project
             </p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 self-start sm:self-auto">
           <button onClick={refetch} className="btn-ghost btn-sm">
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
@@ -63,9 +63,9 @@ export default function TasksPage() {
       </div>
 
       {/* Stats */}
-      <div className="flex gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         {STATUSES.map(s => (
-          <div key={s} className="card px-4 py-3 flex items-center gap-3 flex-1">
+          <div key={s} className="card px-4 py-3 flex items-center gap-3 min-w-0">
             {statusIcon[s]}
             <div>
               <p className="text-xl font-bold text-surface-900 dark:text-white">
@@ -81,7 +81,8 @@ export default function TasksPage() {
       {loading ? (
         <div className="py-20 text-center text-surface-400">Loading...</div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="-mx-4 px-4 overflow-x-auto md:mx-0 md:px-0">
+        <div className="grid grid-cols-3 gap-4 min-w-[760px] md:min-w-0">
           {STATUSES.map(status => (
             <StatusColumn
               key={status}
@@ -91,6 +92,7 @@ export default function TasksPage() {
               onRefetch={refetch}
             />
           ))}
+        </div>
         </div>
       )}
 
@@ -362,7 +364,7 @@ function TaskEditCard({ task, users, onDone, onCancel }: {
         className="input text-xs min-h-[60px]"
         placeholder="Description (optional)"
       />
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <div>
           <label className="label text-[10px]">Status</label>
           <select value={status} onChange={e => setStatus(e.target.value)} className="select text-xs py-1.5">
@@ -381,7 +383,7 @@ function TaskEditCard({ task, users, onDone, onCancel }: {
         </div>
       </div>
       <AssigneePicker users={users} selected={assigneeIds} onChange={setAssigneeIds} />
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <div>
           <label className="label text-[10px]">Due Date</label>
           <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="input text-xs py-1.5" />
@@ -465,7 +467,7 @@ function NewTaskModal({ users, onClose, onCreated }: {
               placeholder="Optional details..."
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="label">Status</label>
               <select value={status} onChange={e => setStatus(e.target.value as Status)} className="select">
@@ -484,7 +486,7 @@ function NewTaskModal({ users, onClose, onCreated }: {
             </div>
           </div>
           <AssigneePicker users={users} selected={assigneeIds} onChange={setAssigneeIds} />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="label">Due Date *</label>
               <input

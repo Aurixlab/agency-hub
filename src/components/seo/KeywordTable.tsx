@@ -18,8 +18,8 @@ export default function KeywordTable({ keywords }: { keywords: any[] }) {
   );
 
   return (
-    <div className="bg-white dark:bg-surface-900 rounded-2xl border border-surface-100 dark:border-surface-800 shadow-sm overflow-hidden">
-      <div className="px-6 py-4 border-b border-surface-100 dark:border-surface-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="bg-white dark:bg-surface-900 rounded-2xl border border-surface-100 dark:border-surface-800 shadow-sm overflow-hidden max-w-full">
+      <div className="px-4 sm:px-6 py-4 border-b border-surface-100 dark:border-surface-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <h3 className="font-bold text-surface-900 dark:text-white">Top Performing Keywords</h3>
         <div className="relative">
           <input 
@@ -31,8 +31,8 @@ export default function KeywordTable({ keywords }: { keywords: any[] }) {
           />
         </div>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-left">
+      <div className="max-w-full overflow-x-auto">
+        <table className="min-w-[720px] w-full text-left">
           <thead className="bg-surface-50 dark:bg-surface-800/50 text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider">
             <tr>
               <th className="px-6 py-3">Keyword</th>

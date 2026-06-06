@@ -53,19 +53,19 @@ export default function ProjectDetailPage() {
   }
 
   return (
-    <div className="space-y-5 animate-fade-in">
+    <div className="space-y-5 animate-fade-in max-w-full overflow-x-hidden">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <Link href="/projects" className="p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500">
             <ArrowLeft className="w-4 h-4" />
           </Link>
-          <div>
-            <h1 className="text-xl font-bold text-surface-900 dark:text-white">{project.name}</h1>
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-bold text-surface-900 dark:text-white truncate">{project.name}</h1>
             {project.clientName && <p className="text-sm text-surface-500">{project.clientName}</p>}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 self-start sm:self-auto">
           <button onClick={() => refetch()} className="btn-ghost btn-sm" title="Refresh">
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
@@ -76,8 +76,9 @@ export default function ProjectDetailPage() {
       </div>
 
       {/* View Toggle + Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex items-center gap-1 p-1 rounded-lg bg-surface-100 dark:bg-surface-800/50">
+      <div className="flex flex-col sm:flex-row gap-3 max-w-full">
+        <div className="max-w-full overflow-x-auto">
+        <div className="flex w-max items-center gap-1 p-1 rounded-lg bg-surface-100 dark:bg-surface-800/50">
           {[
             { key: 'kanban' as ViewMode, icon: Columns3, label: 'Board' },
             { key: 'table' as ViewMode, icon: Table, label: 'Table' },
@@ -96,8 +97,9 @@ export default function ProjectDetailPage() {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2 flex-1">
-          <div className="relative flex-1 max-w-xs">
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-1 min-w-0">
+          <div className="relative flex-1 sm:max-w-xs">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400" />
             <input
               value={search}
@@ -106,13 +108,13 @@ export default function ProjectDetailPage() {
               className="input pl-9 py-2 text-xs"
             />
           </div>
-          <select value={filterAssignee} onChange={e => setFilterAssignee(e.target.value)} className="select py-2 text-xs w-36">
+          <select value={filterAssignee} onChange={e => setFilterAssignee(e.target.value)} className="select py-2 text-xs w-full sm:w-36">
             <option value="">All members</option>
             {users?.filter(u => !u.disabled).map(u => (
               <option key={u.id} value={u.id}>{u.name}</option>
             ))}
           </select>
-          <select value={filterPriority} onChange={e => setFilterPriority(e.target.value)} className="select py-2 text-xs w-32">
+          <select value={filterPriority} onChange={e => setFilterPriority(e.target.value)} className="select py-2 text-xs w-full sm:w-32">
             <option value="">All priorities</option>
             <option value="URGENT">Urgent</option>
             <option value="HIGH">High</option>
@@ -208,7 +210,7 @@ function KanbanView({ tasks, statuses, users, projectId, onRefetch, onTaskClick 
 
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
-      <div className="overflow-x-auto -mx-4 px-4" style={{ transform: 'rotateX(180deg)' }}>
+      <div className="max-w-full overflow-x-auto -mx-4 px-4" style={{ transform: 'rotateX(180deg)' }}>
         <div className="flex gap-4 pb-4" style={{ transform: 'rotateX(180deg)' }}>
         {statuses.map((status: string) => {
           const columnTasks = tasks
@@ -370,12 +372,12 @@ function TableView({ tasks, statuses, users, onTaskClick }: any) {
   }, []);
 
   return (
-    <div className="card overflow-hidden">
+    <div className="card overflow-hidden max-w-full">
       <div ref={topScrollRef} className="overflow-x-auto border-b border-surface-200 dark:border-surface-800">
-        <div className="h-0.5" style={{ minWidth: '100%' }}></div>
+        <div className="h-0.5" style={{ minWidth: 760 }}></div>
       </div>
       <div ref={tableScrollRef} className="overflow-x-auto">
-        <table className="w-full">
+        <table className="min-w-[760px] w-full">
           <thead className="border-b border-surface-200 dark:border-surface-800">
             <tr>
               <SortHeader field="title">Task</SortHeader>
@@ -460,7 +462,8 @@ function CalendarView({ tasks, onTaskClick }: { tasks: Task[]; onTaskClick: (id:
           </button>
         </div>
       </div>
-      <div className="grid grid-cols-7 gap-px bg-surface-200 dark:bg-surface-700 rounded-lg overflow-hidden">
+      <div className="max-w-full overflow-x-auto">
+      <div className="grid grid-cols-7 gap-px bg-surface-200 dark:bg-surface-700 rounded-lg overflow-hidden min-w-[700px] sm:min-w-0">
         {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
           <div key={d} className="bg-surface-50 dark:bg-surface-800 px-2 py-2 text-center text-xs font-medium text-surface-500">
             {d}
@@ -499,6 +502,7 @@ function CalendarView({ tasks, onTaskClick }: { tasks: Task[]; onTaskClick: (id:
             </div>
           );
         })}
+      </div>
       </div>
     </div>
   );
@@ -558,7 +562,7 @@ function NewTaskModal({ projectId, statuses, users, projectTags, onClose, onCrea
             <label className="label">Description</label>
             <textarea value={description} onChange={e => setDescription(e.target.value)} className="input min-h-[80px]" placeholder="Add details..." />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="label">Status</label>
               <select value={status} onChange={e => setStatus(e.target.value)} className="select">
@@ -597,7 +601,7 @@ function NewTaskModal({ projectId, statuses, users, projectTags, onClose, onCrea
               ))}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="label">Due Date *</label>
               <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="input" required />
@@ -754,7 +758,7 @@ function TaskDetailModal({ taskId, statuses, users, projectTags, onClose, onUpda
           </div>
 
           {/* Fields */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="label">Status</label>
               {editing ? (
@@ -828,7 +832,7 @@ function TaskDetailModal({ taskId, statuses, users, projectTags, onClose, onUpda
           </div>
 
           {/* Done Date */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="label">Done Date</label>
               {editing ? (
@@ -854,7 +858,7 @@ function TaskDetailModal({ taskId, statuses, users, projectTags, onClose, onUpda
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-2 pt-2 border-t border-surface-200 dark:border-surface-800">
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-surface-200 dark:border-surface-800">
             {editing ? (
               <>
                 <button onClick={handleSave} disabled={saving} className="btn-primary btn-sm">
@@ -881,7 +885,7 @@ function TaskDetailModal({ taskId, statuses, users, projectTags, onClose, onUpda
                     setSummarizing(false);
                   }}
                   disabled={summarizing}
-                  className="btn-ghost btn-sm ml-auto"
+                  className="btn-ghost btn-sm sm:ml-auto"
                   title="Summarize activity with AI"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
@@ -906,7 +910,7 @@ function TaskDetailModal({ taskId, statuses, users, projectTags, onClose, onUpda
             <h3 className="text-sm font-semibold text-surface-900 dark:text-white mb-3">
               Comments ({task.comments?.length || 0})
             </h3>
-            <form onSubmit={handleComment} className="flex gap-2 mb-4">
+            <form onSubmit={handleComment} className="flex flex-col sm:flex-row gap-2 mb-4">
               <input
                 value={comment}
                 onChange={e => setComment(e.target.value)}

@@ -48,7 +48,7 @@ export default function TrendChart({ snapshots }: { snapshots: any[] }) {
     }));
 
   return (
-    <div className="bg-white dark:bg-surface-900 rounded-2xl border border-surface-100 dark:border-surface-800 shadow-sm p-6 h-[400px]">
+    <div className="bg-white dark:bg-surface-900 rounded-2xl border border-surface-100 dark:border-surface-800 shadow-sm p-4 sm:p-6 h-[340px] sm:h-[400px] max-w-full overflow-hidden">
       <h3 className="font-bold text-surface-900 dark:text-white mb-4">Performance Trend</h3>
       <ResponsiveContainer width="100%" height="88%">
         <AreaChart data={data} margin={{ top: 10, right: 40, left: 0, bottom: 0 }}>

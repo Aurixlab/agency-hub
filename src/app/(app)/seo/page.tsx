@@ -71,7 +71,7 @@ export default function SEODashboard() {
   }, [activeClient, period]);
 
   return (
-    <div className="p-4 md:p-8 space-y-8 max-w-[1600px] mx-auto">
+    <div className="space-y-6 md:space-y-8 w-full max-w-[1600px] mx-auto overflow-x-hidden">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -82,7 +82,7 @@ export default function SEODashboard() {
           <p className="text-surface-500 dark:text-surface-400 text-sm mt-1">Real-time Google Search Console performance tracking.</p>
         </div>
         
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <button 
             onClick={handleSync}
             disabled={syncing}
@@ -122,8 +122,9 @@ export default function SEODashboard() {
       </div>
 
       {/* Client Tabs & Tab Navigation */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 border-b border-surface-100 dark:border-surface-800 pb-2">
-        <div className="flex items-center gap-1 p-1 bg-surface-100/50 dark:bg-surface-800/50 rounded-2xl w-fit">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 sm:gap-6 border-b border-surface-100 dark:border-surface-800 pb-2 max-w-full">
+        <div className="max-w-full overflow-x-auto">
+        <div className="flex w-max items-center gap-1 p-1 bg-surface-100/50 dark:bg-surface-800/50 rounded-2xl">
           {CLIENTS.map((client) => (
             <button
               key={client.slug}
@@ -138,8 +139,10 @@ export default function SEODashboard() {
             </button>
           ))}
         </div>
+        </div>
 
-        <div className="flex items-center gap-6">
+        <div className="max-w-full overflow-x-auto">
+        <div className="flex w-max items-center gap-6">
           {TABS.map((tab) => (
             <button
               key={tab.id}
@@ -154,6 +157,7 @@ export default function SEODashboard() {
               {tab.label}
             </button>
           ))}
+        </div>
         </div>
       </div>
 

@@ -197,7 +197,7 @@ export default function Sidebar({ user }: SidebarProps) {
 
           {/* Dropdown */}
           {notifOpen && (
-            <div className="absolute bottom-full left-0 mb-2 w-80 bg-white dark:bg-surface-900 rounded-xl shadow-elevated border border-surface-200 dark:border-surface-700 z-50 overflow-hidden">
+            <div className="absolute bottom-full left-0 mb-2 w-[min(20rem,calc(100vw-2rem))] bg-white dark:bg-surface-900 rounded-xl shadow-elevated border border-surface-200 dark:border-surface-700 z-50 overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 border-b border-surface-200 dark:border-surface-800">
                 <h3 className="text-sm font-semibold text-surface-900 dark:text-white">Notifications</h3>
                 <button onClick={() => setNotifOpen(false)} className="p-0.5 rounded hover:bg-surface-100 dark:hover:bg-surface-800">
@@ -316,8 +316,8 @@ export default function Sidebar({ user }: SidebarProps) {
       {/* Spacer */}
       <div className={`hidden lg:block flex-shrink-0 transition-all duration-200 ${collapsed ? 'w-[68px]' : 'w-[260px]'}`} />
 
-      <div className="fixed bottom-5 right-5 z-[60] flex flex-col items-center gap-1.5 pointer-events-auto sm:right-6">
-        <p className="text-xs font-semibold text-surface-600 dark:text-surface-300 drop-shadow-sm">Powered by</p>
+      <div className="fixed bottom-3 right-3 sm:bottom-5 sm:right-6 z-[35] flex flex-col items-center gap-1 pointer-events-auto">
+        <p className="text-[10px] sm:text-xs font-semibold text-surface-600 dark:text-surface-300 drop-shadow-sm">Powered by</p>
         <Link
           href="https://aurixlab.com/"
           target="_blank"
@@ -329,7 +329,7 @@ export default function Sidebar({ user }: SidebarProps) {
             alt="Powered by Aurixlab"
             width={118}
             height={32}
-            className="h-8 w-auto object-contain drop-shadow-sm"
+            className="h-6 sm:h-8 w-auto object-contain drop-shadow-sm"
           />
         </Link>
       </div>

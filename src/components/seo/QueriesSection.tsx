@@ -47,9 +47,9 @@ export default function QueriesSection({ slug, period = '7' }: { slug: string; p
   const currentList = data[activeTab];
 
   return (
-    <div className="bg-white dark:bg-surface-900 rounded-2xl border border-surface-100 dark:border-surface-800 shadow-sm overflow-hidden flex flex-col h-full">
-      <div className="px-6 py-5 border-b border-surface-50 dark:border-surface-800 flex items-center justify-between">
-        <div className="flex items-center gap-2">
+    <div className="bg-white dark:bg-surface-900 rounded-2xl border border-surface-100 dark:border-surface-800 shadow-sm overflow-hidden flex flex-col h-full max-w-full">
+      <div className="px-4 sm:px-6 py-5 border-b border-surface-50 dark:border-surface-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-2 min-w-0">
           <h3 className="font-bold text-surface-900 dark:text-white">Queries leading to your site</h3>
           <Info className="w-4 h-4 text-surface-400 cursor-help" />
         </div>
@@ -58,8 +58,8 @@ export default function QueriesSection({ slug, period = '7' }: { slug: string; p
         </button>
       </div>
 
-      <div className="px-6 py-2 border-b border-surface-50 dark:border-surface-800 flex items-center justify-between bg-surface-50/30 dark:bg-surface-800/30">
-        <div className="flex gap-6">
+      <div className="px-4 sm:px-6 py-2 border-b border-surface-50 dark:border-surface-800 flex items-center justify-between gap-4 bg-surface-50/30 dark:bg-surface-800/30">
+        <div className="flex gap-6 overflow-x-auto">
           {(['top', 'up', 'down'] as const).map((tab) => (
             <button
               key={tab}
@@ -93,7 +93,7 @@ export default function QueriesSection({ slug, period = '7' }: { slug: string; p
         ) : (
           <div className="divide-y divide-surface-50 dark:divide-surface-800">
             {currentList.map((item, idx) => (
-              <div key={idx} className="px-6 py-4 flex items-center justify-between hover:bg-surface-50/50 dark:hover:bg-surface-800/50 transition-colors group">
+              <div key={idx} className="px-4 sm:px-6 py-4 flex items-center justify-between hover:bg-surface-50/50 dark:hover:bg-surface-800/50 transition-colors group">
                 <div className="flex-1 min-w-0 pr-4">
                   <p className="text-sm font-medium text-surface-900 dark:text-white truncate group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">
                     {item.query}

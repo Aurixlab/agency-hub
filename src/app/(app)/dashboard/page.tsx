@@ -48,25 +48,25 @@ export default function DashboardPage() {
   const refetchEverything = () => { refetchTasks(); refetchStandalone(); refetchAll(); };
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-6 sm:space-y-8 animate-fade-in max-w-full overflow-x-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-surface-900 dark:text-white">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-surface-900 dark:text-white break-words">
             {user ? `Welcome back, ${user.name}` : 'Dashboard'}
           </h1>
           <p className="text-surface-500 dark:text-surface-400 mt-1 text-sm">
             Here&apos;s what&apos;s on your plate
           </p>
         </div>
-        <button onClick={refetchEverything} className="btn-secondary btn-sm" title="Refresh">
+        <button onClick={refetchEverything} className="btn-secondary btn-sm self-start sm:self-auto" title="Refresh">
           <RefreshCw className="w-3.5 h-3.5" />
           Refresh
         </button>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard label="My Active Tasks" value={activeTasks.length}
           icon={<CheckCircle2 className="w-5 h-5 text-brand-600" />} color="brand" />
         <StatCard label="Due This Week" value={dueSoonTasks.length}
@@ -77,9 +77,9 @@ export default function DashboardPage() {
           icon={<Trophy className="w-5 h-5 text-amber-600" />} color="amber" />
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* My Tasks */}
-        <div className="lg:col-span-2 card p-0">
+        <div className="lg:col-span-2 card p-0 min-w-0 overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-surface-200 dark:border-surface-800">
             <h2 className="font-semibold text-surface-900 dark:text-white">My Tasks</h2>
             <span className="text-xs text-surface-500">{activeTasks.length} active</span>
@@ -97,7 +97,7 @@ export default function DashboardPage() {
                 <button
                   key={task.id}
                   onClick={() => setSelectedTaskId(task.id)}
-                  className="flex items-center gap-3 px-5 py-3.5 hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors w-full text-left"
+                  className="flex items-center gap-3 px-4 sm:px-5 py-3.5 hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors w-full text-left min-w-0"
                 >
                   <span className={`badge ${priorityColors[task.priority]}`}>
                     {task.priority === 'NONE' ? '—' : task.priority.charAt(0)}
@@ -106,7 +106,7 @@ export default function DashboardPage() {
                     <p className="text-sm font-medium text-surface-900 dark:text-white truncate">
                       {task.title}
                     </p>
-                    <p className="text-xs text-surface-500 mt-0.5">
+                    <p className="text-xs text-surface-500 mt-0.5 truncate">
                       {task.project?.name ?? 'Personal'} · {task.status}
                     </p>
                   </div>
@@ -124,8 +124,8 @@ export default function DashboardPage() {
         </div>
 
         {/* Due Soon */}
-        <div className="space-y-6">
-          <div className="card p-0">
+        <div className="space-y-4 sm:space-y-6 min-w-0">
+          <div className="card p-0 min-w-0 overflow-hidden">
             <div className="px-5 py-4 border-b border-surface-200 dark:border-surface-800">
               <h2 className="font-semibold text-surface-900 dark:text-white">Due Soon</h2>
             </div>
@@ -137,7 +137,7 @@ export default function DashboardPage() {
                   <button
                     key={task.id}
                     onClick={() => setSelectedTaskId(task.id)}
-                    className="w-full text-left px-5 py-3 hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors"
+                    className="w-full text-left px-4 sm:px-5 py-3 hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors min-w-0"
                   >
                     <p className="text-sm font-medium text-surface-900 dark:text-white truncate">{task.title}</p>
                     <p className={`text-xs mt-0.5 ${
@@ -240,9 +240,10 @@ function AllTasksTable({ tasks, loading, users, onTaskClick }: { tasks: Task[]; 
   };
 
   return (
-    <div className="card p-0">
-      <div className="flex items-center justify-between px-5 py-4 border-b border-surface-200 dark:border-surface-800">
-        <div className="flex items-center gap-1 p-1 rounded-lg bg-surface-100 dark:bg-surface-800/50">
+    <div className="card p-0 max-w-full overflow-hidden">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 sm:px-5 py-4 border-b border-surface-200 dark:border-surface-800">
+        <div className="max-w-full overflow-x-auto">
+        <div className="flex w-max items-center gap-1 p-1 rounded-lg bg-surface-100 dark:bg-surface-800/50">
           <button
             onClick={() => setTab('active')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
@@ -265,11 +266,12 @@ function AllTasksTable({ tasks, loading, users, onTaskClick }: { tasks: Task[]; 
             Archive <span className="opacity-60">({archivedTasks.length})</span>
           </button>
         </div>
-        <div className="flex items-center gap-2">
+        </div>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <select
             value={filterAssignee}
             onChange={e => setFilterAssignee(e.target.value)}
-            className="select py-1.5 text-xs w-40"
+            className="select py-1.5 text-xs w-full sm:w-40"
           >
             <option value="">All members</option>
             {users.filter(u => !u.disabled).map(u => (
@@ -278,8 +280,8 @@ function AllTasksTable({ tasks, loading, users, onTaskClick }: { tasks: Task[]; 
           </select>
         </div>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full">
+      <div className="max-w-full overflow-x-auto">
+        <table className="min-w-[760px] w-full">
           <thead className="border-b border-surface-200 dark:border-surface-800">
             <tr>
               <SortHeader field="title">Task</SortHeader>
@@ -365,12 +367,12 @@ function AllTasksTable({ tasks, loading, users, onTaskClick }: { tasks: Task[]; 
 
 function StatCard({ label, value, icon, color }: { label: string; value: number; icon: React.ReactNode; color: string }) {
   return (
-    <div className="card px-5 py-4">
+    <div className="card px-4 sm:px-5 py-4 min-w-0">
       <div className="flex items-center gap-3">
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-${color}-50 dark:bg-${color}-950/30`}>
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-${color}-50 dark:bg-${color}-950/30`}>
           {icon}
         </div>
-        <div>
+        <div className="min-w-0">
           <p className="text-2xl font-bold text-surface-900 dark:text-white">{value}</p>
           <p className="text-xs text-surface-500 dark:text-surface-400">{label}</p>
         </div>

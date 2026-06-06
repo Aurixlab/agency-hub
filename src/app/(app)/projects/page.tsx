@@ -99,15 +99,15 @@ export default function ProjectsPage() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-surface-900 dark:text-white">Projects</h1>
+    <div className="space-y-6 animate-fade-in max-w-full overflow-x-hidden">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-surface-900 dark:text-white">Projects</h1>
           <p className="text-surface-500 dark:text-surface-400 mt-1 text-sm">
             {filteredProjects.length} active project{filteredProjects.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 self-start sm:self-auto">
           <button onClick={() => refetch()} className="btn-ghost btn-sm">
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
@@ -280,7 +280,7 @@ export default function ProjectsPage() {
           )}
         </div>
       ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredProjects.map(project => (
             <Link
               key={project.id}

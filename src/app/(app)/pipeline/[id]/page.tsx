@@ -405,8 +405,8 @@ export default function PipelineEditorPage() {
   if (!pipeline) return <div className="py-20 text-center text-surface-400">Pipeline not found</div>;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-2rem)] -m-6 animate-fade-in">
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-950 flex-shrink-0">
+    <div className="flex flex-col h-[calc(100vh-7rem)] lg:h-[calc(100vh-2rem)] -mx-4 -mb-8 sm:-mx-6 lg:-m-6 animate-fade-in max-w-none overflow-hidden">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3 px-4 py-3 border-b border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-950 flex-shrink-0">
         <button onClick={() => router.push('/pipeline')} className="p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500">
           <ArrowLeft className="w-4 h-4" />
         </button>
@@ -414,14 +414,14 @@ export default function PipelineEditorPage() {
           <input value={pipelineName} onChange={e => setPipelineName(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') { setEditingName(false); setPipelineName(pipeline.name); } }}
             onBlur={saveName} autoFocus
-            className="text-lg font-bold bg-transparent border-b-2 border-brand-500 outline-none text-surface-900 dark:text-white" />
+            className="text-base sm:text-lg font-bold bg-transparent border-b-2 border-brand-500 outline-none text-surface-900 dark:text-white min-w-0 flex-1" />
         ) : (
           <h1 onClick={() => setEditingName(true)} title="Click to rename"
-            className="text-lg font-bold text-surface-900 dark:text-white cursor-pointer hover:text-brand-600 dark:hover:text-brand-400 transition-colors">
+            className="text-base sm:text-lg font-bold text-surface-900 dark:text-white cursor-pointer hover:text-brand-600 dark:hover:text-brand-400 transition-colors truncate min-w-0 flex-1">
             {pipelineName}
           </h1>
         )}
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-2 sm:gap-3">
           <span className={`text-xs flex items-center gap-1.5 transition-colors ${
             saveStatus === 'saved' ? 'text-emerald-500' : saveStatus === 'saving' ? 'text-surface-400 animate-pulse' : 'text-amber-500'
           }`}>
@@ -429,7 +429,7 @@ export default function PipelineEditorPage() {
             {saveStatus === 'saved' ? 'Saved' : saveStatus === 'saving' ? 'Saving…' : 'Unsaved'}
           </span>
           <button onClick={addNode} className="btn-secondary btn-sm">
-            <Plus className="w-4 h-4" /> Add Node
+            <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Add Node</span>
           </button>
         </div>
       </div>

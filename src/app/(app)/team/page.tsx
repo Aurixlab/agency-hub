@@ -85,15 +85,15 @@ export default function TeamPage() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-surface-900 dark:text-white">Team</h1>
+    <div className="space-y-6 animate-fade-in max-w-full overflow-x-hidden">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-surface-900 dark:text-white">Team</h1>
           <p className="text-surface-500 dark:text-surface-400 mt-1 text-sm">
             {activeUsers.length} active member{activeUsers.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <button onClick={refetch} className="btn-ghost btn-sm">
+        <button onClick={refetch} className="btn-ghost btn-sm self-start sm:self-auto">
           <RefreshCw className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -101,7 +101,7 @@ export default function TeamPage() {
       {loading ? (
         <div className="py-20 text-center text-surface-400">Loading...</div>
       ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {activeUsers.map(user => {
             const stats = getTaskStats(user.id);
             const thisMonthCount = getCompletions(user.id, thisMonth);

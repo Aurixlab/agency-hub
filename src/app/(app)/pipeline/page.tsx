@@ -38,16 +38,16 @@ export default function PipelinePage() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+    <div className="space-y-6 animate-fade-in max-w-full overflow-x-hidden">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3 min-w-0">
           <GitBranch className="w-6 h-6 text-brand-600" />
-          <div>
-            <h1 className="text-2xl font-bold text-surface-900 dark:text-white">Pipelines</h1>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-surface-900 dark:text-white">Pipelines</h1>
             <p className="text-surface-500 dark:text-surface-400 text-sm">Visual workflow flowcharts</p>
           </div>
         </div>
-        <button onClick={() => setShowNew(true)} className="btn-primary btn-sm">
+        <button onClick={() => setShowNew(true)} className="btn-primary btn-sm self-start sm:self-auto">
           <Plus className="w-4 h-4" /> New Pipeline
         </button>
       </div>
@@ -63,7 +63,7 @@ export default function PipelinePage() {
           </button>
         </div>
       ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {pipelines?.map(p => (
             <div
               key={p.id}

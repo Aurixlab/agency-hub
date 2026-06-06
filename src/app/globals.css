@@ -18,10 +18,14 @@ html {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 body {
   @apply bg-surface-50 text-surface-900;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .dark body {

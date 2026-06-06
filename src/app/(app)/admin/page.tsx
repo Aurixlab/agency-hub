@@ -82,28 +82,28 @@ export default function AdminPage() {
   if (me && me.role !== 'ADMIN') return null;
 
   return (
-    <div className="space-y-8 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+    <div className="space-y-6 sm:space-y-8 animate-fade-in max-w-full overflow-x-hidden">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3 min-w-0">
           <Shield className="w-6 h-6 text-brand-600" />
-          <div>
-            <h1 className="text-2xl font-bold text-surface-900 dark:text-white">Admin</h1>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-surface-900 dark:text-white">Admin</h1>
             <p className="text-surface-500 dark:text-surface-400 text-sm">Manage team members and view activity</p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 self-start sm:self-auto">
           <button onClick={refetch} className="btn-ghost btn-sm"><RefreshCw className="w-3.5 h-3.5" /></button>
           <button onClick={() => setShowNewUser(true)} className="btn-primary btn-sm"><Plus className="w-4 h-4" /> Add User</button>
         </div>
       </div>
 
       {/* Users Table */}
-      <div className="card overflow-hidden">
+      <div className="card overflow-hidden max-w-full">
         <div className="px-5 py-4 border-b border-surface-200 dark:border-surface-800">
           <h2 className="font-semibold text-surface-900 dark:text-white">Team Members</h2>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
+        <div className="max-w-full overflow-x-auto">
+          <table className="min-w-[720px] w-full">
             <thead className="border-b border-surface-200 dark:border-surface-800">
               <tr>
                 <th className="px-5 py-3 text-left text-xs font-medium text-surface-500 uppercase">Name</th>

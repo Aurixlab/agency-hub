@@ -150,7 +150,7 @@ export default function TaskDetailModal({ taskId, users, onClose, onUpdated }: P
           </div>
 
           {/* Fields */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="label">Status</label>
               {editing ? (
@@ -227,7 +227,7 @@ export default function TaskDetailModal({ taskId, users, onClose, onUpdated }: P
           </div>
 
           {/* Done Date */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="label">Done Date</label>
               {editing ? (
@@ -304,7 +304,7 @@ export default function TaskDetailModal({ taskId, users, onClose, onUpdated }: P
             <h3 className="text-sm font-semibold text-surface-900 dark:text-white mb-3">
               Comments ({task.comments?.length || 0})
             </h3>
-            <form onSubmit={handleComment} className="flex gap-2 mb-4">
+            <form onSubmit={handleComment} className="flex flex-col sm:flex-row gap-2 mb-4">
               <input
                 value={comment}
                 onChange={e => setComment(e.target.value)}

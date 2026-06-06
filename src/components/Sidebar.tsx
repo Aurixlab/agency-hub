@@ -332,15 +332,15 @@ export default function Sidebar({ user }: SidebarProps) {
           rel="noopener noreferrer"
           className="flex items-center gap-2.5 hover:opacity-80 transition-opacity"
         >
-          <span className="text-xs font-semibold text-surface-600 dark:text-surface-300 drop-shadow-sm whitespace-nowrap">
+          <span className="text-sm font-semibold text-surface-600 dark:text-surface-300 drop-shadow-sm whitespace-nowrap">
             Powered by
           </span>
           <Image
             src={theme === 'dark' ? whiteGoldIcon : blackGoldIcon}
             alt="Powered by Aurixlab"
-            width={40}
-            height={40}
-            className="h-9 w-9 sm:h-10 sm:w-10 object-contain drop-shadow-sm"
+            width={48}
+            height={48}
+            className="h-11 w-11 sm:h-12 sm:w-12 object-contain drop-shadow-sm"
           />
         </Link>
       </div>

@@ -145,6 +145,14 @@ export default function Sidebar({ user }: SidebarProps) {
         >
           <ChevronLeft className={`w-4 h-4 transition-transform ${collapsed ? 'rotate-180' : ''}`} />
         </button>
+        <button
+          onClick={() => setMobileOpen(false)}
+          className="ml-auto p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-400 lg:hidden"
+          aria-label="Close navigation"
+          title="Back"
+        >
+          <ChevronLeft className="w-5 h-5" />
+        </button>
       </div>
 
       {/* Powered by */}

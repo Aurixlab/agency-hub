@@ -325,22 +325,22 @@ export default function Sidebar({ user }: SidebarProps) {
       {/* Spacer */}
       <div className={`hidden lg:block flex-shrink-0 transition-all duration-200 ${collapsed ? 'w-[68px]' : 'w-[260px]'}`} />
 
-      <div className="fixed bottom-3 right-3 sm:bottom-5 sm:right-6 z-[35] pointer-events-auto">
+      <div className="fixed bottom-3 right-5 sm:bottom-5 sm:right-6 z-[35] pointer-events-auto pr-2 sm:pr-0">
         <Link
           href="https://aurixlab.com/"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+          className="flex items-center gap-2.5 hover:opacity-80 transition-opacity"
         >
-          <span className="text-[10px] sm:text-xs font-semibold text-surface-600 dark:text-surface-300 drop-shadow-sm whitespace-nowrap">
+          <span className="text-xs font-semibold text-surface-600 dark:text-surface-300 drop-shadow-sm whitespace-nowrap">
             Powered by
           </span>
           <Image
             src={theme === 'dark' ? whiteGoldIcon : blackGoldIcon}
             alt="Powered by Aurixlab"
-            width={36}
-            height={36}
-            className="h-7 w-7 sm:h-9 sm:w-9 object-contain drop-shadow-sm"
+            width={40}
+            height={40}
+            className="h-9 w-9 sm:h-10 sm:w-10 object-contain drop-shadow-sm"
           />
         </Link>
       </div>

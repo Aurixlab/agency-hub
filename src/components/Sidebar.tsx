@@ -138,6 +138,22 @@ export default function Sidebar({ user }: SidebarProps) {
         </button>
       </div>
 
+      {/* Power By */}
+      {!collapsed && (
+        <div className="px-5 py-4 border-b border-surface-200 dark:border-surface-800">
+          <p className="text-xs font-semibold text-surface-500 dark:text-surface-400 mb-2">Powered by</p>
+          <div className="flex items-center justify-center h-8">
+            <Image
+              src={theme === 'dark' ? '/assets/White-Gold-Logo.png' : '/assets/Black-Gold-Logo.png'}
+              alt="Powered by"
+              width={120}
+              height={32}
+              className="h-full w-auto object-contain"
+            />
+          </div>
+        </div>
+      )}
+
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {allItems.map(({ href, label, icon: Icon }) => {

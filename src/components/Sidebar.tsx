@@ -98,6 +98,13 @@ export default function Sidebar({ user }: SidebarProps) {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  useEffect(() => {
+    document.body.style.overflow = mobileOpen ? 'hidden' : '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [mobileOpen]);
+
   const openNotifications = async () => {
     setNotifOpen(o => !o);
     if (!notifOpen && unreadCount > 0) {
@@ -290,14 +297,14 @@ export default function Sidebar({ user }: SidebarProps) {
       {/* Mobile overlay */}
       {mobileOpen && (
         <div
-          className="lg:hidden fixed inset-0 bg-black/30 z-40"
+          className="lg:hidden fixed inset-0 bg-black/60 z-40"
           onClick={() => setMobileOpen(false)}
         />
       )}
 
       {/* Mobile sidebar */}
       <aside
-        className={`lg:hidden fixed inset-y-0 left-0 z-50 w-[260px] bg-white dark:bg-surface-950 border-r border-surface-200 dark:border-surface-800 transform transition-transform duration-200 ${
+        className={`lg:hidden fixed inset-y-0 left-0 z-50 w-[100dvw] sm:w-[360px] bg-white dark:bg-surface-950 border-r border-surface-200 dark:border-surface-800 transform transition-transform duration-200 ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >

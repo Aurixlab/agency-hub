@@ -14,7 +14,7 @@ export const metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="min-h-screen w-screen max-w-[100vw] overflow-x-hidden">
+      <body className="min-h-screen w-full max-w-full overflow-x-hidden">
         <QueryProvider>
           <ThemeProvider>
             {children}

@@ -276,6 +276,22 @@ export default function Sidebar({ user }: SidebarProps) {
             </div>
           </div>
         )}
+
+        {/* Powered by - Bottom Sticky */}
+        {!collapsed && (
+          <div className="mt-4 pt-4 border-t border-surface-200 dark:border-surface-800 flex flex-col items-center gap-2">
+            <p className="text-xs font-semibold text-surface-600 dark:text-surface-300">Powered by</p>
+            <Link href="https://aurixlab.com/" target="_blank" rel="noopener noreferrer" className="hover:opacity-80 transition-opacity">
+              <Image
+                src={theme === 'dark' ? '/assets/White-Gold-Logo.png' : '/assets/Black-Gold-Logo.png'}
+                alt="Powered by"
+                width={100}
+                height={28}
+                className="h-7 w-auto object-contain"
+              />
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );

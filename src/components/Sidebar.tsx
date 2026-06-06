@@ -140,17 +140,22 @@ export default function Sidebar({ user }: SidebarProps) {
 
       {/* Powered by */}
       {!collapsed && (
-        <div className="px-5 py-4 border-b border-surface-200 dark:border-surface-800 flex flex-col items-center gap-2">
+        <div className="px-5 py-4 flex flex-col items-center gap-2">
           <p className="text-sm font-semibold text-surface-600 dark:text-surface-300">Powered by</p>
-          <Image
-            src={theme === 'dark' ? '/assets/White-Gold-Logo.png' : '/assets/Black-Gold-Logo.png'}
-            alt="Powered by"
-            width={120}
-            height={32}
-            className="h-8 w-auto object-contain"
-          />
+          <Link href="https://aurixlab.com/" target="_blank" rel="noopener noreferrer" className="hover:opacity-80 transition-opacity">
+            <Image
+              src={theme === 'dark' ? '/assets/White-Gold-Logo.png' : '/assets/Black-Gold-Logo.png'}
+              alt="Powered by"
+              width={120}
+              height={32}
+              className="h-8 w-auto object-contain"
+            />
+          </Link>
         </div>
       )}
+
+      {/* Divider */}
+      <div className="border-b border-surface-200 dark:border-surface-800" />
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">

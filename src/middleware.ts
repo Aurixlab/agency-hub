@@ -1,13 +1,26 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const publicPaths = ['/login', '/api/auth/login', '/api/auth/google', '/api/seo', '/api/cron'];
+const publicPaths = ['/login', '/api/auth/login', '/api/auth/google', '/api/seo'];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const sessionToken = request.cookies.get('agency-hub-session')?.value;
 
   if (publicPaths.some(p => pathname.startsWith(p))) {
     return NextResponse.next();
+  }
+
+  if (pathname.startsWith('/api/cron')) {
+    const authHeader = request.headers.get('authorization');
+    const cronSecret = process.env.CRON_SECRET;
+    const isAuthorizedCron = cronSecret && authHeader === `Bearer ${cronSecret}`;
+
+    if (sessionToken || isAuthorizedCron) {
+      return NextResponse.next();
+    }
+
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   if (
@@ -17,8 +30,6 @@ export function middleware(request: NextRequest) {
   ) {
     return NextResponse.next();
   }
-
-  const sessionToken = request.cookies.get('agency-hub-session')?.value;
 
   if (!sessionToken) {
     if (pathname.startsWith('/api/')) {

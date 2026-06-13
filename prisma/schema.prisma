@@ -44,6 +44,7 @@ model User {
   activities    ActivityLog[]
   notifications Notification[]
   pipelines     Pipeline[]
+  transcriptImports TranscriptImport[]
 
   @@map("users")
 }
@@ -193,4 +194,31 @@ model PipelineNode {
   pipeline    Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
 
   @@map("pipeline_nodes")
+}
+
+model TranscriptImport {
+  id         String      @id @default(cuid())
+  uploadedBy String      @map("uploaded_by")
+  fileName   String      @map("file_name")
+  createdAt  DateTime    @default(now()) @map("created_at")
+  drafts     TaskDraft[]
+  uploader   User        @relation(fields: [uploadedBy], references: [id])
+
+  @@map("transcript_imports")
+}
+
+model TaskDraft {
+  id                   String           @id @default(cuid())
+  importId             String           @map("import_id")
+  title                String
+  description          String?
+  priority             Priority         @default(NONE)
+  suggestedAssigneeIds Json             @default("[]") @map("suggested_assignee_ids")
+  suggestedDueDate     DateTime?        @map("suggested_due_date")
+  status               String           @default("pending")
+  createdAt            DateTime         @default(now()) @map("created_at")
+  import               TranscriptImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+
+  @@index([importId, status])
+  @@map("task_drafts")
 }

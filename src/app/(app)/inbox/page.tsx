@@ -1,10 +1,9 @@
 'use client';
 
 import { useFetch, apiCall } from '@/hooks/useFetch';
-import { Inbox, FileText, Trash2, Send, X, Loader2, Calendar, ChevronDown } from 'lucide-react';
+import { Inbox, FileText, Trash2, Send, X, Loader2, Calendar, ChevronDown, Sparkles, Upload } from 'lucide-react';
 import { format } from 'date-fns';
-import { useState } from 'react';
-import Link from 'next/link';
+import { useState, useRef } from 'react';
 import toast from 'react-hot-toast';
 
 const PRIORITIES = ['URGENT', 'HIGH', 'MEDIUM', 'LOW', 'NONE'];
@@ -63,6 +62,9 @@ export default function InboxPage() {
         </div>
       </div>
 
+      {/* Upload a meeting transcript */}
+      <ImportTranscriptCard onImported={refetch} />
+
       {loading ? (
         <div className="py-20 text-center text-surface-400">Loading…</div>
       ) : !imports || imports.length === 0 ? (
@@ -70,9 +72,7 @@ export default function InboxPage() {
           <Inbox className="w-10 h-10 mx-auto mb-3 text-surface-300" />
           <p className="text-surface-600 dark:text-surface-300 font-medium">No draft tasks</p>
           <p className="text-surface-400 text-sm mt-1">
-            Upload a meeting transcript from the{' '}
-            <Link href="/dashboard" className="text-brand-600 hover:underline">dashboard</Link>{' '}
-            to generate draft tasks.
+            Upload a meeting transcript above to generate draft tasks.
           </p>
         </div>
       ) : (
@@ -146,6 +146,120 @@ export default function InboxPage() {
           onPublished={() => { setPublishing(null); refetch(); }}
         />
       )}
+    </div>
+  );
+}
+
+// ==================== IMPORT TRANSCRIPT CARD ====================
+function ImportTranscriptCard({ onImported }: { onImported: () => void }) {
+  const [files, setFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const addFiles = (incoming: FileList | null) => {
+    if (!incoming) return;
+    const picked = Array.from(incoming).filter(f => {
+      const n = f.name.toLowerCase();
+      return n.endsWith('.docx') || n.endsWith('.txt');
+    });
+    if (picked.length === 0) {
+      toast.error('Only .docx or .txt files are supported');
+      return;
+    }
+    setFiles(prev => [...prev, ...picked].slice(0, 2));
+  };
+
+  const handleUpload = async () => {
+    if (files.length === 0) return;
+    setUploading(true);
+    try {
+      const form = new FormData();
+      files.forEach(f => form.append('files', f));
+      const res = await fetch('/api/transcripts', { method: 'POST', body: form });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || 'Failed to process transcript');
+      } else {
+        const count = data.taskCount ?? 0;
+        setFiles([]);
+        if (count > 0) toast.success(`${count} draft task${count === 1 ? '' : 's'} created`);
+        else toast('No actionable tasks found in the transcript');
+        onImported();
+      }
+    } catch {
+      toast.error('Failed to process transcript');
+    }
+    setUploading(false);
+  };
+
+  return (
+    <div className="card p-5">
+      <div className="flex items-start gap-3">
+        <div className="w-10 h-10 rounded-xl bg-brand-50 dark:bg-brand-950/30 flex items-center justify-center flex-shrink-0">
+          <Sparkles className="w-5 h-5 text-brand-600" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h2 className="font-semibold text-surface-900 dark:text-white">Import tasks from a meeting</h2>
+          <p className="text-sm text-surface-500 dark:text-surface-400 mt-0.5">
+            Upload a meeting transcript (.docx or .txt, up to 2 files). AI reads it and drafts tasks assigned to the best-matched people, ready for you to review below.
+          </p>
+
+          <div
+            onDragOver={e => e.preventDefault()}
+            onDrop={e => { e.preventDefault(); addFiles(e.dataTransfer.files); }}
+            className="mt-4 border-2 border-dashed border-surface-200 dark:border-surface-700 rounded-xl px-4 py-6 text-center"
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".docx,.txt"
+              multiple
+              className="hidden"
+              onChange={e => { addFiles(e.target.files); e.target.value = ''; }}
+            />
+            {files.length === 0 ? (
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="inline-flex flex-col items-center gap-2 text-surface-500 hover:text-brand-600 transition-colors"
+              >
+                <Upload className="w-6 h-6" />
+                <span className="text-sm font-medium">Click to choose files or drag them here</span>
+              </button>
+            ) : (
+              <div className="space-y-2">
+                {files.map((f, i) => (
+                  <div key={i} className="flex items-center gap-2 justify-center text-sm text-surface-700 dark:text-surface-300">
+                    <FileText className="w-4 h-4 text-brand-600 flex-shrink-0" />
+                    <span className="truncate max-w-[240px]">{f.name}</span>
+                    <button
+                      onClick={() => setFiles(prev => prev.filter((_, idx) => idx !== i))}
+                      className="p-0.5 rounded hover:bg-surface-100 dark:hover:bg-surface-800"
+                      title="Remove"
+                    >
+                      <X className="w-3.5 h-3.5 text-surface-400" />
+                    </button>
+                  </div>
+                ))}
+                {files.length < 2 && (
+                  <button onClick={() => fileInputRef.current?.click()} className="text-xs text-brand-600 hover:underline">
+                    + Add another file
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-3">
+            <button
+              onClick={handleUpload}
+              disabled={files.length === 0 || uploading}
+              className="btn-primary btn-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {uploading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Reading transcript…</> : <><Sparkles className="w-3.5 h-3.5" /> Generate draft tasks</>}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

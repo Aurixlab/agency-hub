@@ -156,7 +156,7 @@ export async function POST(request: Request) {
     const apifyResponse = await fetch(`${APIFY_ENDPOINT}?token=${encodeURIComponent(apifyToken)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ search: [topic], searchType: 'hashtag', resultsLimit: APIFY_RESULTS_LIMIT }),
+      body: JSON.stringify({ search: topic, searchType: 'hashtag', resultsLimit: APIFY_RESULTS_LIMIT }),
       signal: controller.signal,
       cache: 'no-store',
     });

@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
 
 const APIFY_ENDPOINT =
-  'https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items';
+  'https://api.apify.com/v2/acts/apify~instagram-hashtag-scraper/run-sync-get-dataset-items';
 const APIFY_TIMEOUT_MS = 120_000;
 const APIFY_RESULTS_LIMIT = 300;
 const TOP_RESULTS = 30;
@@ -24,14 +24,14 @@ const CANADIAN_TOKENS: readonly string[] = [
 
 interface InstagramReelRaw {
   id: string;
+  shortCode?: string;
   url: string;
   caption?: string;
-  playCount?: number;
   videoPlayCount?: number;
+  igPlayCount?: number;
   likesCount?: number;
   commentsCount?: number;
   ownerUsername?: string;
-  ownerProfile?: { followersCount?: number };
   locationName?: string;
   locationId?: string;
 }
@@ -56,9 +56,9 @@ function isCanadianContent(reel: InstagramReelRaw): boolean {
   return CANADIAN_TOKENS.some((token) => haystack.includes(token));
 }
 
-// Viral Score = (play + likes*2 + comments*5) / max(1, followers)
-function computeViralScore(play: number, likes: number, comments: number, followers: number): number {
-  const score = (play + likes * 2 + comments * 5) / Math.max(1, followers);
+// Viral Score = plays + likes*2 + comments*5 (absolute engagement — hashtag scraper doesn't expose follower counts)
+function computeViralScore(play: number, likes: number, comments: number): number {
+  const score = play + likes * 2 + comments * 5;
   if (!Number.isFinite(score)) return 0;
   return Math.round(score * 10_000) / 10_000;
 }
@@ -79,10 +79,9 @@ interface ReelRow {
 }
 
 function mapReelToRow(reel: InstagramReelRaw, searchTopic: string): ReelRow {
-  const play = safeNumber(reel.playCount ?? reel.videoPlayCount);
+  const play = safeNumber(reel.videoPlayCount ?? reel.igPlayCount);
   const likes = safeNumber(reel.likesCount);
   const comments = safeNumber(reel.commentsCount);
-  const followers = safeNumber(reel.ownerProfile?.followersCount) || 1;
   return {
     instagramId: String(reel.id),
     url: String(reel.url),
@@ -91,10 +90,10 @@ function mapReelToRow(reel: InstagramReelRaw, searchTopic: string): ReelRow {
     likeCount: likes,
     commentCount: comments,
     authorUsername: String(reel.ownerUsername ?? 'unknown'),
-    authorFollowers: followers,
+    authorFollowers: 1,
     locationName: typeof reel.locationName === 'string' ? reel.locationName : null,
     locationId: typeof reel.locationId === 'string' ? reel.locationId : null,
-    viralScore: computeViralScore(play, likes, comments, followers),
+    viralScore: computeViralScore(play, likes, comments),
     searchTopic,
   };
 }
@@ -156,7 +155,7 @@ export async function POST(request: Request) {
     const apifyResponse = await fetch(`${APIFY_ENDPOINT}?token=${encodeURIComponent(apifyToken)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ search: topic, searchType: 'hashtag', resultsLimit: APIFY_RESULTS_LIMIT }),
+      body: JSON.stringify({ hashtags: [topic], resultsType: 'reels', resultsLimit: APIFY_RESULTS_LIMIT }),
       signal: controller.signal,
       cache: 'no-store',
     });

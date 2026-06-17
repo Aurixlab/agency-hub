@@ -222,3 +222,23 @@ model TaskDraft {
   @@index([importId, status])
   @@map("task_drafts")
 }
+
+model ScrapedReel {
+  id              String   @id @default(cuid())
+  instagramId     String   @unique @map("instagram_id")
+  url             String
+  caption         String?
+  playCount       BigInt   @default(0) @map("play_count")
+  likeCount       BigInt   @default(0) @map("like_count")
+  commentCount    BigInt   @default(0) @map("comment_count")
+  authorUsername  String   @map("author_username")
+  authorFollowers BigInt   @default(1) @map("author_followers")
+  locationName    String?  @map("location_name")
+  locationId      String?  @map("location_id")
+  viralScore      Float    @default(0) @map("viral_score")
+  searchTopic     String   @map("search_topic")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([searchTopic, viralScore])
+  @@map("scraped_reels")
+}

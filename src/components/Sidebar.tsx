@@ -25,6 +25,7 @@ import {
   Search,
   GitBranch,
   Inbox,
+  Flame,
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { formatDistanceToNow } from 'date-fns';
@@ -53,6 +54,7 @@ const navItems = [
   { href: '/projects', label: 'Projects', icon: FolderKanban },
   { href: '/tasks', label: 'My Tasks', icon: ListTodo },
   { href: '/inbox', label: 'Task Inbox', icon: Inbox },
+  { href: '/reels', label: 'Viral Reels', icon: Flame },
   { href: '/pipeline', label: 'Pipeline', icon: GitBranch },
   { href: '/seo', label: 'SEO', icon: Search },
   { href: '/templates', label: 'Templates', icon: LayoutTemplate },

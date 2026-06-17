@@ -230,7 +230,7 @@ export async function POST(request: Request) {
   const matched = rawRows.length;
 
   // --- Step 2: fetch follower counts for unique authors, then compute real viral scores ---
-  const uniqueUsernames = [...new Set(rawRows.map((r) => r.authorUsername.toLowerCase()).filter((u) => u !== 'unknown'))];
+  const uniqueUsernames = Array.from(new Set(rawRows.map((r) => r.authorUsername.toLowerCase()).filter((u) => u !== 'unknown')));
   const followerMap = await fetchFollowerCounts(uniqueUsernames, apifyToken);
 
   const rows = rawRows.map((r) => {

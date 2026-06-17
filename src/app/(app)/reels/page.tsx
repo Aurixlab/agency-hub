@@ -66,7 +66,7 @@ export default function ReelsPage() {
           <h1 className="text-2xl font-bold text-surface-900 dark:text-white">Viral Reels 🇨🇦</h1>
           <p className="text-surface-500 dark:text-surface-400 text-sm">
             Scrapes live Instagram Reels for a topic, isolates Canadian content, and ranks the top performers by
-            viral score — views + likes×2 + comments×5.
+            viral score — (views + likes×2 + comments×5) ÷ followers.
           </p>
         </div>
       </div>

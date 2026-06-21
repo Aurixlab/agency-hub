@@ -13,6 +13,12 @@ const APIFY_PROFILE_ENDPOINT = `${APIFY_BASE}/apify~instagram-profile-scraper/ru
 const APIFY_TIMEOUT_MS = 120_000;
 const APIFY_RESULTS_LIMIT = 300;
 const TOP_RESULTS = 30;
+const PROFILE_BATCH_SIZE = 50;
+
+// Re-scrape if the topic was last scraped more than 8 hours ago.
+const CACHE_TTL_MS = 8 * 60 * 60 * 1_000;
+
+// ─── Canadian signals ────────────────────────────────────────────────────────
 
 const CANADIAN_TOKENS: readonly string[] = [
   // Cities
@@ -22,6 +28,45 @@ const CANADIAN_TOKENS: readonly string[] = [
   'canada', 'ontario', 'alberta', 'british columbia', 'manitoba',
   'nova scotia', 'saskatchewan', 'yyz', 'yvr', 'yul', 'yyc', '🇨🇦',
 ];
+
+// High-confidence Canadian location IDs from Instagram's location graph.
+// A reel tagged with one of these is definitively Canadian regardless of caption.
+const CANADIAN_LOCATION_IDS = new Set<string>([
+  // Toronto & surroundings
+  '213385402', '107722612590762', '358999078', '6201788428', '1043698662',
+  // Vancouver
+  '220837164', '107822009243387', '383576', '8500609',
+  // Montreal
+  '111765898845946', '106376786063146', '507525', '2409012',
+  // Calgary
+  '107979535892626', '2362463', '8207898',
+  // Edmonton
+  '227739307', '108164852543706',
+  // Ottawa
+  '108124929213254', '213325798',
+  // Winnipeg
+  '107686735922484', '213706895',
+  // Halifax
+  '108262232541936', '213460587',
+  // Québec City
+  '107894875892432', '213480580',
+  // Mississauga / Brampton / Hamilton
+  '107875285892626', '108271392540927', '107904625892453',
+]);
+
+function isCanadianContent(reel: InstagramReelRaw): boolean {
+  // High-confidence: tagged location is a known Canadian place.
+  if (reel.locationId && CANADIAN_LOCATION_IDS.has(String(reel.locationId))) return true;
+  // Fallback: text-match against caption, location name, and username.
+  const haystack = [reel.locationName, reel.caption, reel.ownerUsername]
+    .filter((part): part is string => typeof part === 'string')
+    .join(' ')
+    .toLowerCase();
+  if (!haystack) return false;
+  return CANADIAN_TOKENS.some((token) => haystack.includes(token));
+}
+
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 interface InstagramReelRaw {
   id: string;
@@ -37,34 +82,6 @@ interface InstagramReelRaw {
   locationId?: string;
 }
 
-function safeNumber(value: unknown): number {
-  const n = Number(value);
-  if (!Number.isFinite(n) || n < 0) return 0;
-  return n;
-}
-
-function normalizeTopic(input: unknown): string {
-  if (typeof input !== 'string') return '';
-  return input.trim().replace(/^#+/, '').trim().toLowerCase();
-}
-
-function isCanadianContent(reel: InstagramReelRaw): boolean {
-  const haystack = [reel.locationName, reel.caption, reel.ownerUsername]
-    .filter((part): part is string => typeof part === 'string')
-    .join(' ')
-    .toLowerCase();
-  if (!haystack) return false;
-  return CANADIAN_TOKENS.some((token) => haystack.includes(token));
-}
-
-// Viral Score = (plays + likes*2 + comments*5) / followers
-// Normalising by followers separates genuinely viral content from big-account posts.
-function computeViralScore(play: number, likes: number, comments: number, followers: number): number {
-  const score = (play + likes * 2 + comments * 5) / Math.max(1, followers);
-  if (!Number.isFinite(score)) return 0;
-  return Math.round(score * 10_000) / 10_000;
-}
-
 interface ReelRow {
   instagramId: string;
   url: string;
@@ -78,10 +95,31 @@ interface ReelRow {
   locationId: string | null;
   viralScore: number;
   searchTopic: string;
+  scrapedAt: Date;
 }
 
-// authorFollowers is left as 1 (placeholder) — will be patched after the profile lookup.
-function mapReelToRow(reel: InstagramReelRaw, searchTopic: string): ReelRow {
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function safeNumber(value: unknown): number {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return n;
+}
+
+function normalizeTopic(input: unknown): string {
+  if (typeof input !== 'string') return '';
+  return input.trim().replace(/^#+/, '').trim().toLowerCase();
+}
+
+// Viral Score = (plays + likes*2 + comments*5) / followers
+// Normalising by followers separates genuinely viral content from big-account posts.
+function computeViralScore(play: number, likes: number, comments: number, followers: number): number {
+  const score = (play + likes * 2 + comments * 5) / Math.max(1, followers);
+  if (!Number.isFinite(score)) return 0;
+  return Math.round(score * 10_000) / 10_000;
+}
+
+function mapReelToRow(reel: InstagramReelRaw, searchTopic: string, scrapedAt: Date): ReelRow {
   const play = safeNumber(reel.videoPlayCount ?? reel.igPlayCount);
   const likes = safeNumber(reel.likesCount);
   const comments = safeNumber(reel.commentsCount);
@@ -96,43 +134,10 @@ function mapReelToRow(reel: InstagramReelRaw, searchTopic: string): ReelRow {
     authorFollowers: 1,
     locationName: typeof reel.locationName === 'string' ? reel.locationName : null,
     locationId: typeof reel.locationId === 'string' ? reel.locationId : null,
-    viralScore: 0, // recalculated after follower lookup
+    viralScore: 0,
     searchTopic,
+    scrapedAt,
   };
-}
-
-// Step 2: look up follower counts for the unique authors we found.
-// Has its own 30s timeout — failures return an empty map (rows fall back to followers=1).
-async function fetchFollowerCounts(
-  usernames: string[],
-  token: string,
-): Promise<Map<string, number>> {
-  if (usernames.length === 0) return new Map();
-  const ac = new AbortController();
-  const t = setTimeout(() => ac.abort(), 30_000);
-  try {
-    const res = await fetch(`${APIFY_PROFILE_ENDPOINT}?token=${encodeURIComponent(token)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      // Cap at 50 usernames to keep the profile call fast and cheap.
-      body: JSON.stringify({ usernames: usernames.slice(0, 50) }),
-      signal: ac.signal,
-      cache: 'no-store',
-    });
-    if (!res.ok) return new Map();
-    const profiles: any[] = await res.json();
-    const map = new Map<string, number>();
-    for (const p of Array.isArray(profiles) ? profiles : []) {
-      const u = typeof p.username === 'string' ? p.username.toLowerCase() : null;
-      const f = typeof p.followersCount === 'number' ? p.followersCount : 0;
-      if (u && f > 0) map.set(u, f);
-    }
-    return map;
-  } catch {
-    return new Map();
-  } finally {
-    clearTimeout(t);
-  }
 }
 
 function dedupeByInstagramId(rows: ReelRow[]): ReelRow[] {
@@ -157,8 +162,51 @@ function serializeReel(r: any) {
     locationId: r.locationId,
     viralScore: Number(r.viralScore),
     searchTopic: r.searchTopic,
+    scrapedAt: r.scrapedAt,
   };
 }
+
+// ─── Follower lookup (batched, no hard cap) ──────────────────────────────────
+
+async function fetchFollowerCounts(
+  usernames: string[],
+  token: string,
+): Promise<Map<string, number>> {
+  if (usernames.length === 0) return new Map();
+
+  const map = new Map<string, number>();
+
+  // Fire batches sequentially to stay within Apify's per-request payload limits.
+  for (let i = 0; i < usernames.length; i += PROFILE_BATCH_SIZE) {
+    const batch = usernames.slice(i, i + PROFILE_BATCH_SIZE);
+    const ac = new AbortController();
+    const t = setTimeout(() => ac.abort(), 30_000);
+    try {
+      const res = await fetch(`${APIFY_PROFILE_ENDPOINT}?token=${encodeURIComponent(token)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ usernames: batch }),
+        signal: ac.signal,
+        cache: 'no-store',
+      });
+      if (!res.ok) continue;
+      const profiles: any[] = await res.json();
+      for (const p of Array.isArray(profiles) ? profiles : []) {
+        const u = typeof p.username === 'string' ? p.username.toLowerCase() : null;
+        const f = typeof p.followersCount === 'number' ? p.followersCount : 0;
+        if (u && f > 0) map.set(u, f);
+      }
+    } catch {
+      // Partial failure: skip this batch, keep results from previous batches.
+    } finally {
+      clearTimeout(t);
+    }
+  }
+
+  return map;
+}
+
+// ─── Handler ─────────────────────────────────────────────────────────────────
 
 export async function POST(request: Request) {
   const session = await getSessionFromRequest(request);
@@ -184,7 +232,35 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "A non-empty 'topic' is required." }, { status: 400 });
   }
 
-  // --- Apify synchronous scrape ---
+  // ── Cache check ────────────────────────────────────────────────────────────
+  // If this topic was scraped within the TTL window, skip Apify and return
+  // cached results from the DB immediately.
+  const mostRecent = await prisma.scrapedReel.findFirst({
+    where: { searchTopic: topic },
+    orderBy: { scrapedAt: 'desc' },
+    select: { scrapedAt: true },
+  });
+
+  const cacheAge = mostRecent ? Date.now() - new Date(mostRecent.scrapedAt).getTime() : Infinity;
+  const cached = cacheAge < CACHE_TTL_MS;
+
+  if (cached) {
+    const top = await prisma.scrapedReel.findMany({
+      where: { searchTopic: topic },
+      orderBy: { viralScore: 'desc' },
+      take: TOP_RESULTS,
+    });
+    return NextResponse.json({
+      ok: true,
+      topic,
+      cached: true,
+      cacheAgeMinutes: Math.round(cacheAge / 60_000),
+      count: top.length,
+      reels: top.map(serializeReel),
+    });
+  }
+
+  // ── Live scrape ────────────────────────────────────────────────────────────
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), APIFY_TIMEOUT_MS);
   let datasetItems: InstagramReelRaw[];
@@ -219,18 +295,21 @@ export async function POST(request: Request) {
   }
 
   const scanned = datasetItems.length;
+  const scrapedAt = new Date();
 
-  // --- Canadian filter (viral scores computed after follower lookup) ---
+  // ── Canadian filter ────────────────────────────────────────────────────────
   const rawRows = dedupeByInstagramId(
     datasetItems
       .filter((item): item is InstagramReelRaw => !!item && typeof item === 'object' && !!item.id)
       .filter(isCanadianContent)
-      .map((item) => mapReelToRow(item, topic))
+      .map((item) => mapReelToRow(item, topic, scrapedAt))
   );
   const matched = rawRows.length;
 
-  // --- Step 2: fetch follower counts for unique authors, then compute real viral scores ---
-  const uniqueUsernames = Array.from(new Set(rawRows.map((r) => r.authorUsername.toLowerCase()).filter((u) => u !== 'unknown')));
+  // ── Follower lookup (batched — no cap) ────────────────────────────────────
+  const uniqueUsernames = Array.from(
+    new Set(rawRows.map((r) => r.authorUsername.toLowerCase()).filter((u) => u !== 'unknown'))
+  );
   const followerMap = await fetchFollowerCounts(uniqueUsernames, apifyToken);
 
   const rows = rawRows.map((r) => {
@@ -242,7 +321,7 @@ export async function POST(request: Request) {
     };
   });
 
-  // --- Upsert (update volatile metrics on conflict) in one transaction ---
+  // ── Upsert ────────────────────────────────────────────────────────────────
   if (rows.length > 0) {
     try {
       await prisma.$transaction(
@@ -262,6 +341,7 @@ export async function POST(request: Request) {
               locationId: r.locationId,
               viralScore: r.viralScore,
               searchTopic: r.searchTopic,
+              scrapedAt: r.scrapedAt,
             },
           })
         )
@@ -272,7 +352,7 @@ export async function POST(request: Request) {
     }
   }
 
-  // --- Re-query top performers for this topic ---
+  // ── Return top performers ─────────────────────────────────────────────────
   const top = await prisma.scrapedReel.findMany({
     where: { searchTopic: topic },
     orderBy: { viralScore: 'desc' },
@@ -282,6 +362,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     ok: true,
     topic,
+    cached: false,
     scanned,
     matched,
     count: top.length,

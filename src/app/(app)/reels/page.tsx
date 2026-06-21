@@ -20,6 +20,14 @@ interface Reel {
   locationId: string | null;
   viralScore: number;
   searchTopic: string;
+  scrapedAt?: string;
+}
+
+interface SearchMeta {
+  cached: boolean;
+  cacheAgeMinutes?: number;
+  scanned?: number;
+  matched?: number;
 }
 
 const compact = (n: number) =>
@@ -30,6 +38,7 @@ const score = (n: number) =>
 export default function ReelsPage() {
   const [topic, setTopic] = useState('');
   const [reels, setReels] = useState<Reel[]>([]);
+  const [meta, setMeta] = useState<SearchMeta | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
@@ -49,6 +58,7 @@ export default function ReelsPage() {
       const payload = await res.json();
       if (!res.ok || !payload.ok) throw new Error(payload?.error || `Request failed (${res.status}).`);
       setReels(Array.isArray(payload.reels) ? payload.reels : []);
+      setMeta({ cached: payload.cached, cacheAgeMinutes: payload.cacheAgeMinutes, scanned: payload.scanned, matched: payload.matched });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.');
       setReels([]);
@@ -117,13 +127,22 @@ export default function ReelsPage() {
       {/* Results */}
       {!loading && reels.length > 0 && (
         <div>
-          <div className="mb-3 flex items-baseline justify-between">
+          <div className="mb-3 flex items-baseline justify-between flex-wrap gap-2">
             <h2 className="text-lg font-semibold text-surface-900 dark:text-white">Top {reels.length} reels</h2>
-            {topic.trim() && (
-              <p className="text-sm text-surface-400">
-                for <span className="font-medium text-surface-600 dark:text-surface-300">#{topic.trim().replace(/^#+/, '').toLowerCase()}</span>
-              </p>
-            )}
+            <div className="flex items-center gap-3 text-sm text-surface-400">
+              {meta?.cached ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 px-2.5 py-0.5 text-xs font-medium text-sky-700 dark:text-sky-300">
+                  Cached · {meta.cacheAgeMinutes}m ago
+                </span>
+              ) : meta?.scanned != null ? (
+                <span className="text-xs text-surface-400">
+                  {meta.matched} Canadian / {meta.scanned} scraped
+                </span>
+              ) : null}
+              {topic.trim() && (
+                <p>for <span className="font-medium text-surface-600 dark:text-surface-300">#{topic.trim().replace(/^#+/, '').toLowerCase()}</span></p>
+              )}
+            </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {reels.map((reel, i) => <ReelCard key={reel.instagramId ?? i} reel={reel} rank={i + 1} />)}

@@ -45,6 +45,7 @@ model User {
   notifications Notification[]
   pipelines     Pipeline[]
   transcriptImports TranscriptImport[]
+  productAutomationRuns ProductAutomationRun[]
 
   @@map("users")
 }
@@ -242,4 +243,32 @@ model ScrapedReel {
 
   @@index([searchTopic, viralScore])
   @@map("scraped_reels")
+}
+
+model ProductAutomationRun {
+  id                String   @id @default(cuid())
+  createdBy         String   @map("created_by")
+  productLink       String   @map("product_link")
+  basePrice         Decimal  @map("base_price") @db.Decimal(10, 2)
+  decorationType    String   @map("decoration_type")
+  colors            Json     @default("[]")
+  imagesReady       Boolean  @default(false) @map("images_ready")
+  scrapedData       Json?    @map("scraped_data")
+  aiCopy            Json?    @map("ai_copy")
+  pricing           Json?
+  variants          Json?
+  shopifyPayload    Json?    @map("shopify_payload")
+  status            String   @default("draft")
+  shopifyProductId  String?  @map("shopify_product_id")
+  shopifyProductUrl String?  @map("shopify_product_url")
+  errorMessage      String?  @map("error_message")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  creator User @relation(fields: [createdBy], references: [id])
+
+  @@index([createdBy])
+  @@index([status])
+  @@index([createdAt])
+  @@map("product_automation_runs")
 }

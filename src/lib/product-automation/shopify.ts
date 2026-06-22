@@ -163,7 +163,82 @@ async function deleteProduct(endpoint: string, token: string, productId: string)
   await shopifyGraphql(endpoint, token, mutation, { input: { id: productId } });
 }
 
-export async function createShopifyDraftProduct(payload: ShopifyPayload) {
+async function setProductMetafields(
+  endpoint: string,
+  token: string,
+  productId: string,
+  metafields: ShopifyPayload['metafields']
+) {
+  if (!metafields.length) return;
+
+  const mutation = `
+    mutation SetProductMetafields($metafields: [MetafieldsSetInput!]!) {
+      metafieldsSet(metafields: $metafields) {
+        metafields {
+          key
+          value
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  `;
+  const result = await shopifyGraphql<{
+    metafieldsSet: {
+      metafields: Array<{ key: string; value: string }>;
+      userErrors: Array<{ field?: string[]; message: string }>;
+    };
+  }>(endpoint, token, mutation, {
+    metafields: metafields.map(metafield => ({
+      ownerId: productId,
+      namespace: metafield.namespace,
+      key: metafield.key,
+      type: metafield.type,
+      value: metafield.value,
+    })),
+  });
+  const userErrors = result.metafieldsSet?.userErrors || [];
+  if (userErrors.length) {
+    throw new Error(userErrors.map(error => error.message).join('; '));
+  }
+}
+
+async function verifyProductMetafields(
+  endpoint: string,
+  token: string,
+  productId: string,
+  expected: ShopifyPayload['metafields']
+) {
+  const requiredKeys = expected
+    .filter(metafield => metafield.type.startsWith('list.') && metafield.value !== '[]')
+    .map(metafield => metafield.key);
+  if (!requiredKeys.length) return;
+
+  const query = `
+    query VerifyProductMetafields($id: ID!) {
+      product(id: $id) {
+        metafields(first: 100, namespace: "custom") {
+          nodes {
+            key
+            value
+          }
+        }
+      }
+    }
+  `;
+  const result = await shopifyGraphql<{
+    product: { metafields: { nodes: Array<{ key: string; value: string }> } } | null;
+  }>(endpoint, token, query, { id: productId });
+  const saved = new Map((result.product?.metafields.nodes || []).map(item => [item.key, item.value]));
+  const missing = requiredKeys.filter(key => !saved.get(key));
+  if (missing.length) {
+    throw new Error(`Shopify did not save required metafields: ${missing.join(', ')}`);
+  }
+}
+
+function shopifyConfig() {
   const storeDomain = process.env.SHOPIFY_STORE_DOMAIN;
   const token = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
   const apiVersion = process.env.SHOPIFY_API_VERSION || '2025-01';
@@ -172,12 +247,40 @@ export async function createShopifyDraftProduct(payload: ShopifyPayload) {
   if (!token) throw new Error('SHOPIFY_ADMIN_ACCESS_TOKEN is not configured');
 
   const cleanDomain = storeDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
-  const endpoint = `https://${cleanDomain}/admin/api/${apiVersion}/graphql.json`;
+  return {
+    cleanDomain,
+    endpoint: `https://${cleanDomain}/admin/api/${apiVersion}/graphql.json`,
+    token,
+  };
+}
+
+async function resolvedMetafields(
+  endpoint: string,
+  token: string,
+  payload: ShopifyPayload
+) {
   const reusableIconMetafields = await resolveReusableIconMetafields(endpoint, token);
-  const metafields = await alignMetafieldsWithDefinitions(endpoint, token, [
+  return alignMetafieldsWithDefinitions(endpoint, token, [
     ...payload.metafields,
     ...reusableIconMetafields,
   ]);
+}
+
+export async function updateShopifyProductMetafields(productId: string, payload: ShopifyPayload) {
+  const { cleanDomain, endpoint, token } = shopifyConfig();
+  const metafields = await resolvedMetafields(endpoint, token, payload);
+  await setProductMetafields(endpoint, token, productId, metafields);
+  await verifyProductMetafields(endpoint, token, productId, metafields);
+
+  return {
+    productId,
+    productUrl: `https://${cleanDomain}/admin/products/${gidToAdminId(productId)}`,
+  };
+}
+
+export async function createShopifyDraftProduct(payload: ShopifyPayload) {
+  const { cleanDomain, endpoint, token } = shopifyConfig();
+  const metafields = await resolvedMetafields(endpoint, token, payload);
 
   const createProductMutation = `
     mutation CreateDraftProduct($input: ProductInput!) {
@@ -219,7 +322,7 @@ export async function createShopifyDraftProduct(payload: ShopifyPayload) {
           values: Array.from(new Set(payload.variants.map(variant => variant.size))).map(name => ({ name })),
         },
       ],
-      metafields,
+      metafields: metafields.filter(metafield => !metafield.type.startsWith('list.')),
     },
   });
 
@@ -251,6 +354,10 @@ export async function createShopifyDraftProduct(payload: ShopifyPayload) {
   `;
 
   try {
+    const listMetafields = metafields.filter(metafield => metafield.type.startsWith('list.'));
+    await setProductMetafields(endpoint, token, product.id, listMetafields);
+    await verifyProductMetafields(endpoint, token, product.id, listMetafields);
+
     const variantsResult = await shopifyGraphql<{
       productVariantsBulkCreate: {
         productVariants: Array<{ id: string; sku?: string }>;

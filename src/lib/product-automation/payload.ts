@@ -15,7 +15,7 @@ const listHtml = (title: string, items: string[]) => {
   return `<h3>${escapeHtml(title)}</h3><ul>${items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
 };
 
-const metafieldText = (items: string[]) => items.filter(Boolean).join(' • ');
+const metafieldList = (items: string[]) => JSON.stringify(items.filter(Boolean));
 const priceText = (price: number) => `$${price.toFixed(2)}`;
 
 export function buildBodyHtml(scrapedData: ScrapedProductData, aiCopy: AiProductCopy) {
@@ -58,13 +58,13 @@ export function composeShopifyPayload(args: {
       { namespace: 'custom', key: 'sub_category', type: 'single_line_text_field', value: 'Apparel' },
       { namespace: 'custom', key: 'product_style_number', type: 'single_line_text_field', value: args.scrapedData.sku || '' },
       { namespace: 'custom', key: 'price_info', type: 'single_line_text_field', value: lowestTier ? `As low as ${priceText(lowestTier.price)} (Price for ${lowestTier.range})` : '' },
-      { namespace: 'custom', key: 'product_features_texts', type: 'single_line_text_field', value: metafieldText(args.aiCopy.key_features) },
-      { namespace: 'custom', key: 'best_use_for_texts', type: 'single_line_text_field', value: metafieldText(args.aiCopy.best_use) },
-      { namespace: 'custom', key: 'material_and_care_texts', type: 'single_line_text_field', value: metafieldText(args.aiCopy.material_care) },
-      { namespace: 'custom', key: 'customization_fit_texts', type: 'single_line_text_field', value: metafieldText(args.aiCopy.customization_fit) },
-      { namespace: 'custom', key: 'bulk_range', type: 'single_line_text_field', value: metafieldText(pricing.tiers.map(tier => tier.range)) },
-      { namespace: 'custom', key: 'bulk_price', type: 'single_line_text_field', value: metafieldText(pricing.tiers.map(tier => priceText(tier.price))) },
-      { namespace: 'custom', key: 'bulk_save_percentage', type: 'single_line_text_field', value: metafieldText(pricing.tiers.map((tier, index) => {
+      { namespace: 'custom', key: 'product_features_texts', type: 'list.single_line_text_field', value: metafieldList(args.aiCopy.key_features) },
+      { namespace: 'custom', key: 'best_use_for_texts', type: 'list.single_line_text_field', value: metafieldList(args.aiCopy.best_use) },
+      { namespace: 'custom', key: 'material_and_care_texts', type: 'list.single_line_text_field', value: metafieldList(args.aiCopy.material_care) },
+      { namespace: 'custom', key: 'customization_fit_texts', type: 'list.single_line_text_field', value: metafieldList(args.aiCopy.customization_fit) },
+      { namespace: 'custom', key: 'bulk_range', type: 'list.single_line_text_field', value: metafieldList(pricing.tiers.map(tier => tier.range)) },
+      { namespace: 'custom', key: 'bulk_price', type: 'list.single_line_text_field', value: metafieldList(pricing.tiers.map(tier => priceText(tier.price))) },
+      { namespace: 'custom', key: 'bulk_save_percentage', type: 'list.single_line_text_field', value: metafieldList(pricing.tiers.map((tier, index) => {
         if (index === 0) return 'Save 0%';
         const firstPrice = pricing.tiers[0]?.price || tier.price;
         const discount = Math.max(0, Math.round((1 - tier.price / firstPrice) * 100));

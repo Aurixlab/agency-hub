@@ -99,7 +99,7 @@ export async function createShopifyDraftProduct(payload: ShopifyPayload) {
   const endpoint = `https://${cleanDomain}/admin/api/${apiVersion}/graphql.json`;
   const reusableIconMetafields = await resolveReusableIconMetafields(endpoint, token);
 
-  const mutation = `
+  const createProductMutation = `
     mutation CreateDraftProduct($input: ProductInput!) {
       productCreate(input: $input) {
         product {
@@ -115,26 +115,30 @@ export async function createShopifyDraftProduct(payload: ShopifyPayload) {
     }
   `;
 
-  const result = await shopifyGraphql<{
+  const createResult = await shopifyGraphql<{
     productCreate: {
       product?: { id: string; handle?: string; onlineStoreUrl?: string };
       userErrors: Array<{ field?: string[]; message: string }>;
     };
-  }>(endpoint, token, mutation, {
+  }>(endpoint, token, createProductMutation, {
     input: {
       title: payload.title,
-      bodyHtml: payload.bodyHtml,
+      descriptionHtml: payload.bodyHtml,
       vendor: payload.vendor,
       productType: payload.productType,
       status: payload.status,
       tags: payload.tags,
       templateSuffix: payload.templateSuffix,
-      options: payload.options,
-      variants: payload.variants.map(variant => ({
-        sku: variant.sku,
-        price: String(variant.price.toFixed(2)),
-        options: [variant.color, variant.size],
-      })),
+      productOptions: [
+        {
+          name: 'Color',
+          values: Array.from(new Set(payload.variants.map(variant => variant.color))).map(name => ({ name })),
+        },
+        {
+          name: 'Size',
+          values: Array.from(new Set(payload.variants.map(variant => variant.size))).map(name => ({ name })),
+        },
+      ],
       metafields: [
         ...payload.metafields,
         ...reusableIconMetafields,
@@ -142,13 +146,54 @@ export async function createShopifyDraftProduct(payload: ShopifyPayload) {
     },
   });
 
-  const userErrors = result.productCreate?.userErrors || [];
-  if (userErrors.length) {
-    throw new Error(userErrors.map((e: any) => e.message).join('; '));
+  const createUserErrors = createResult.productCreate?.userErrors || [];
+  if (createUserErrors.length) {
+    throw new Error(createUserErrors.map((e: any) => e.message).join('; '));
   }
 
-  const product = result.productCreate?.product;
+  const product = createResult.productCreate?.product;
   if (!product?.id) throw new Error('Shopify did not return a product ID');
+
+  const createVariantsMutation = `
+    mutation CreateProductVariants($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+      productVariantsBulkCreate(
+        productId: $productId,
+        variants: $variants,
+        strategy: REMOVE_STANDALONE_VARIANT
+      ) {
+        productVariants {
+          id
+          sku
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  `;
+
+  const variantsResult = await shopifyGraphql<{
+    productVariantsBulkCreate: {
+      productVariants: Array<{ id: string; sku?: string }>;
+      userErrors: Array<{ field?: string[]; message: string }>;
+    };
+  }>(endpoint, token, createVariantsMutation, {
+    productId: product.id,
+    variants: payload.variants.map(variant => ({
+      sku: variant.sku,
+      price: String(variant.price.toFixed(2)),
+      optionValues: [
+        { optionName: 'Color', name: variant.color },
+        { optionName: 'Size', name: variant.size },
+      ],
+    })),
+  });
+
+  const variantUserErrors = variantsResult.productVariantsBulkCreate?.userErrors || [];
+  if (variantUserErrors.length) {
+    throw new Error(variantUserErrors.map((e: any) => e.message).join('; '));
+  }
 
   const adminId = gidToAdminId(product.id);
   return {

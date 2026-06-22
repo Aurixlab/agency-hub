@@ -79,6 +79,12 @@ const listToText = (items: string[]) => items.join('\n');
 const textToList = (value: string) => value.split('\n').map(item => item.trim()).filter(Boolean);
 const drafted = (run: ProductAutomationRun) => run.status === 'created' || Boolean(run.shopifyProductUrl);
 const money = (value: string | number) => `$${Number(value || 0).toFixed(2)}`;
+const hasAiCopyContent = (copy: AiProductCopy | null | undefined) =>
+  Boolean(copy?.seo_description?.trim())
+  || Boolean(copy?.key_features?.length)
+  || Boolean(copy?.best_use?.length)
+  || Boolean(copy?.material_care?.length)
+  || Boolean(copy?.customization_fit?.length);
 
 export default function ProductAutomationPage() {
   const [mode, setMode] = useState<'table' | 'workspace'>('table');
@@ -401,7 +407,7 @@ function ProductWorkspace(props: {
         <div className="grid grid-cols-1 divide-y divide-surface-200 dark:divide-surface-800 lg:grid-cols-4 lg:divide-x lg:divide-y-0">
           <StepCell active={!run} done={Boolean(run)} label="Input" value={run ? 'Run created' : 'Ready'} />
           <StepCell active={run?.status === 'draft'} done={Boolean(run?.scrapedData)} label="Scrape" value={run?.scrapedData ? 'Data loaded' : 'Waiting'} />
-          <StepCell active={run?.status === 'scraped'} done={Boolean(run?.aiCopy)} label="Copy" value={run?.aiCopy ? 'Generated' : 'Waiting'} />
+          <StepCell active={run?.status === 'scraped'} done={hasAiCopyContent(run?.aiCopy)} label="Copy" value={hasAiCopyContent(run?.aiCopy) ? 'Generated' : 'Waiting'} />
           <StepCell active={run?.status === 'previewed'} done={run ? drafted(run) : false} label="Draft" value={run ? run.status : 'Waiting'} />
         </div>
       </div>

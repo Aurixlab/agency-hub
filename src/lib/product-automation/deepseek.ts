@@ -77,7 +77,12 @@ export async function generateProductCopy(scrapedData: ScrapedProductData): Prom
     }),
   });
 
-  if (!response.ok) throw new Error(`DeepSeek request failed (${response.status})`);
+  if (!response.ok) {
+    if (response.status === 402) {
+      throw new Error('DeepSeek billing or credits are not available for this API key');
+    }
+    throw new Error(`DeepSeek request failed (${response.status})`);
+  }
   const payload = await response.json();
   const content = payload?.choices?.[0]?.message?.content;
   if (typeof content !== 'string') throw new Error('DeepSeek returned an empty response');

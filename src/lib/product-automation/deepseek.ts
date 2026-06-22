@@ -45,9 +45,19 @@ export async function generateProductCopy(scrapedData: ScrapedProductData): Prom
         {
           role: 'system',
           content: [
-            'You write accurate apparel product copy for Shopify.',
+            'You write short, professional apparel catalog copy.',
             'Return only valid JSON with keys: key_features, best_use, material_care, customization_fit, seo_description.',
-            'Do not include pricing, variants, inventory, images, unsupported claims, or exaggerated marketing language.',
+            'Do not include links, citations, references, brand stories, extra notes, pricing, variants, inventory, or image instructions.',
+            'Do not mention gender. Keep every bullet short, clear, non-repetitive, and free of marketing hype.',
+            'Use a consistent plain catalog tone across all sections. Avoid long sentences and fluff.',
+            'If a product detail is unknown, do not guess; write it generally, such as "performance fabric blend".',
+            'For key_features, focus on fabric type, weight, construction, durability, and performance traits.',
+            'For best_use, use practical situations such as uniforms, events, workwear, everyday wear, training, or travel.',
+            'For material_care, include fabric composition only if available, plus simple wash and dry instructions.',
+            'For customization_fit, include fit type, realistic apparel decoration methods, and label type only if confirmed.',
+            'Decoration methods may include screen print, DTG, heat transfer, embroidery, and sublimation when realistic.',
+            'Use "embroidery-only" only if the product data explicitly says that.',
+            'seo_description must be one short, plain catalog sentence in the same tone.',
           ].join(' '),
         },
         {

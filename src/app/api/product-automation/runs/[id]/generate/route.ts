@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSessionFromRequestFull } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { generateProductCopy } from '@/lib/product-automation/deepseek';
+import { generateProductCopy } from '@/lib/product-automation/gemini-copy';
 import type { ScrapedProductData } from '@/lib/product-automation/types';
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {

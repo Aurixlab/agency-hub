@@ -87,6 +87,56 @@ async function resolveReusableIconMetafields(endpoint: string, token: string): P
   return metafields;
 }
 
+async function alignMetafieldsWithDefinitions(
+  endpoint: string,
+  token: string,
+  metafields: ShopifyPayload['metafields']
+): Promise<ShopifyPayload['metafields']> {
+  const query = `
+    query ProductMetafieldDefinitions {
+      metafieldDefinitions(first: 100, ownerType: PRODUCT, query: "namespace:custom") {
+        nodes {
+          namespace
+          key
+          type {
+            name
+          }
+        }
+      }
+    }
+  `;
+  const data = await shopifyGraphql<{
+    metafieldDefinitions: {
+      nodes: Array<{ namespace: string; key: string; type: { name: string } }>;
+    };
+  }>(endpoint, token, query, {});
+  const definitions = new Map(
+    data.metafieldDefinitions.nodes.map(definition => [
+      `${definition.namespace}.${definition.key}`,
+      definition.type.name,
+    ])
+  );
+
+  return metafields.map(metafield => {
+    const definedType = definitions.get(`${metafield.namespace}.${metafield.key}`);
+    if (!definedType || definedType === metafield.type) return metafield;
+
+    let value = metafield.value;
+    if (definedType.startsWith('list.') && !metafield.type.startsWith('list.')) {
+      value = JSON.stringify(value ? [value] : []);
+    } else if (!definedType.startsWith('list.') && metafield.type.startsWith('list.')) {
+      try {
+        const items = JSON.parse(value);
+        value = Array.isArray(items) ? items.filter(Boolean).join(' • ') : String(items ?? '');
+      } catch {
+        // Keep the original value and let Shopify return a precise validation error.
+      }
+    }
+
+    return { ...metafield, type: definedType, value };
+  });
+}
+
 export async function createShopifyDraftProduct(payload: ShopifyPayload) {
   const storeDomain = process.env.SHOPIFY_STORE_DOMAIN;
   const token = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
@@ -98,6 +148,10 @@ export async function createShopifyDraftProduct(payload: ShopifyPayload) {
   const cleanDomain = storeDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
   const endpoint = `https://${cleanDomain}/admin/api/${apiVersion}/graphql.json`;
   const reusableIconMetafields = await resolveReusableIconMetafields(endpoint, token);
+  const metafields = await alignMetafieldsWithDefinitions(endpoint, token, [
+    ...payload.metafields,
+    ...reusableIconMetafields,
+  ]);
 
   const createProductMutation = `
     mutation CreateDraftProduct($input: ProductInput!) {
@@ -139,10 +193,7 @@ export async function createShopifyDraftProduct(payload: ShopifyPayload) {
           values: Array.from(new Set(payload.variants.map(variant => variant.size))).map(name => ({ name })),
         },
       ],
-      metafields: [
-        ...payload.metafields,
-        ...reusableIconMetafields,
-      ],
+      metafields,
     },
   });
 

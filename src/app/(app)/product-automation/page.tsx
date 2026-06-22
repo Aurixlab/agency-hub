@@ -77,7 +77,7 @@ const initialForm = {
 
 const listToText = (items: string[]) => items.join('\n');
 const textToList = (value: string) => value.split('\n').map(item => item.trim()).filter(Boolean);
-const drafted = (run: ProductAutomationRun) => run.status === 'created' || Boolean(run.shopifyProductUrl);
+const drafted = (run: ProductAutomationRun) => run.status === 'created' && Boolean(run.shopifyProductUrl);
 const money = (value: string | number) => `$${Number(value || 0).toFixed(2)}`;
 const hasAiCopyContent = (copy: AiProductCopy | null | undefined) =>
   Boolean(copy?.seo_description?.trim())

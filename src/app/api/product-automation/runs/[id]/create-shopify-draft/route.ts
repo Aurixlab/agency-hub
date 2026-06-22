@@ -8,6 +8,9 @@ import type { AiProductCopy, DecorationType, ScrapedProductData } from '@/lib/pr
 const colorsFrom = (value: unknown) =>
   (Array.isArray(value) ? value : []).filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
 
+const productIsMissing = (error: unknown) =>
+  error instanceof Error && error.message.toLowerCase().includes('product does not exist');
+
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const session = await getSessionFromRequestFull(request);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -28,9 +31,17 @@ export async function POST(request: Request, { params }: { params: { id: string 
     });
     const payload = composed.payload;
 
-    const shopify = run.shopifyProductId
-      ? await updateShopifyProductMetafields(run.shopifyProductId, payload)
-      : await createShopifyDraftProduct(payload);
+    let shopify;
+    if (run.shopifyProductId) {
+      try {
+        shopify = await updateShopifyProductMetafields(run.shopifyProductId, payload);
+      } catch (error) {
+        if (!productIsMissing(error)) throw error;
+        shopify = await createShopifyDraftProduct(payload);
+      }
+    } else {
+      shopify = await createShopifyDraftProduct(payload);
+    }
     const updated = await prisma.productAutomationRun.update({
       where: { id: run.id },
       data: {
@@ -49,7 +60,11 @@ export async function POST(request: Request, { params }: { params: { id: string 
     const message = error instanceof Error ? error.message : 'Failed to create Shopify draft';
     const updated = await prisma.productAutomationRun.update({
       where: { id: run.id },
-      data: { status: 'failed', errorMessage: message },
+      data: {
+        status: 'failed',
+        errorMessage: message,
+        ...(productIsMissing(error) ? { shopifyProductId: null, shopifyProductUrl: null } : {}),
+      },
     });
     return NextResponse.json({ error: message, run: updated }, { status: 500 });
   }

@@ -15,6 +15,9 @@ const listHtml = (title: string, items: string[]) => {
   return `<h3>${escapeHtml(title)}</h3><ul>${items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
 };
 
+const metafieldText = (items: string[]) => items.filter(Boolean).join(' • ');
+const priceText = (price: number) => `$${price.toFixed(2)}`;
+
 export function buildBodyHtml(scrapedData: ScrapedProductData, aiCopy: AiProductCopy) {
   const parts = [
     scrapedData.raw_description ? `<p>${escapeHtml(scrapedData.raw_description)}</p>` : '',
@@ -37,7 +40,7 @@ export function composeShopifyPayload(args: {
   const pricing = calculatePricing(args.basePrice, args.decorationType);
   const sellPrice = pricing.tiers[0]?.price ?? args.basePrice;
   const variants = generateVariants(args.colors, args.scrapedData.sku, sellPrice);
-  const pricingMetafieldKey = args.decorationType === 'print' ? 'bulk_print_pricing' : 'bulk_embroidery_pricing';
+  const lowestTier = pricing.tiers[pricing.tiers.length - 1];
 
   const payload: ShopifyPayload = {
     title: args.scrapedData.title || 'Untitled Apparel Product',
@@ -51,15 +54,22 @@ export function composeShopifyPayload(args: {
     variants,
     metafields: [
       { namespace: 'custom', key: 'brand', type: 'single_line_text_field', value: args.scrapedData.brand || '' },
-      { namespace: 'custom', key: 'sku', type: 'single_line_text_field', value: args.scrapedData.sku || '' },
-      { namespace: 'custom', key: 'decoration_type', type: 'single_line_text_field', value: args.decorationType },
-      { namespace: 'custom', key: 'theme', type: 'single_line_text_field', value: 'custom-quote' },
-      { namespace: 'ai', key: 'product_features_texts', type: 'json', value: JSON.stringify(args.aiCopy.key_features) },
-      { namespace: 'ai', key: 'best_use_texts', type: 'json', value: JSON.stringify(args.aiCopy.best_use) },
-      { namespace: 'ai', key: 'material_care_texts', type: 'json', value: JSON.stringify(args.aiCopy.material_care) },
-      { namespace: 'ai', key: 'customization_fit_texts', type: 'json', value: JSON.stringify(args.aiCopy.customization_fit) },
-      { namespace: 'ai', key: 'seo_description', type: 'multi_line_text_field', value: args.aiCopy.seo_description || '' },
-      { namespace: 'pricing', key: pricingMetafieldKey, type: 'json', value: JSON.stringify(pricing.tiers) },
+      { namespace: 'custom', key: 'quality', type: 'single_line_text_field', value: 'Standard' },
+      { namespace: 'custom', key: 'sub_category', type: 'single_line_text_field', value: 'Apparel' },
+      { namespace: 'custom', key: 'product_style_number', type: 'single_line_text_field', value: args.scrapedData.sku || '' },
+      { namespace: 'custom', key: 'price_info', type: 'single_line_text_field', value: lowestTier ? `As low as ${priceText(lowestTier.price)} (Price for ${lowestTier.range})` : '' },
+      { namespace: 'custom', key: 'product_features_texts', type: 'single_line_text_field', value: metafieldText(args.aiCopy.key_features) },
+      { namespace: 'custom', key: 'best_use_for_texts', type: 'single_line_text_field', value: metafieldText(args.aiCopy.best_use) },
+      { namespace: 'custom', key: 'material_and_care_texts', type: 'single_line_text_field', value: metafieldText(args.aiCopy.material_care) },
+      { namespace: 'custom', key: 'customization_fit_texts', type: 'single_line_text_field', value: metafieldText(args.aiCopy.customization_fit) },
+      { namespace: 'custom', key: 'bulk_range', type: 'single_line_text_field', value: metafieldText(pricing.tiers.map(tier => tier.range)) },
+      { namespace: 'custom', key: 'bulk_price', type: 'single_line_text_field', value: metafieldText(pricing.tiers.map(tier => priceText(tier.price))) },
+      { namespace: 'custom', key: 'bulk_save_percentage', type: 'single_line_text_field', value: metafieldText(pricing.tiers.map((tier, index) => {
+        if (index === 0) return 'Save 0%';
+        const firstPrice = pricing.tiers[0]?.price || tier.price;
+        const discount = Math.max(0, Math.round((1 - tier.price / firstPrice) * 100));
+        return `Save ${discount}%`;
+      })) },
     ],
   };
 

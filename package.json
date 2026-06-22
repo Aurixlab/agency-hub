@@ -9,6 +9,7 @@
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
+    "test:product-automation": "tsx --test src/lib/product-automation/product-automation.test.ts",
     "lint": "next lint",
     "postinstall": "prisma generate",
     "db:push": "prisma db push",

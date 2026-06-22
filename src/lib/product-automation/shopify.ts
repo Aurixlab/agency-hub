@@ -1,9 +1,20 @@
 import { REUSABLE_ICON_GROUPS, filenameFromShopifyCdnUrl } from './icon-metafields';
-import type { ShopifyPayload } from './types';
+import type { ProductVariant, ShopifyPayload } from './types';
 
 const gidToAdminId = (gid: string) => gid.split('/').pop() || gid;
 
 let cachedIconMetafields: ShopifyPayload['metafields'] | null = null;
+
+export const buildShopifyVariantInput = (variant: ProductVariant) => ({
+  price: variant.price.toFixed(2),
+  inventoryItem: {
+    sku: variant.sku,
+  },
+  optionValues: [
+    { optionName: 'Color', name: variant.color },
+    { optionName: 'Size', name: variant.size },
+  ],
+});
 
 async function shopifyGraphql<T>(
   endpoint: string,
@@ -137,6 +148,21 @@ async function alignMetafieldsWithDefinitions(
   });
 }
 
+async function deleteProduct(endpoint: string, token: string, productId: string) {
+  const mutation = `
+    mutation DeleteProduct($input: ProductDeleteInput!) {
+      productDelete(input: $input) {
+        deletedProductId
+        userErrors {
+          message
+        }
+      }
+    }
+  `;
+
+  await shopifyGraphql(endpoint, token, mutation, { input: { id: productId } });
+}
+
 export async function createShopifyDraftProduct(payload: ShopifyPayload) {
   const storeDomain = process.env.SHOPIFY_STORE_DOMAIN;
   const token = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
@@ -224,26 +250,28 @@ export async function createShopifyDraftProduct(payload: ShopifyPayload) {
     }
   `;
 
-  const variantsResult = await shopifyGraphql<{
-    productVariantsBulkCreate: {
-      productVariants: Array<{ id: string; sku?: string }>;
-      userErrors: Array<{ field?: string[]; message: string }>;
-    };
-  }>(endpoint, token, createVariantsMutation, {
-    productId: product.id,
-    variants: payload.variants.map(variant => ({
-      sku: variant.sku,
-      price: String(variant.price.toFixed(2)),
-      optionValues: [
-        { optionName: 'Color', name: variant.color },
-        { optionName: 'Size', name: variant.size },
-      ],
-    })),
-  });
+  try {
+    const variantsResult = await shopifyGraphql<{
+      productVariantsBulkCreate: {
+        productVariants: Array<{ id: string; sku?: string }>;
+        userErrors: Array<{ field?: string[]; message: string }>;
+      };
+    }>(endpoint, token, createVariantsMutation, {
+      productId: product.id,
+      variants: payload.variants.map(buildShopifyVariantInput),
+    });
 
-  const variantUserErrors = variantsResult.productVariantsBulkCreate?.userErrors || [];
-  if (variantUserErrors.length) {
-    throw new Error(variantUserErrors.map((e: any) => e.message).join('; '));
+    const variantUserErrors = variantsResult.productVariantsBulkCreate?.userErrors || [];
+    if (variantUserErrors.length) {
+      throw new Error(variantUserErrors.map((e: any) => e.message).join('; '));
+    }
+  } catch (error) {
+    try {
+      await deleteProduct(endpoint, token, product.id);
+    } catch {
+      // Preserve the original variant error; cleanup is best effort.
+    }
+    throw error;
   }
 
   const adminId = gidToAdminId(product.id);

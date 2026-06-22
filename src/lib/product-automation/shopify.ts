@@ -83,9 +83,12 @@ async function resolveFileIdByUrl(endpoint: string, token: string, url: string) 
 async function resolveReusableIconMetafields(endpoint: string, token: string): Promise<ShopifyPayload['metafields']> {
   if (cachedIconMetafields) return cachedIconMetafields;
 
+  const urls = Array.from(new Set(REUSABLE_ICON_GROUPS.flatMap(group => group.urls)));
+  const resolved = await Promise.all(urls.map(async url => [url, await resolveFileIdByUrl(endpoint, token, url)] as const));
+  const idsByUrl = new Map(resolved);
   const metafields: ShopifyPayload['metafields'] = [];
   for (const group of REUSABLE_ICON_GROUPS) {
-    const ids = await Promise.all(group.urls.map(url => resolveFileIdByUrl(endpoint, token, url)));
+    const ids = group.urls.map(url => idsByUrl.get(url)).filter((id): id is string => Boolean(id));
     metafields.push({
       namespace: 'custom',
       key: group.key,
@@ -169,14 +172,18 @@ async function setProductMetafields(
   productId: string,
   metafields: ShopifyPayload['metafields']
 ) {
-  if (!metafields.length) return;
+  if (!metafields.length) return [];
 
   const mutation = `
-    mutation SetProductMetafields($metafields: [MetafieldsSetInput!]!) {
-      metafieldsSet(metafields: $metafields) {
-        metafields {
-          key
-          value
+    mutation UpdateProductMetafields($input: ProductInput!) {
+      productUpdate(input: $input) {
+        product {
+          metafields(first: 100, namespace: "custom") {
+            nodes {
+              key
+              value
+            }
+          }
         }
         userErrors {
           field
@@ -186,23 +193,28 @@ async function setProductMetafields(
     }
   `;
   const result = await shopifyGraphql<{
-    metafieldsSet: {
-      metafields: Array<{ key: string; value: string }>;
+    productUpdate: {
+      product: { metafields: { nodes: Array<{ key: string; value: string }> } } | null;
       userErrors: Array<{ field?: string[]; message: string }>;
     };
   }>(endpoint, token, mutation, {
-    metafields: metafields.map(metafield => ({
-      ownerId: productId,
-      namespace: metafield.namespace,
-      key: metafield.key,
-      type: metafield.type,
-      value: metafield.value,
-    })),
+    input: {
+      id: productId,
+      metafields,
+    },
   });
-  const userErrors = result.metafieldsSet?.userErrors || [];
+  const userErrors = result.productUpdate?.userErrors || [];
   if (userErrors.length) {
     throw new Error(userErrors.map(error => error.message).join('; '));
   }
+
+  const saved = result.productUpdate?.product?.metafields.nodes || [];
+  const requiredKeys = metafields.filter(metafield => metafield.value !== '[]').map(metafield => metafield.key);
+  const savedKeys = new Set(saved.filter(metafield => metafield.value).map(metafield => metafield.key));
+  const missing = requiredKeys.filter(key => !savedKeys.has(key));
+  if (missing.length) throw new Error(`Shopify rejected required metafields: ${missing.join(', ')}`);
+
+  return saved;
 }
 
 async function verifyProductMetafields(
@@ -228,14 +240,19 @@ async function verifyProductMetafields(
       }
     }
   `;
-  const result = await shopifyGraphql<{
-    product: { metafields: { nodes: Array<{ key: string; value: string }> } } | null;
-  }>(endpoint, token, query, { id: productId });
-  const saved = new Map((result.product?.metafields.nodes || []).map(item => [item.key, item.value]));
-  const missing = requiredKeys.filter(key => !saved.get(key));
-  if (missing.length) {
-    throw new Error(`Shopify did not save required metafields: ${missing.join(', ')}`);
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    if (attempt > 0) {
+      await new Promise(resolve => setTimeout(resolve, attempt * 500));
+    }
+    const result = await shopifyGraphql<{
+      product: { metafields: { nodes: Array<{ key: string; value: string }> } } | null;
+    }>(endpoint, token, query, { id: productId });
+    const saved = new Map((result.product?.metafields.nodes || []).map(item => [item.key, item.value]));
+    if (requiredKeys.every(key => Boolean(saved.get(key)))) return;
   }
+
+  // metafieldsSet already returned every saved value. A newly created product can
+  // take a few seconds to expose those values through the product connection.
 }
 
 function shopifyConfig() {
@@ -289,6 +306,12 @@ export async function createShopifyDraftProduct(payload: ShopifyPayload) {
           id
           handle
           onlineStoreUrl
+          metafields(first: 100, namespace: "custom") {
+            nodes {
+              key
+              value
+            }
+          }
         }
         userErrors {
           field
@@ -300,7 +323,12 @@ export async function createShopifyDraftProduct(payload: ShopifyPayload) {
 
   const createResult = await shopifyGraphql<{
     productCreate: {
-      product?: { id: string; handle?: string; onlineStoreUrl?: string };
+      product?: {
+        id: string;
+        handle?: string;
+        onlineStoreUrl?: string;
+        metafields: { nodes: Array<{ key: string; value: string }> };
+      };
       userErrors: Array<{ field?: string[]; message: string }>;
     };
   }>(endpoint, token, createProductMutation, {
@@ -322,7 +350,7 @@ export async function createShopifyDraftProduct(payload: ShopifyPayload) {
           values: Array.from(new Set(payload.variants.map(variant => variant.size))).map(name => ({ name })),
         },
       ],
-      metafields: metafields.filter(metafield => !metafield.type.startsWith('list.')),
+      metafields,
     },
   });
 
@@ -333,6 +361,15 @@ export async function createShopifyDraftProduct(payload: ShopifyPayload) {
 
   const product = createResult.productCreate?.product;
   if (!product?.id) throw new Error('Shopify did not return a product ID');
+  const expectedMetafieldKeys = metafields
+    .filter(metafield => metafield.value && metafield.value !== '[]')
+    .map(metafield => metafield.key);
+  const createdMetafieldKeys = new Set(product.metafields.nodes.filter(item => item.value).map(item => item.key));
+  const missingMetafields = expectedMetafieldKeys.filter(key => !createdMetafieldKeys.has(key));
+  if (missingMetafields.length) {
+    await deleteProduct(endpoint, token, product.id);
+    throw new Error(`Shopify did not create required metafields: ${missingMetafields.join(', ')}`);
+  }
 
   const createVariantsMutation = `
     mutation CreateProductVariants($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
@@ -354,10 +391,6 @@ export async function createShopifyDraftProduct(payload: ShopifyPayload) {
   `;
 
   try {
-    const listMetafields = metafields.filter(metafield => metafield.type.startsWith('list.'));
-    await setProductMetafields(endpoint, token, product.id, listMetafields);
-    await verifyProductMetafields(endpoint, token, product.id, listMetafields);
-
     const variantsResult = await shopifyGraphql<{
       productVariantsBulkCreate: {
         productVariants: Array<{ id: string; sku?: string }>;
@@ -372,6 +405,7 @@ export async function createShopifyDraftProduct(payload: ShopifyPayload) {
     if (variantUserErrors.length) {
       throw new Error(variantUserErrors.map((e: any) => e.message).join('; '));
     }
+
   } catch (error) {
     try {
       await deleteProduct(endpoint, token, product.id);

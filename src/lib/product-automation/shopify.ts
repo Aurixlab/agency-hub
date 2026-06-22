@@ -306,12 +306,6 @@ export async function createShopifyDraftProduct(payload: ShopifyPayload) {
           id
           handle
           onlineStoreUrl
-          metafields(first: 100, namespace: "custom") {
-            nodes {
-              key
-              value
-            }
-          }
         }
         userErrors {
           field
@@ -323,12 +317,7 @@ export async function createShopifyDraftProduct(payload: ShopifyPayload) {
 
   const createResult = await shopifyGraphql<{
     productCreate: {
-      product?: {
-        id: string;
-        handle?: string;
-        onlineStoreUrl?: string;
-        metafields: { nodes: Array<{ key: string; value: string }> };
-      };
+      product?: { id: string; handle?: string; onlineStoreUrl?: string };
       userErrors: Array<{ field?: string[]; message: string }>;
     };
   }>(endpoint, token, createProductMutation, {
@@ -350,7 +339,6 @@ export async function createShopifyDraftProduct(payload: ShopifyPayload) {
           values: Array.from(new Set(payload.variants.map(variant => variant.size))).map(name => ({ name })),
         },
       ],
-      metafields,
     },
   });
 
@@ -361,15 +349,6 @@ export async function createShopifyDraftProduct(payload: ShopifyPayload) {
 
   const product = createResult.productCreate?.product;
   if (!product?.id) throw new Error('Shopify did not return a product ID');
-  const expectedMetafieldKeys = metafields
-    .filter(metafield => metafield.value && metafield.value !== '[]')
-    .map(metafield => metafield.key);
-  const createdMetafieldKeys = new Set(product.metafields.nodes.filter(item => item.value).map(item => item.key));
-  const missingMetafields = expectedMetafieldKeys.filter(key => !createdMetafieldKeys.has(key));
-  if (missingMetafields.length) {
-    await deleteProduct(endpoint, token, product.id);
-    throw new Error(`Shopify did not create required metafields: ${missingMetafields.join(', ')}`);
-  }
 
   const createVariantsMutation = `
     mutation CreateProductVariants($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
@@ -406,6 +385,9 @@ export async function createShopifyDraftProduct(payload: ShopifyPayload) {
       throw new Error(variantUserErrors.map((e: any) => e.message).join('; '));
     }
 
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    await setProductMetafields(endpoint, token, product.id, metafields);
+    await verifyProductMetafields(endpoint, token, product.id, metafields);
   } catch (error) {
     try {
       await deleteProduct(endpoint, token, product.id);

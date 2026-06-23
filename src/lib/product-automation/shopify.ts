@@ -170,7 +170,8 @@ async function setProductMetafields(
   endpoint: string,
   token: string,
   productId: string,
-  metafields: ShopifyPayload['metafields']
+  metafields: ShopifyPayload['metafields'],
+  descriptionHtml?: string
 ) {
   if (!metafields.length) return [];
 
@@ -201,6 +202,7 @@ async function setProductMetafields(
     input: {
       id: productId,
       metafields,
+      ...(descriptionHtml !== undefined ? { descriptionHtml } : {}),
     },
   });
   const userErrors = result.productUpdate?.userErrors || [];
@@ -286,7 +288,7 @@ async function resolvedMetafields(
 export async function updateShopifyProductMetafields(productId: string, payload: ShopifyPayload) {
   const { cleanDomain, endpoint, token } = shopifyConfig();
   const metafields = await resolvedMetafields(endpoint, token, payload);
-  await setProductMetafields(endpoint, token, productId, metafields);
+  await setProductMetafields(endpoint, token, productId, metafields, payload.bodyHtml);
   await verifyProductMetafields(endpoint, token, productId, metafields);
 
   return {

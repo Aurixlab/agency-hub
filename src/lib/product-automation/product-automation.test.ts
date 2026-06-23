@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { REUSABLE_ICON_GROUPS } from './icon-metafields';
 import { composeShopifyPayload } from './payload';
 import { calculatePricing } from './pricing';
 import { buildShopifyVariantInput } from './shopify';
@@ -55,9 +56,39 @@ test('composes Shopify draft fields and list metafields', () => {
   assert.equal(payload.status, 'DRAFT');
   assert.equal(payload.templateSuffix, 'custom-quote');
   assert.equal(payload.variants.length, 6);
-  const features = payload.metafields.find(item => item.key === 'product_features_texts');
+  assert.equal(payload.bodyHtml, '<p>Test description</p>');
+  assert.equal(payload.bodyHtml.includes('Key Features'), false);
+  const features = payload.metafields.find(item => item.key === 'accordion1_texts');
   assert.equal(features?.type, 'list.single_line_text_field');
   assert.deepEqual(JSON.parse(features?.value || '[]'), ['Feature one', 'Feature two']);
+});
+
+test('calculates and maps bulk savings to the exact Shopify metafield', () => {
+  const { payload } = composeShopifyPayload({
+    scrapedData: {
+      title: 'Test Product', brand: 'Test Brand', sku: 'TEST-1', fabric: '', weight: '', raw_description: '',
+      confidence: {
+        title: 'high', brand: 'high', sku: 'high', fabric: 'missing', weight: 'missing', raw_description: 'missing',
+      },
+    },
+    aiCopy: {
+      key_features: [], best_use: [], material_care: [], customization_fit: [], seo_description: '',
+    },
+    basePrice: 39,
+    decorationType: 'embroidery',
+    colors: ['Black'],
+  });
+
+  const savings = payload.metafields.find(item => item.key === 'bulk_savings');
+  assert.equal(savings?.type, 'list.single_line_text_field');
+  assert.deepEqual(JSON.parse(savings?.value || '[]'), ['Save 0%', 'Save 2%', 'Save 10%', 'Save 15%']);
+});
+
+test('uses the exact Shopify accordion and icon metafield keys', () => {
+  assert.deepEqual(
+    REUSABLE_ICON_GROUPS.map(group => group.key),
+    ['accordion1_icons', 'accordion2_icons', 'accordion3_icons', 'accordion4_icons']
+  );
 });
 
 test('places variant SKU inside inventoryItem for Shopify bulk input', () => {

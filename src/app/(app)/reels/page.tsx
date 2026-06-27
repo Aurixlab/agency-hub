@@ -1,132 +1,172 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
-  Flame, Search, Loader2, Eye, Heart, MessageCircle, MapPin,
-  TrendingUp, BarChart3, AlertCircle, ExternalLink,
+  AlertCircle,
+  BarChart3,
+  Box,
+  ExternalLink,
+  Eye,
+  Flame,
+  Lightbulb,
+  Loader2,
+  Megaphone,
+  Package,
+  Search,
+  Sparkles,
+  Tag,
 } from 'lucide-react';
 
-interface Reel {
+type ExpandedTopic = {
+  originalTopic: string;
+  normalizedTopic: string;
+  primaryTopic: string;
+  relatedKeywords: string[];
+  hashtags: string[];
+  locations: string[];
+  productKeywords: string[];
+  audienceKeywords: string[];
+  eventKeywords: string[];
+  negativeKeywords: string[];
+};
+
+type CreativeItem = {
   id: string;
-  instagramId: string;
+  source: string;
+  type: string;
+  platform: string;
   url: string;
+  thumbnailUrl: string | null;
   caption: string | null;
-  playCount: number;
+  creatorHandle: string | null;
+  creatorName: string | null;
+  viewCount: number;
   likeCount: number;
   commentCount: number;
-  authorUsername: string;
-  authorFollowers: number;
-  locationName: string | null;
-  locationId: string | null;
-  viralScore: number;
-  searchTopic: string;
-  scrapedAt?: string;
-}
+  finalScore: number;
+  relevanceScore: number;
+  businessScore: number;
+  creativeScore: number;
+  hook: string | null;
+  visualStyle: string | null;
+  contentAngle: string | null;
+  productFit: string | null;
+  targetAudience: string | null;
+  aiSummary: string | null;
+};
 
-interface SearchMeta {
-  cached: boolean;
-  cacheAgeMinutes?: number;
-  scanned?: number;
-  matched?: number;
-  canadianMatched?: number;
-  hashtags?: string[];
-  scrapeErrors?: string[];
-}
+type CreativeInsights = {
+  topHooks: string[];
+  visualPatterns: string[];
+  productOpportunities: string[];
+  campaignIdeas: {
+    title: string;
+    hook: string;
+    products: string[];
+    visualDirection: string;
+    targetAudience: string;
+    cta: string;
+  }[];
+  contentBuckets: {
+    label: string;
+    description: string;
+    itemIds: string[];
+  }[];
+};
 
-const compact = (n: number) =>
-  new Intl.NumberFormat('en-CA', { notation: 'compact', maximumFractionDigits: 1 }).format(Number(n) || 0);
-const score = (n: number) =>
-  new Intl.NumberFormat('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(n) || 0);
+type CreativeResponse = {
+  ok: boolean;
+  status: 'cached' | 'success' | 'pending' | 'error';
+  error?: string;
+  jobId?: string;
+  topic?: string;
+  normalizedTopic?: string;
+  expandedTopic?: ExpandedTopic;
+  items?: CreativeItem[];
+  insights?: CreativeInsights;
+  providerRuns?: Record<string, unknown>;
+};
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const compact = (n: number) => new Intl.NumberFormat('en-CA', { notation: 'compact', maximumFractionDigits: 1 }).format(Number(n) || 0);
+const score = (n: number) => new Intl.NumberFormat('en-CA', { maximumFractionDigits: 0 }).format(Number(n) || 0);
 
-async function readPayload(res: Response) {
+async function readPayload(res: Response): Promise<CreativeResponse> {
   const text = await res.text();
-  let payload: any = null;
+  let payload: CreativeResponse | null = null;
   try {
     payload = text ? JSON.parse(text) : null;
   } catch {
     payload = null;
   }
   if (!payload) {
-    throw new Error(
-      res.ok
-        ? 'The scraper returned an empty response. Please try again.'
-        : `The scraper did not return a valid response (${res.status}). Please try again.`
-    );
+    throw new Error(res.ok ? 'The search returned an empty response.' : `The search returned a non-JSON response (${res.status}).`);
   }
+  if (!payload.ok) throw new Error(payload.error || `Request failed (${res.status}).`);
   return payload;
 }
 
 export default function ReelsPage() {
   const [topic, setTopic] = useState('');
-  const [reels, setReels] = useState<Reel[]>([]);
-  const [meta, setMeta] = useState<SearchMeta | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [items, setItems] = useState<CreativeItem[]>([]);
+  const [expandedTopic, setExpandedTopic] = useState<ExpandedTopic | null>(null);
+  const [insights, setInsights] = useState<CreativeInsights | null>(null);
+  const [status, setStatus] = useState<'idle' | 'loading' | 'pending' | 'success' | 'cached' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
-  const [searched, setSearched] = useState(false);
+
+  const organicReels = useMemo(() => items.filter((item) => item.type.includes('reel')), [items]);
 
   const handleSearch = useCallback(async (raw: string) => {
     const cleaned = raw.trim();
     if (!cleaned) return;
-    setLoading(true);
+    setStatus('loading');
     setError(null);
-    setSearched(true);
+    setItems([]);
+    setInsights(null);
+
     try {
-      const res = await fetch('/api/reels/search', {
+      const res = await fetch('/api/creative/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic: cleaned }),
+        body: JSON.stringify({ topic: cleaned, sources: ['apify-instagram-hashtag'] }),
       });
       let payload = await readPayload(res);
-      for (let attempt = 0; payload?.pending && payload?.runId && attempt < 24; attempt += 1) {
-        await wait(5000);
-        const pollUrl = new URL('/api/reels/search', window.location.origin);
-        pollUrl.searchParams.set('runId', payload.runId);
-        pollUrl.searchParams.set('topic', payload.topic || cleaned);
-        if (Array.isArray(payload.hashtags)) pollUrl.searchParams.set('hashtags', payload.hashtags.join(','));
+      if (payload.expandedTopic) setExpandedTopic(payload.expandedTopic);
 
-        const pollRes = await fetch(pollUrl.toString(), { cache: 'no-store' });
-        payload = await readPayload(pollRes);
+      for (let attempt = 0; payload.status === 'pending' && payload.jobId && attempt < 24; attempt += 1) {
+        setStatus('pending');
+        await wait(5000);
+        const pollUrl = new URL('/api/creative/search', window.location.origin);
+        pollUrl.searchParams.set('jobId', payload.jobId);
+        payload = await readPayload(await fetch(pollUrl.toString(), { cache: 'no-store' }));
+        if (payload.expandedTopic) setExpandedTopic(payload.expandedTopic);
       }
-      if (payload?.pending) throw new Error('The scraper is still running. Try again in a minute.');
-      if (!res.ok || !payload.ok) throw new Error(payload?.error || `Request failed (${res.status}).`);
-      setReels(Array.isArray(payload.reels) ? payload.reels : []);
-      setMeta({
-        cached: payload.cached,
-        cacheAgeMinutes: payload.cacheAgeMinutes,
-        scanned: payload.scanned,
-        matched: payload.matched,
-        canadianMatched: payload.canadianMatched,
-        hashtags: Array.isArray(payload.hashtags) ? payload.hashtags : undefined,
-        scrapeErrors: Array.isArray(payload.scrapeErrors) ? payload.scrapeErrors : undefined,
-      });
+
+      if (payload.status === 'pending') throw new Error('The collection job is still running. Try again in a minute.');
+      setItems(Array.isArray(payload.items) ? payload.items : []);
+      setInsights(payload.insights ?? null);
+      setStatus(payload.status === 'cached' ? 'cached' : 'success');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.');
-      setReels([]);
-    } finally {
-      setLoading(false);
+      setStatus('error');
     }
   }, []);
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
       <div className="flex items-center gap-3">
-        <Flame className="w-6 h-6 text-brand-600" />
+        <Sparkles className="w-6 h-6 text-brand-600" />
         <div>
-          <h1 className="text-2xl font-bold text-surface-900 dark:text-white">Viral Reels 🇨🇦</h1>
+          <h1 className="text-2xl font-bold text-surface-900 dark:text-white">Creative Intelligence</h1>
           <p className="text-surface-500 dark:text-surface-400 text-sm">
-            Expands a topic into Canadian hashtag variants, scans live Instagram Reels, and ranks top performers by
-            viral score — (views + likes×2 + comments×5) ÷ followers.
+            Seasonal campaign signals for Budget Promotion: organic content, useful hooks, product opportunities, and campaign ideas.
           </p>
         </div>
       </div>
 
-      {/* Search */}
       <div className="card p-5">
         <form
-          onSubmit={(e) => { e.preventDefault(); if (!loading) handleSearch(topic); }}
+          onSubmit={(e) => { e.preventDefault(); if (status !== 'loading' && status !== 'pending') handleSearch(topic); }}
           className="flex flex-col sm:flex-row gap-3"
         >
           <div className="relative flex-1">
@@ -134,180 +174,230 @@ export default function ReelsPage() {
             <input
               type="text"
               value={topic}
-              disabled={loading}
+              disabled={status === 'loading' || status === 'pending'}
               onChange={(e) => setTopic(e.target.value)}
-              placeholder="e.g. toronto food, hiking, real estate"
+              placeholder="e.g. Stampede, golf events, Canada Day, trade shows"
               className="input pl-9"
             />
           </div>
-          <button type="submit" disabled={loading || !topic.trim()} className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed">
-            {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Scraping…</> : <><Search className="w-4 h-4" /> Search Reels</>}
+          <button type="submit" disabled={status === 'loading' || status === 'pending' || !topic.trim()} className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed">
+            {status === 'loading' || status === 'pending' ? <><Loader2 className="w-4 h-4 animate-spin" /> Collecting</> : <><Search className="w-4 h-4" /> Research Topic</>}
           </button>
         </form>
-        {loading && (
+        {(status === 'loading' || status === 'pending') && (
           <p className="mt-3 flex items-center gap-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-sm font-medium text-amber-800 dark:text-amber-300">
             <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
-            Scraping several related hashtags — this can take up to 2 minutes. Please don&rsquo;t refresh.
+            Collecting organic content signals. Apify may keep running in the background while this page polls for results.
           </p>
         )}
       </div>
 
-      {/* Error */}
-      {error && !loading && (
+      {error && (
         <div role="alert" className="flex items-start gap-3 rounded-xl border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30 p-4 text-sm text-red-700 dark:text-red-300">
           <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="font-semibold">Could not complete the search</p>
+            <p className="font-semibold">Could not complete the research</p>
             <p className="mt-0.5">{error}</p>
           </div>
         </div>
       )}
 
-      {/* Metrics */}
-      {!loading && reels.length > 0 && <MetricSummary reels={reels} />}
+      {expandedTopic && <ExpandedTopicPanel topic={expandedTopic} status={status} />}
 
-      {/* Results */}
-      {!loading && reels.length > 0 && (
-        <div>
-          <div className="mb-3 flex items-baseline justify-between flex-wrap gap-2">
-            <h2 className="text-lg font-semibold text-surface-900 dark:text-white">Top {reels.length} reels</h2>
-            <div className="flex items-center gap-3 text-sm text-surface-400">
-              {meta?.cached ? (
-                <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 px-2.5 py-0.5 text-xs font-medium text-sky-700 dark:text-sky-300">
-                  Cached · {meta.cacheAgeMinutes}m ago
-                </span>
-              ) : meta?.scanned != null ? (
-                <span className="text-xs text-surface-400">
-                  {meta.canadianMatched ?? meta.matched} Canada signals / {meta.scanned} scraped
-                </span>
-              ) : null}
-              {topic.trim() && (
-                <p>for <span className="font-medium text-surface-600 dark:text-surface-300">#{topic.trim().replace(/^#+/, '').toLowerCase()}</span></p>
-              )}
+      {items.length > 0 && (
+        <>
+          <MetricSummary items={items} status={status} />
+          <Section title="Top Organic Reels" icon={<Flame className="w-5 h-5" />}>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {organicReels.slice(0, 8).map((item, index) => <CreativeCard key={item.id} item={item} rank={index + 1} />)}
             </div>
-          </div>
-          {!meta?.cached && meta?.hashtags?.length ? (
-            <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-surface-500">
-              <span className="font-medium text-surface-600 dark:text-surface-300">Scanned</span>
-              {meta.hashtags.map((tag) => (
-                <span key={tag} className="rounded-full border border-surface-200 dark:border-surface-800 px-2 py-0.5">
-                  #{tag}
-                </span>
-              ))}
-            </div>
-          ) : null}
-          {!meta?.cached && meta?.scrapeErrors?.length ? (
-            <p className="mb-4 rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
-              Some hashtag sources were unavailable, so results may be partial.
-            </p>
-          ) : null}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {reels.map((reel, i) => <ReelCard key={reel.instagramId ?? i} reel={reel} rank={i + 1} />)}
-          </div>
-        </div>
+          </Section>
+        </>
       )}
 
-      {/* Empty states */}
-      {!loading && searched && !error && reels.length === 0 && (
-        <div className="card p-10 text-center border-dashed">
-          <p className="font-semibold text-surface-700 dark:text-surface-200">No reels found for this topic.</p>
-          <p className="text-sm text-surface-500 mt-1">Try a broader or more location-specific keyword (e.g. toronto food, vancouver life).</p>
+      <Section title="Ad Inspiration" icon={<Megaphone className="w-5 h-5" />}>
+        <div className="rounded-lg border border-dashed border-surface-200 dark:border-surface-800 p-5 text-sm text-surface-500 dark:text-surface-400">
+          Paid ad providers are ready to plug in next. Planned sources include Meta Ad Library, TikTok Creative Center, YouTube Shorts, and Google Ads Transparency Center.
         </div>
+      </Section>
+
+      {insights && (
+        <>
+          <Section title="Creative Patterns" icon={<Lightbulb className="w-5 h-5" />}>
+            <InsightList items={[...insights.topHooks, ...insights.visualPatterns].slice(0, 10)} />
+          </Section>
+
+          <Section title="Product Opportunities" icon={<Package className="w-5 h-5" />}>
+            <InsightList items={insights.productOpportunities} />
+          </Section>
+
+          <Section title="Campaign Ideas" icon={<Box className="w-5 h-5" />}>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {insights.campaignIdeas.map((idea) => <CampaignCard key={idea.title} idea={idea} />)}
+            </div>
+          </Section>
+        </>
       )}
-      {!loading && !searched && (
+
+      {status === 'idle' && (
         <div className="card p-10 text-center border-dashed">
-          <Flame className="w-8 h-8 mx-auto mb-2 text-surface-300" />
-          <p className="font-semibold text-surface-700 dark:text-surface-200">Start by searching a topic above</p>
-          <p className="text-sm text-surface-500 mt-1">We&rsquo;ll pull live Reels and surface the top Canadian performers.</p>
+          <Sparkles className="w-8 h-8 mx-auto mb-2 text-surface-300" />
+          <p className="font-semibold text-surface-700 dark:text-surface-200">Start with a seasonal moment</p>
+          <p className="text-sm text-surface-500 mt-1">Try Stampede, golf events, Canada Day, staff uniforms, or trade shows.</p>
         </div>
       )}
     </div>
   );
 }
 
-// ==================== METRIC SUMMARY ====================
-function MetricSummary({ reels }: { reels: Reel[] }) {
-  const totalReach = reels.reduce((s, r) => s + (Number(r.playCount) || 0), 0);
-  const avgScore = reels.reduce((s, r) => s + (Number(r.viralScore) || 0), 0) / reels.length;
-  const peakPlays = reels.reduce((m, r) => Math.max(m, Number(r.playCount) || 0), 0);
+function ExpandedTopicPanel({ topic, status }: { topic: ExpandedTopic; status: string }) {
+  return (
+    <div className="card p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-surface-400">Expanded Topic</p>
+          <h2 className="text-xl font-bold text-surface-900 dark:text-white">{topic.primaryTopic}</h2>
+        </div>
+        <span className="rounded-full border border-surface-200 dark:border-surface-800 px-3 py-1 text-xs font-medium text-surface-500 capitalize">
+          {status}
+        </span>
+      </div>
+      <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4 text-sm">
+        <TokenGroup label="Hashtags" icon={<Tag className="w-4 h-4" />} items={topic.hashtags.map((tag) => `#${tag}`)} />
+        <TokenGroup label="Products" icon={<Package className="w-4 h-4" />} items={topic.productKeywords.slice(0, 8)} />
+        <TokenGroup label="Audiences" icon={<BarChart3 className="w-4 h-4" />} items={topic.audienceKeywords.slice(0, 8)} />
+      </div>
+    </div>
+  );
+}
 
-  const Stat = ({ label, value, sub, icon, accent }: { label: string; value: string; sub: string; icon: React.ReactNode; accent: string }) => (
+function TokenGroup({ label, icon, items }: { label: string; icon: React.ReactNode; items: string[] }) {
+  return (
+    <div>
+      <p className="mb-2 flex items-center gap-1.5 font-medium text-surface-700 dark:text-surface-200">{icon}{label}</p>
+      <div className="flex flex-wrap gap-2">
+        {items.map((item) => (
+          <span key={item} className="rounded-full bg-surface-100 dark:bg-surface-800 px-2.5 py-1 text-xs text-surface-600 dark:text-surface-300">
+            {item}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MetricSummary({ items, status }: { items: CreativeItem[]; status: string }) {
+  const avgScore = items.reduce((sum, item) => sum + item.finalScore, 0) / items.length;
+  const views = items.reduce((sum, item) => sum + item.viewCount, 0);
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <Stat label="Creative Items" value={String(items.length)} sub={status === 'cached' ? 'Returned from cache' : 'Collected and scored'} icon={<Sparkles className="w-5 h-5" />} />
+      <Stat label="Organic Reach Signals" value={compact(views)} sub="Total public views found" icon={<Eye className="w-5 h-5" />} />
+      <Stat label="Avg Usefulness" value={score(avgScore)} sub="Budget Promotion fit score" icon={<BarChart3 className="w-5 h-5" />} />
+    </div>
+  );
+}
+
+function Stat({ label, value, sub, icon }: { label: string; value: string; sub: string; icon: React.ReactNode }) {
+  return (
     <div className="card p-5">
       <div className="flex items-start justify-between gap-3">
         <p className="text-sm font-medium text-surface-500">{label}</p>
-        <span className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${accent}`}>{icon}</span>
+        <span className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-brand-50 text-brand-600 dark:bg-brand-950/40">{icon}</span>
       </div>
       <p className="mt-3 text-3xl font-bold text-surface-900 dark:text-white tabular-nums">{value}</p>
       <p className="mt-1 text-xs text-surface-400">{sub}</p>
     </div>
   );
+}
 
+function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-      <Stat label="Total Reach" value={compact(totalReach)} sub={`Sum of views across ${reels.length} reels`}
-        icon={<Eye className="w-5 h-5" />} accent="bg-brand-50 text-brand-600 dark:bg-brand-950/40" />
-      <Stat label="Avg Viral Score" value={score(avgScore)} sub="Mean viral score of results"
-        icon={<BarChart3 className="w-5 h-5" />} accent="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40" />
-      <Stat label="Peak Performer" value={compact(peakPlays)} sub="Highest single-reel play count"
-        icon={<TrendingUp className="w-5 h-5" />} accent="bg-amber-50 text-amber-600 dark:bg-amber-950/40" />
-    </div>
+    <section>
+      <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold text-surface-900 dark:text-white">
+        <span className="text-brand-600">{icon}</span>
+        {title}
+      </h2>
+      {children}
+    </section>
   );
 }
 
-// ==================== REEL CARD ====================
-function ReelCard({ reel, rank }: { reel: Reel; rank: number }) {
-  const username = reel.authorUsername || 'unknown';
-  const safeUrl = typeof reel.url === 'string' && /^https?:\/\//i.test(reel.url) ? reel.url : undefined;
-
+function CreativeCard({ item, rank }: { item: CreativeItem; rank: number }) {
   return (
-    <article className="card p-5 flex flex-col h-full">
-      <header className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="w-6 h-6 flex-shrink-0 rounded-full bg-surface-100 dark:bg-surface-800 text-xs font-bold text-surface-500 flex items-center justify-center tabular-nums">{rank}</span>
-          <p className="truncate text-sm font-semibold text-surface-900 dark:text-white">
-            <span className="text-surface-400">@</span>{username}
-          </p>
+    <article className="card p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs uppercase text-surface-400">{item.platform} · {item.source}</p>
+          <h3 className="truncate text-sm font-semibold text-surface-900 dark:text-white">
+            <span className="text-surface-400">#{rank}</span> {item.creatorHandle ? `@${item.creatorHandle}` : item.creatorName || 'Unknown creator'}
+          </h3>
         </div>
-        <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 text-xs font-bold text-emerald-700 dark:text-emerald-300">
-          <Flame className="w-3.5 h-3.5" /> <span className="tabular-nums">{score(reel.viralScore)}</span>
+        <span className="rounded-full bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 text-xs font-bold text-emerald-700 dark:text-emerald-300">
+          {score(item.finalScore)}
         </span>
-      </header>
-
-      {reel.locationName && (
-        <p className="mt-2 flex items-center gap-1 text-xs text-surface-400">
-          <MapPin className="w-3.5 h-3.5 flex-shrink-0" /> <span className="truncate">{reel.locationName}</span>
-        </p>
-      )}
-
-      <p className="mt-3 line-clamp-3 text-sm text-surface-600 dark:text-surface-400">
-        {reel.caption?.trim() ? reel.caption : <span className="italic text-surface-400">No caption provided.</span>}
-      </p>
-
-      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-surface-100 dark:border-surface-800 pt-4">
-        <Metric icon={<Eye className="w-4 h-4" />} value={compact(reel.playCount)} label="Views" />
-        <Metric icon={<Heart className="w-4 h-4" />} value={compact(reel.likeCount)} label="Likes" />
-        <Metric icon={<MessageCircle className="w-4 h-4" />} value={compact(reel.commentCount)} label="Comments" />
       </div>
-
-      <div className="mt-4">
-        {safeUrl ? (
-          <a href={safeUrl} target="_blank" rel="noopener noreferrer"
-            className="flex items-center justify-center gap-1.5 rounded-md bg-surface-900 dark:bg-surface-700 py-2 text-sm text-white transition-colors hover:bg-surface-800 dark:hover:bg-surface-600">
-            <ExternalLink className="w-3.5 h-3.5" /> View on Instagram
-          </a>
-        ) : (
-          <span className="block cursor-not-allowed rounded-md bg-surface-100 dark:bg-surface-800 py-2 text-center text-sm text-surface-400">Link unavailable</span>
-        )}
+      <p className="mt-3 line-clamp-3 text-sm text-surface-600 dark:text-surface-400">{item.caption || 'No caption provided.'}</p>
+      <div className="mt-4 grid grid-cols-3 gap-2 text-xs text-surface-500">
+        <Metric label="Views" value={compact(item.viewCount)} />
+        <Metric label="Likes" value={compact(item.likeCount)} />
+        <Metric label="Comments" value={compact(item.commentCount)} />
       </div>
+      <div className="mt-4 space-y-2 text-sm">
+        <Usefulness label="Why useful" value={item.aiSummary} />
+        <Usefulness label="Hook" value={item.hook} />
+        <Usefulness label="Product fit" value={item.productFit} />
+      </div>
+      <a href={item.url} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-surface-900 dark:bg-surface-700 px-3 py-2 text-sm text-white hover:bg-surface-800 dark:hover:bg-surface-600">
+        <ExternalLink className="w-3.5 h-3.5" /> Open source
+      </a>
     </article>
   );
 }
 
-function Metric({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {
+function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center gap-1.5 text-surface-600 dark:text-surface-400" title={`${label}: ${value}`}>
-      <span className="text-surface-400">{icon}</span>
-      <span className="text-sm font-medium tabular-nums">{value}</span>
+    <div className="rounded-md bg-surface-50 dark:bg-surface-900 px-2 py-1">
+      <p className="font-semibold text-surface-800 dark:text-surface-100">{value}</p>
+      <p className="text-surface-400">{label}</p>
     </div>
+  );
+}
+
+function Usefulness({ label, value }: { label: string; value: string | null }) {
+  if (!value) return null;
+  return (
+    <p className="text-surface-600 dark:text-surface-300">
+      <span className="font-medium text-surface-900 dark:text-white">{label}:</span> {value}
+    </p>
+  );
+}
+
+function InsightList({ items }: { items: string[] }) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      {items.map((item) => (
+        <div key={item} className="rounded-lg border border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900 p-4 text-sm text-surface-700 dark:text-surface-200">
+          {item}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CampaignCard({ idea }: { idea: CreativeInsights['campaignIdeas'][number] }) {
+  return (
+    <article className="card p-5">
+      <h3 className="font-bold text-surface-900 dark:text-white">{idea.title}</h3>
+      <p className="mt-2 text-sm text-surface-600 dark:text-surface-300">{idea.hook}</p>
+      <p className="mt-3 text-xs font-medium uppercase text-surface-400">Products</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {idea.products.map((product) => (
+          <span key={product} className="rounded-full bg-surface-100 dark:bg-surface-800 px-2.5 py-1 text-xs text-surface-600 dark:text-surface-300">{product}</span>
+        ))}
+      </div>
+      <p className="mt-3 text-sm text-surface-600 dark:text-surface-300">{idea.visualDirection}</p>
+      <p className="mt-3 text-sm font-medium text-brand-600 dark:text-brand-400">{idea.cta}</p>
+    </article>
   );
 }

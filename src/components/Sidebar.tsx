@@ -55,7 +55,7 @@ const navItems = [
   { href: '/projects', label: 'Projects', icon: FolderKanban },
   { href: '/tasks', label: 'My Tasks', icon: ListTodo },
   { href: '/inbox', label: 'Task Inbox', icon: Inbox },
-  { href: '/reels', label: 'Viral Reels', icon: Flame },
+  { href: '/reels', label: 'Creative Intel', icon: Flame },
   { href: '/product-automation', label: 'Product Automation', icon: ShoppingBag },
   { href: '/pipeline', label: 'Pipeline', icon: GitBranch },
   { href: '/seo', label: 'SEO', icon: Search },

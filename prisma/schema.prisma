@@ -245,6 +245,91 @@ model ScrapedReel {
   @@map("scraped_reels")
 }
 
+model CreativeItem {
+  id             String   @id @default(cuid())
+  source         String
+  sourceItemId   String   @unique @map("source_item_id")
+  type           String
+  url            String
+  thumbnailUrl   String?  @map("thumbnail_url")
+  videoUrl       String?  @map("video_url")
+  caption        String?
+  adCopy         String?  @map("ad_copy")
+  creatorName    String?  @map("creator_name")
+  creatorHandle  String?  @map("creator_handle")
+  platform       String
+  country        String?
+  city           String?
+  topic          String
+  eventName      String?  @map("event_name")
+  publishedAt    DateTime? @map("published_at")
+  firstSeenAt    DateTime @default(now()) @map("first_seen_at")
+  lastSeenAt     DateTime @default(now()) @map("last_seen_at")
+  viewCount      BigInt   @default(0) @map("view_count")
+  likeCount      BigInt   @default(0) @map("like_count")
+  commentCount   BigInt   @default(0) @map("comment_count")
+  shareCount     BigInt   @default(0) @map("share_count")
+  relevanceScore Float    @default(0) @map("relevance_score")
+  viralScore     Float    @default(0) @map("viral_score")
+  recencyScore   Float    @default(0) @map("recency_score")
+  localityScore  Float    @default(0) @map("locality_score")
+  businessScore  Float    @default(0) @map("business_score")
+  creativeScore  Float    @default(0) @map("creative_score")
+  finalScore     Float    @default(0) @map("final_score")
+  hook           String?
+  visualStyle    String?  @map("visual_style")
+  contentAngle   String?  @map("content_angle")
+  productFit     String?  @map("product_fit")
+  targetAudience String?  @map("target_audience")
+  aiSummary      String?  @map("ai_summary")
+  metadata       Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([topic, finalScore])
+  @@index([source, topic])
+  @@index([platform, topic])
+  @@index([eventName])
+  @@map("creative_items")
+}
+
+model CreativeSearchJob {
+  id              String   @id @default(cuid())
+  topic           String
+  normalizedTopic String   @map("normalized_topic")
+  status          String
+  keywords        Json
+  hashtags        Json?
+  sources         Json
+  providerRuns    Json?    @map("provider_runs")
+  error           String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  completedAt     DateTime? @map("completed_at")
+
+  @@index([normalizedTopic, status])
+  @@map("creative_search_jobs")
+}
+
+model TrendEvent {
+  id        String   @id @default(cuid())
+  name      String
+  country   String
+  city      String?
+  startsAt  DateTime? @map("starts_at")
+  endsAt    DateTime? @map("ends_at")
+  category  String
+  keywords  Json
+  products  Json
+  priority  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([country, city])
+  @@index([category])
+  @@map("trend_events")
+}
+
 model ProductAutomationRun {
   id                String   @id @default(cuid())
   createdBy         String   @map("created_by")

@@ -156,7 +156,12 @@ function jobExpandedTopic(job: any): ExpandedTopic {
   return expandTopic(job.topic);
 }
 
-export async function POST(request: Request) {
+function jsonError(error: unknown, status = 500) {
+  const message = error instanceof Error ? error.message : 'Unexpected creative search error.';
+  return NextResponse.json({ ok: false, status: 'error', error: message }, { status });
+}
+
+async function handlePost(request: Request) {
   const session = await getSessionFromRequest(request);
   if (!session) return NextResponse.json({ ok: false, status: 'error', error: 'Unauthorized' }, { status: 401 });
 
@@ -226,7 +231,16 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET(request: Request) {
+export async function POST(request: Request) {
+  try {
+    return await handlePost(request);
+  } catch (err) {
+    console.error('[creative/search] POST error:', err);
+    return jsonError(err);
+  }
+}
+
+async function handleGet(request: Request) {
   const session = await getSessionFromRequest(request);
   if (!session) return NextResponse.json({ ok: false, status: 'error', error: 'Unauthorized' }, { status: 401 });
 
@@ -291,5 +305,14 @@ export async function GET(request: Request) {
     const error = err instanceof Error ? err.message : 'Failed to check creative search status.';
     await prisma.creativeSearchJob.update({ where: { id: job.id }, data: { status: 'failed', error } });
     return NextResponse.json({ ok: false, status: 'error', error }, { status: 502 });
+  }
+}
+
+export async function GET(request: Request) {
+  try {
+    return await handleGet(request);
+  } catch (err) {
+    console.error('[creative/search] GET error:', err);
+    return jsonError(err);
   }
 }

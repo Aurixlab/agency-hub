@@ -10,8 +10,12 @@ export const maxDuration = 30;
 
 const APIFY_BASE = 'https://api.apify.com/v2/acts';
 const APIFY_HASHTAG_ENDPOINT = `${APIFY_BASE}/apify~instagram-hashtag-scraper/run-sync-get-dataset-items`;
+const APIFY_HASHTAG_RUN_ENDPOINT = `${APIFY_BASE}/apify~instagram-hashtag-scraper/runs`;
 const APIFY_PROFILE_ENDPOINT = `${APIFY_BASE}/apify~instagram-profile-scraper/run-sync-get-dataset-items`;
-const APIFY_TIMEOUT_MS = 22_000;
+const APIFY_RUN_STATUS_ENDPOINT = 'https://api.apify.com/v2/actor-runs';
+const APIFY_DATASETS_ENDPOINT = 'https://api.apify.com/v2/datasets';
+const APIFY_WAIT_FOR_FINISH_SECONDS = 18;
+const APIFY_ACTOR_TIMEOUT_SECONDS = 180;
 const APIFY_RESULTS_LIMIT = 30;
 const TOP_RESULTS = 30;
 const PROFILE_BATCH_SIZE = 20;
@@ -93,6 +97,12 @@ interface InstagramReelRaw {
   ownerUsername?: string;
   locationName?: string;
   locationId?: string;
+}
+
+interface ApifyRun {
+  id: string;
+  status: string;
+  defaultDatasetId?: string;
 }
 
 interface ReelRow {
@@ -258,12 +268,18 @@ async function fetchFollowerCounts(
   return map;
 }
 
-async function scrapeHashtags(hashtags: string[], token: string, signal: AbortSignal): Promise<InstagramReelRaw[]> {
-  const res = await fetch(`${APIFY_HASHTAG_ENDPOINT}?token=${encodeURIComponent(token)}`, {
+async function startHashtagRun(hashtags: string[], token: string): Promise<ApifyRun> {
+  const params = new URLSearchParams({
+    token,
+    waitForFinish: String(APIFY_WAIT_FOR_FINISH_SECONDS),
+    timeout: String(APIFY_ACTOR_TIMEOUT_SECONDS),
+    maxItems: String(APIFY_RESULTS_LIMIT),
+  });
+
+  const res = await fetch(`${APIFY_HASHTAG_RUN_ENDPOINT}?${params.toString()}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ hashtags, resultsType: 'reels', resultsLimit: APIFY_RESULTS_LIMIT }),
-    signal,
     cache: 'no-store',
   });
 
@@ -273,7 +289,128 @@ async function scrapeHashtags(hashtags: string[], token: string, signal: AbortSi
   }
 
   const parsed: unknown = await res.json();
+  const run = (parsed as any)?.data ?? parsed;
+  if (!run?.id || !run?.status) throw new Error('Apify did not return a valid run.');
+  return run as ApifyRun;
+}
+
+async function getHashtagRun(runId: string, token: string): Promise<ApifyRun> {
+  const res = await fetch(`${APIFY_RUN_STATUS_ENDPOINT}/${encodeURIComponent(runId)}?token=${encodeURIComponent(token)}`, {
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`Apify run status failed (${res.status}). ${detail.slice(0, 300)}`);
+  }
+  const parsed: unknown = await res.json();
+  const run = (parsed as any)?.data ?? parsed;
+  if (!run?.id || !run?.status) throw new Error('Apify did not return a valid run status.');
+  return run as ApifyRun;
+}
+
+async function getDatasetItems(datasetId: string, token: string): Promise<InstagramReelRaw[]> {
+  const params = new URLSearchParams({
+    token,
+    format: 'json',
+    clean: 'true',
+    limit: String(APIFY_RESULTS_LIMIT),
+  });
+  const res = await fetch(`${APIFY_DATASETS_ENDPOINT}/${encodeURIComponent(datasetId)}/items?${params.toString()}`, {
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`Apify dataset fetch failed (${res.status}). ${detail.slice(0, 300)}`);
+  }
+  const parsed: unknown = await res.json();
   return Array.isArray(parsed) ? (parsed as InstagramReelRaw[]) : [];
+}
+
+async function saveAndReturnResults(datasetItems: InstagramReelRaw[], topic: string, hashtags: string[]) {
+  const scanned = datasetItems.length;
+  const scrapedAt = new Date();
+
+  // ── Geo confidence ─────────────────────────────────────────────────────────
+  const allRows = dedupeByInstagramId(
+    datasetItems
+      .filter((item): item is InstagramReelRaw => !!item && typeof item === 'object' && !!item.id)
+      .map((item) => mapReelToRow(item, topic, scrapedAt))
+  );
+  const confidentRows = allRows.filter((row) => row.canadianConfidence > 0);
+  const rawRows = confidentRows.length >= 5 ? confidentRows : allRows;
+  const matched = rawRows.length;
+  const canadianMatched = confidentRows.length;
+
+  const rows = rawRows.map((r) => ({
+    ...r,
+    authorFollowers: 1,
+    viralScore: computeViralScore(r.playCount, r.likeCount, r.commentCount, 1),
+  }));
+
+  // ── Upsert ────────────────────────────────────────────────────────────────
+  if (rows.length > 0) {
+    try {
+      await prisma.$transaction(
+        rows.map((r) =>
+          prisma.scrapedReel.upsert({
+            where: { instagramId: r.instagramId },
+            create: {
+              instagramId: r.instagramId,
+              url: r.url,
+              caption: r.caption,
+              playCount: r.playCount,
+              likeCount: r.likeCount,
+              commentCount: r.commentCount,
+              authorUsername: r.authorUsername,
+              authorFollowers: r.authorFollowers,
+              locationName: r.locationName,
+              locationId: r.locationId,
+              viralScore: r.viralScore,
+              searchTopic: r.searchTopic,
+              scrapedAt: r.scrapedAt,
+            },
+            update: {
+              url: r.url,
+              caption: r.caption,
+              playCount: r.playCount,
+              likeCount: r.likeCount,
+              commentCount: r.commentCount,
+              authorUsername: r.authorUsername,
+              authorFollowers: r.authorFollowers,
+              locationName: r.locationName,
+              locationId: r.locationId,
+              viralScore: r.viralScore,
+              searchTopic: r.searchTopic,
+              scrapedAt: r.scrapedAt,
+            },
+          })
+        )
+      );
+    } catch (err) {
+      console.error('[reels/search] Upsert error:', err);
+      return NextResponse.json({ ok: false, error: 'Failed to save scraped reels.' }, { status: 500 });
+    }
+  }
+
+  // ── Return top performers ─────────────────────────────────────────────────
+  const top = await prisma.scrapedReel.findMany({
+    where: { searchTopic: topic },
+    orderBy: { viralScore: 'desc' },
+    take: TOP_RESULTS,
+  });
+
+  return NextResponse.json({
+    ok: true,
+    topic,
+    cached: false,
+    pending: false,
+    hashtags,
+    scanned,
+    matched,
+    canadianMatched,
+    count: top.length,
+    reels: top.map(serializeReel),
+  });
 }
 
 // ─── Handler ─────────────────────────────────────────────────────────────────
@@ -339,117 +476,89 @@ export async function POST(request: Request) {
     );
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), APIFY_TIMEOUT_MS);
-  let datasetItems: InstagramReelRaw[];
-  const scrapeErrors: string[] = [];
   try {
-    datasetItems = await scrapeHashtags(hashtags, apifyToken, controller.signal);
+    const run = await startHashtagRun(hashtags, apifyToken);
+    if (run.status !== 'SUCCEEDED') {
+      if (['FAILED', 'ABORTED', 'TIMED-OUT'].includes(run.status)) {
+        return NextResponse.json(
+          { ok: false, error: `Apify scrape ended with status ${run.status}.` },
+          { status: 502 }
+        );
+      }
+      return NextResponse.json({
+        ok: true,
+        pending: true,
+        topic,
+        hashtags,
+        runId: run.id,
+        status: run.status,
+        message: 'Scrape is still running. Results will load automatically.',
+      }, { status: 202 });
+    }
+    if (!run.defaultDatasetId) {
+      return NextResponse.json({ ok: false, error: 'Apify finished without a dataset.' }, { status: 502 });
+    }
+    const datasetItems = await getDatasetItems(run.defaultDatasetId, apifyToken);
+    return saveAndReturnResults(datasetItems, topic, hashtags);
   } catch (err) {
-    if (err instanceof Error && err.name === 'AbortError') {
-      return NextResponse.json(
-        { ok: false, error: 'Scraping timed out before Vercel could finish the request. Try a more specific topic or city hashtag.' },
-        { status: 504 }
-      );
-    }
-    scrapeErrors.push(err instanceof Error ? err.message : 'Failed to scrape hashtags.');
     console.error('[reels/search] Apify error:', err);
-    return NextResponse.json({ ok: false, error: 'Failed to reach the scraper.' }, { status: 502 });
-  } finally {
-    clearTimeout(timeout);
+    return NextResponse.json(
+      { ok: false, error: err instanceof Error ? err.message : 'Failed to start the scraper.' },
+      { status: 502 }
+    );
+  }
+}
+
+export async function GET(request: Request) {
+  const session = await getSessionFromRequest(request);
+  if (!session) return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+
+  const apifyToken = process.env.APIFY_API_TOKEN;
+  if (!apifyToken) {
+    return NextResponse.json(
+      { ok: false, error: 'APIFY_API_TOKEN is not configured on the server.' },
+      { status: 500 }
+    );
   }
 
-  const scanned = datasetItems.length;
-  const scrapedAt = new Date();
+  const { searchParams } = new URL(request.url);
+  const runId = searchParams.get('runId') || '';
+  const topic = normalizeTopic(searchParams.get('topic'));
+  const hashtags = (searchParams.get('hashtags') || '').split(',').map(toHashtag).filter(Boolean);
 
-  // ── Geo confidence ─────────────────────────────────────────────────────────
-  const allRows = dedupeByInstagramId(
-    datasetItems
-      .filter((item): item is InstagramReelRaw => !!item && typeof item === 'object' && !!item.id)
-      .map((item) => mapReelToRow(item, topic, scrapedAt))
-  );
-  const confidentRows = allRows.filter((row) => row.canadianConfidence > 0);
-  const rawRows = confidentRows.length >= 5 ? confidentRows : allRows;
-  const matched = rawRows.length;
-  const canadianMatched = confidentRows.length;
+  if (!runId || !topic) {
+    return NextResponse.json({ ok: false, error: 'runId and topic are required.' }, { status: 400 });
+  }
 
-  // ── Follower lookup (batched — no cap) ────────────────────────────────────
-  const uniqueUsernames = Array.from(
-    new Set(rawRows.map((r) => r.authorUsername.toLowerCase()).filter((u) => u !== 'unknown'))
-  );
-  const followerMap = await fetchFollowerCounts(uniqueUsernames, apifyToken);
-
-  const rows = rawRows.map((r) => {
-    const followers = followerMap.get(r.authorUsername.toLowerCase()) ?? 1;
-    return {
-      ...r,
-      authorFollowers: followers,
-      viralScore: computeViralScore(r.playCount, r.likeCount, r.commentCount, followers),
-    };
-  });
-
-  // ── Upsert ────────────────────────────────────────────────────────────────
-  if (rows.length > 0) {
-    try {
-      await prisma.$transaction(
-        rows.map((r) =>
-          prisma.scrapedReel.upsert({
-            where: { instagramId: r.instagramId },
-            create: {
-              instagramId: r.instagramId,
-              url: r.url,
-              caption: r.caption,
-              playCount: r.playCount,
-              likeCount: r.likeCount,
-              commentCount: r.commentCount,
-              authorUsername: r.authorUsername,
-              authorFollowers: r.authorFollowers,
-              locationName: r.locationName,
-              locationId: r.locationId,
-              viralScore: r.viralScore,
-              searchTopic: r.searchTopic,
-              scrapedAt: r.scrapedAt,
-            },
-            update: {
-              url: r.url,
-              caption: r.caption,
-              playCount: r.playCount,
-              likeCount: r.likeCount,
-              commentCount: r.commentCount,
-              authorUsername: r.authorUsername,
-              authorFollowers: r.authorFollowers,
-              locationName: r.locationName,
-              locationId: r.locationId,
-              viralScore: r.viralScore,
-              searchTopic: r.searchTopic,
-              scrapedAt: r.scrapedAt,
-            },
-          })
-        )
-      );
-    } catch (err) {
-      console.error('[reels/search] Upsert error:', err);
-      return NextResponse.json({ ok: false, error: 'Failed to save scraped reels.' }, { status: 500 });
+  try {
+    const run = await getHashtagRun(runId, apifyToken);
+    if (run.status !== 'SUCCEEDED') {
+      if (['FAILED', 'ABORTED', 'TIMED-OUT'].includes(run.status)) {
+        return NextResponse.json(
+          { ok: false, error: `Apify scrape ended with status ${run.status}.` },
+          { status: 502 }
+        );
+      }
+      return NextResponse.json({
+        ok: true,
+        pending: true,
+        topic,
+        hashtags,
+        runId,
+        status: run.status,
+        message: `Scrape status: ${run.status}`,
+      }, { status: 202 });
     }
+    if (!run.defaultDatasetId) {
+      return NextResponse.json({ ok: false, error: 'Apify finished without a dataset.' }, { status: 502 });
+    }
+    const datasetItems = await getDatasetItems(run.defaultDatasetId, apifyToken);
+    return saveAndReturnResults(datasetItems, topic, hashtags);
+  } catch (err) {
+    console.error('[reels/search] Poll error:', err);
+    return NextResponse.json(
+      { ok: false, error: err instanceof Error ? err.message : 'Failed to check scraper status.' },
+      { status: 502 }
+    );
   }
-
-  // ── Return top performers ─────────────────────────────────────────────────
-  const top = await prisma.scrapedReel.findMany({
-    where: { searchTopic: topic },
-    orderBy: { viralScore: 'desc' },
-    take: TOP_RESULTS,
-  });
-
-  return NextResponse.json({
-    ok: true,
-    topic,
-    cached: false,
-    hashtags,
-    scrapeErrors,
-    scanned,
-    matched,
-    canadianMatched,
-    count: top.length,
-    reels: top.map(serializeReel),
-  });
 }

@@ -38,6 +38,26 @@ const compact = (n: number) =>
 const score = (n: number) =>
   new Intl.NumberFormat('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(n) || 0);
 
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function readPayload(res: Response) {
+  const text = await res.text();
+  let payload: any = null;
+  try {
+    payload = text ? JSON.parse(text) : null;
+  } catch {
+    payload = null;
+  }
+  if (!payload) {
+    throw new Error(
+      res.ok
+        ? 'The scraper returned an empty response. Please try again.'
+        : `The scraper did not return a valid response (${res.status}). Please try again.`
+    );
+  }
+  return payload;
+}
+
 export default function ReelsPage() {
   const [topic, setTopic] = useState('');
   const [reels, setReels] = useState<Reel[]>([]);
@@ -58,20 +78,18 @@ export default function ReelsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ topic: cleaned }),
       });
-      const text = await res.text();
-      let payload: any = null;
-      try {
-        payload = text ? JSON.parse(text) : null;
-      } catch {
-        payload = null;
+      let payload = await readPayload(res);
+      for (let attempt = 0; payload?.pending && payload?.runId && attempt < 24; attempt += 1) {
+        await wait(5000);
+        const pollUrl = new URL('/api/reels/search', window.location.origin);
+        pollUrl.searchParams.set('runId', payload.runId);
+        pollUrl.searchParams.set('topic', payload.topic || cleaned);
+        if (Array.isArray(payload.hashtags)) pollUrl.searchParams.set('hashtags', payload.hashtags.join(','));
+
+        const pollRes = await fetch(pollUrl.toString(), { cache: 'no-store' });
+        payload = await readPayload(pollRes);
       }
-      if (!payload) {
-        throw new Error(
-          res.ok
-            ? 'The scraper returned an empty response. Please try a more specific topic.'
-            : `The scraper did not return a valid response (${res.status}). Try a more specific topic.`
-        );
-      }
+      if (payload?.pending) throw new Error('The scraper is still running. Try again in a minute.');
       if (!res.ok || !payload.ok) throw new Error(payload?.error || `Request failed (${res.status}).`);
       setReels(Array.isArray(payload.reels) ? payload.reels : []);
       setMeta({

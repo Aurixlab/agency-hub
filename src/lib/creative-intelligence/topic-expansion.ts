@@ -38,6 +38,36 @@ type TopicPreset = {
 
 const PRESETS: TopicPreset[] = [
   {
+    match: ['non profit custom apparel', 'nonprofit custom apparel', 'non profit apparel', 'nonprofit apparel', 'charity apparel', 'fundraising shirts'],
+    primaryTopic: 'Nonprofit Custom Apparel',
+    relatedKeywords: [
+      'nonprofit shirts',
+      'charity t-shirts',
+      'fundraising shirts',
+      'volunteer shirts',
+      'awareness campaign apparel',
+      'team shirts for nonprofits',
+      'event shirts',
+    ],
+    hashtags: [
+      'nonprofit',
+      'nonprofitorganization',
+      'nonprofitmarketing',
+      'fundraising',
+      'fundraiser',
+      'charityevent',
+      'volunteer',
+      'customshirts',
+      'customtshirts',
+      'teamshirts',
+      'eventshirts',
+      'awarenessshirts',
+    ],
+    productKeywords: ['custom t-shirts', 'volunteer shirts', 'event shirts', 'fundraising shirts', 'awareness shirts'],
+    audienceKeywords: ['nonprofits', 'charities', 'fundraising teams', 'volunteer coordinators', 'community organizers'],
+    eventKeywords: ['fundraiser', 'charity event', 'awareness campaign', 'volunteer event', 'community event'],
+  },
+  {
     match: ['stampede', 'calgary stampede'],
     primaryTopic: 'Calgary Stampede',
     relatedKeywords: [
@@ -195,22 +225,33 @@ function findPreset(normalizedTopic: string): TopicPreset | undefined {
   return PRESETS.find((preset) => preset.match.some((term) => normalizedTopic.includes(term)));
 }
 
+function genericHashtagsFor(normalizedTopic: string): string[] {
+  const words = normalizedTopic.split(/\s+/).map(toHashtag).filter((word) => word.length > 2);
+  const base = toHashtag(normalizedTopic);
+  const hashtags = [base];
+
+  hashtags.push(...words);
+  if (words.length >= 2) {
+    for (let i = 0; i < words.length - 1; i += 1) hashtags.push(`${words[i]}${words[i + 1]}`);
+  }
+
+  if (words.includes('custom') && words.includes('apparel')) {
+    hashtags.push('customapparel', 'customshirts', 'customtshirts', 'brandedapparel');
+  }
+  if (words.includes('non') || words.includes('nonprofit') || words.includes('profit')) {
+    hashtags.push('nonprofit', 'nonprofitorganization', 'fundraising', 'charityevent');
+  }
+
+  hashtags.push(`${base}canada`, `calgary${base}`);
+  return uniq(hashtags).slice(0, 12);
+}
+
 export function expandTopic(rawTopic: string): ExpandedTopic {
   const originalTopic = rawTopic.trim();
   const normalizedTopic = normalizeTopic(originalTopic);
   const preset = findPreset(normalizedTopic);
-  const baseHashtag = toHashtag(normalizedTopic);
   const primaryTopic = preset?.primaryTopic ?? originalTopic;
-  const genericHashtags = [
-    baseHashtag,
-    `${baseHashtag}reels`,
-    `${baseHashtag}highlights`,
-    `${baseHashtag}viral`,
-    `${baseHashtag}canada`,
-    `canada${baseHashtag}`,
-    `calgary${baseHashtag}`,
-    `${baseHashtag}yyc`,
-  ];
+  const genericHashtags = genericHashtagsFor(normalizedTopic);
 
   return {
     originalTopic,

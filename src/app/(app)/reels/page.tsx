@@ -214,6 +214,15 @@ export default function ReelsPage() {
         </>
       )}
 
+      {(status === 'success' || status === 'cached') && items.length === 0 && (
+        <div className="card p-8 text-center border-dashed">
+          <p className="font-semibold text-surface-700 dark:text-surface-200">No reels came back from the current source.</p>
+          <p className="mt-1 text-sm text-surface-500">
+            Try a shorter Instagram-style topic like nonprofit, fundraising, charity event, custom shirts, or volunteer shirts.
+          </p>
+        </div>
+      )}
+
       <Section title="Ad Inspiration" icon={<Megaphone className="w-5 h-5" />}>
         <div className="rounded-lg border border-dashed border-surface-200 dark:border-surface-800 p-5 text-sm text-surface-500 dark:text-surface-400">
           Paid ad providers are ready to plug in next. Planned sources include Meta Ad Library, TikTok Creative Center, YouTube Shorts, and Google Ads Transparency Center.

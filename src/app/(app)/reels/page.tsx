@@ -28,6 +28,9 @@ interface SearchMeta {
   cacheAgeMinutes?: number;
   scanned?: number;
   matched?: number;
+  canadianMatched?: number;
+  hashtags?: string[];
+  scrapeErrors?: string[];
 }
 
 const compact = (n: number) =>
@@ -58,7 +61,15 @@ export default function ReelsPage() {
       const payload = await res.json();
       if (!res.ok || !payload.ok) throw new Error(payload?.error || `Request failed (${res.status}).`);
       setReels(Array.isArray(payload.reels) ? payload.reels : []);
-      setMeta({ cached: payload.cached, cacheAgeMinutes: payload.cacheAgeMinutes, scanned: payload.scanned, matched: payload.matched });
+      setMeta({
+        cached: payload.cached,
+        cacheAgeMinutes: payload.cacheAgeMinutes,
+        scanned: payload.scanned,
+        matched: payload.matched,
+        canadianMatched: payload.canadianMatched,
+        hashtags: Array.isArray(payload.hashtags) ? payload.hashtags : undefined,
+        scrapeErrors: Array.isArray(payload.scrapeErrors) ? payload.scrapeErrors : undefined,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.');
       setReels([]);
@@ -75,7 +86,7 @@ export default function ReelsPage() {
         <div>
           <h1 className="text-2xl font-bold text-surface-900 dark:text-white">Viral Reels 🇨🇦</h1>
           <p className="text-surface-500 dark:text-surface-400 text-sm">
-            Scrapes live Instagram Reels for a topic, isolates Canadian content, and ranks the top performers by
+            Expands a topic into Canadian hashtag variants, scans live Instagram Reels, and ranks top performers by
             viral score — (views + likes×2 + comments×5) ÷ followers.
           </p>
         </div>
@@ -94,7 +105,7 @@ export default function ReelsPage() {
               value={topic}
               disabled={loading}
               onChange={(e) => setTopic(e.target.value)}
-              placeholder="e.g. torontofood, hiking, realestate"
+              placeholder="e.g. toronto food, hiking, real estate"
               className="input pl-9"
             />
           </div>
@@ -105,7 +116,7 @@ export default function ReelsPage() {
         {loading && (
           <p className="mt-3 flex items-center gap-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-sm font-medium text-amber-800 dark:text-amber-300">
             <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
-            Scraping live data — this can take up to 2 minutes. Please don&rsquo;t refresh.
+            Scraping several related hashtags — this can take up to 2 minutes. Please don&rsquo;t refresh.
           </p>
         )}
       </div>
@@ -136,7 +147,7 @@ export default function ReelsPage() {
                 </span>
               ) : meta?.scanned != null ? (
                 <span className="text-xs text-surface-400">
-                  {meta.matched} Canadian / {meta.scanned} scraped
+                  {meta.canadianMatched ?? meta.matched} Canada signals / {meta.scanned} scraped
                 </span>
               ) : null}
               {topic.trim() && (
@@ -144,6 +155,21 @@ export default function ReelsPage() {
               )}
             </div>
           </div>
+          {!meta?.cached && meta?.hashtags?.length ? (
+            <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-surface-500">
+              <span className="font-medium text-surface-600 dark:text-surface-300">Scanned</span>
+              {meta.hashtags.map((tag) => (
+                <span key={tag} className="rounded-full border border-surface-200 dark:border-surface-800 px-2 py-0.5">
+                  #{tag}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          {!meta?.cached && meta?.scrapeErrors?.length ? (
+            <p className="mb-4 rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+              Some hashtag sources were unavailable, so results may be partial.
+            </p>
+          ) : null}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {reels.map((reel, i) => <ReelCard key={reel.instagramId ?? i} reel={reel} rank={i + 1} />)}
           </div>
@@ -153,8 +179,8 @@ export default function ReelsPage() {
       {/* Empty states */}
       {!loading && searched && !error && reels.length === 0 && (
         <div className="card p-10 text-center border-dashed">
-          <p className="font-semibold text-surface-700 dark:text-surface-200">No Canadian reels found for this topic.</p>
-          <p className="text-sm text-surface-500 mt-1">Try a broader or more location-specific keyword (e.g. torontofood, vancouverlife).</p>
+          <p className="font-semibold text-surface-700 dark:text-surface-200">No reels found for this topic.</p>
+          <p className="text-sm text-surface-500 mt-1">Try a broader or more location-specific keyword (e.g. toronto food, vancouver life).</p>
         </div>
       )}
       {!loading && !searched && (

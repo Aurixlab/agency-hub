@@ -14,6 +14,7 @@ const APIFY_TIMEOUT_MS = 120_000;
 const APIFY_RESULTS_LIMIT = 300;
 const TOP_RESULTS = 30;
 const PROFILE_BATCH_SIZE = 50;
+const MAX_HASHTAGS_PER_SEARCH = 12;
 
 // Re-scrape if the topic was last scraped more than 8 hours ago.
 const CACHE_TTL_MS = 8 * 60 * 60 * 1_000;
@@ -27,6 +28,11 @@ const CANADIAN_TOKENS: readonly string[] = [
   // Provinces / identifiers / airport codes / flag
   'canada', 'ontario', 'alberta', 'british columbia', 'manitoba',
   'nova scotia', 'saskatchewan', 'yyz', 'yvr', 'yul', 'yyc', '🇨🇦',
+];
+
+const CANADIAN_CITIES: readonly string[] = [
+  'toronto', 'vancouver', 'montreal', 'calgary', 'edmonton', 'ottawa',
+  'winnipeg', 'halifax',
 ];
 
 // High-confidence Canadian location IDs from Instagram's location graph.
@@ -54,16 +60,20 @@ const CANADIAN_LOCATION_IDS = new Set<string>([
   '107875285892626', '108271392540927', '107904625892453',
 ]);
 
-function isCanadianContent(reel: InstagramReelRaw): boolean {
+function getCanadianConfidence(reel: InstagramReelRaw): number {
   // High-confidence: tagged location is a known Canadian place.
-  if (reel.locationId && CANADIAN_LOCATION_IDS.has(String(reel.locationId))) return true;
+  if (reel.locationId && CANADIAN_LOCATION_IDS.has(String(reel.locationId))) return 3;
   // Fallback: text-match against caption, location name, and username.
   const haystack = [reel.locationName, reel.caption, reel.ownerUsername]
     .filter((part): part is string => typeof part === 'string')
     .join(' ')
     .toLowerCase();
-  if (!haystack) return false;
-  return CANADIAN_TOKENS.some((token) => haystack.includes(token));
+  if (!haystack) return 0;
+
+  const matches = CANADIAN_TOKENS.filter((token) => haystack.includes(token)).length;
+  if (matches >= 2) return 2;
+  if (matches === 1) return 1;
+  return 0;
 }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -96,6 +106,7 @@ interface ReelRow {
   viralScore: number;
   searchTopic: string;
   scrapedAt: Date;
+  canadianConfidence: number;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -108,7 +119,37 @@ function safeNumber(value: unknown): number {
 
 function normalizeTopic(input: unknown): string {
   if (typeof input !== 'string') return '';
-  return input.trim().replace(/^#+/, '').trim().toLowerCase();
+  return input.trim().replace(/^#+/, '').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function toHashtag(input: string): string {
+  return input
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/^#+/, '')
+    .replace(/[^a-zA-Z0-9_]+/g, '')
+    .toLowerCase();
+}
+
+function uniq<T>(items: T[]): T[] {
+  return Array.from(new Set(items));
+}
+
+function buildHashtagCandidates(topic: string): string[] {
+  const base = toHashtag(topic);
+  if (!base) return [];
+
+  const topicWords = topic.split(/\s+/).map(toHashtag).filter(Boolean);
+  const compactTopic = toHashtag(topicWords.join(''));
+  const candidates = [
+    base,
+    compactTopic,
+    `${base}canada`,
+    `canada${base}`,
+    ...CANADIAN_CITIES.flatMap((city) => [`${city}${base}`, `${base}${city}`]),
+  ];
+
+  return uniq(candidates.filter(Boolean)).slice(0, MAX_HASHTAGS_PER_SEARCH);
 }
 
 // Viral Score = (plays + likes*2 + comments*5) / followers
@@ -137,6 +178,7 @@ function mapReelToRow(reel: InstagramReelRaw, searchTopic: string, scrapedAt: Da
     viralScore: 0,
     searchTopic,
     scrapedAt,
+    canadianConfidence: getCanadianConfidence(reel),
   };
 }
 
@@ -206,6 +248,24 @@ async function fetchFollowerCounts(
   return map;
 }
 
+async function scrapeHashtags(hashtags: string[], token: string, signal: AbortSignal): Promise<InstagramReelRaw[]> {
+  const res = await fetch(`${APIFY_HASHTAG_ENDPOINT}?token=${encodeURIComponent(token)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hashtags, resultsType: 'reels', resultsLimit: APIFY_RESULTS_LIMIT }),
+    signal,
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`Apify request failed (${res.status}). ${detail.slice(0, 300)}`);
+  }
+
+  const parsed: unknown = await res.json();
+  return Array.isArray(parsed) ? (parsed as InstagramReelRaw[]) : [];
+}
+
 // ─── Handler ─────────────────────────────────────────────────────────────────
 
 export async function POST(request: Request) {
@@ -261,33 +321,28 @@ export async function POST(request: Request) {
   }
 
   // ── Live scrape ────────────────────────────────────────────────────────────
+  const hashtags = buildHashtagCandidates(topic);
+  if (hashtags.length === 0) {
+    return NextResponse.json(
+      { ok: false, error: 'Topic must include at least one letter or number that can be searched as a hashtag.' },
+      { status: 400 }
+    );
+  }
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), APIFY_TIMEOUT_MS);
   let datasetItems: InstagramReelRaw[];
+  const scrapeErrors: string[] = [];
   try {
-    const apifyResponse = await fetch(`${APIFY_HASHTAG_ENDPOINT}?token=${encodeURIComponent(apifyToken)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ hashtags: [topic], resultsType: 'reels', resultsLimit: APIFY_RESULTS_LIMIT }),
-      signal: controller.signal,
-      cache: 'no-store',
-    });
-    if (!apifyResponse.ok) {
-      const detail = await apifyResponse.text().catch(() => '');
-      return NextResponse.json(
-        { ok: false, error: `Apify request failed (${apifyResponse.status}). ${detail.slice(0, 300)}` },
-        { status: 502 }
-      );
-    }
-    const parsed: unknown = await apifyResponse.json();
-    datasetItems = Array.isArray(parsed) ? (parsed as InstagramReelRaw[]) : [];
+    datasetItems = await scrapeHashtags(hashtags, apifyToken, controller.signal);
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
       return NextResponse.json(
-        { ok: false, error: 'Scraping timed out after 120 seconds. Try a more specific topic.' },
+        { ok: false, error: 'Scraping timed out after 120 seconds. Try a more specific topic or a city hashtag.' },
         { status: 504 }
       );
     }
+    scrapeErrors.push(err instanceof Error ? err.message : 'Failed to scrape hashtags.');
     console.error('[reels/search] Apify error:', err);
     return NextResponse.json({ ok: false, error: 'Failed to reach the scraper.' }, { status: 502 });
   } finally {
@@ -297,14 +352,16 @@ export async function POST(request: Request) {
   const scanned = datasetItems.length;
   const scrapedAt = new Date();
 
-  // ── Canadian filter ────────────────────────────────────────────────────────
-  const rawRows = dedupeByInstagramId(
+  // ── Geo confidence ─────────────────────────────────────────────────────────
+  const allRows = dedupeByInstagramId(
     datasetItems
       .filter((item): item is InstagramReelRaw => !!item && typeof item === 'object' && !!item.id)
-      .filter(isCanadianContent)
       .map((item) => mapReelToRow(item, topic, scrapedAt))
   );
+  const confidentRows = allRows.filter((row) => row.canadianConfidence > 0);
+  const rawRows = confidentRows.length >= 5 ? confidentRows : allRows;
   const matched = rawRows.length;
+  const canadianMatched = confidentRows.length;
 
   // ── Follower lookup (batched — no cap) ────────────────────────────────────
   const uniqueUsernames = Array.from(
@@ -328,7 +385,21 @@ export async function POST(request: Request) {
         rows.map((r) =>
           prisma.scrapedReel.upsert({
             where: { instagramId: r.instagramId },
-            create: r,
+            create: {
+              instagramId: r.instagramId,
+              url: r.url,
+              caption: r.caption,
+              playCount: r.playCount,
+              likeCount: r.likeCount,
+              commentCount: r.commentCount,
+              authorUsername: r.authorUsername,
+              authorFollowers: r.authorFollowers,
+              locationName: r.locationName,
+              locationId: r.locationId,
+              viralScore: r.viralScore,
+              searchTopic: r.searchTopic,
+              scrapedAt: r.scrapedAt,
+            },
             update: {
               url: r.url,
               caption: r.caption,
@@ -363,8 +434,11 @@ export async function POST(request: Request) {
     ok: true,
     topic,
     cached: false,
+    hashtags,
+    scrapeErrors,
     scanned,
     matched,
+    canadianMatched,
     count: top.length,
     reels: top.map(serializeReel),
   });

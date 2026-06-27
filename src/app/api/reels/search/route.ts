@@ -12,7 +12,7 @@ const APIFY_BASE = 'https://api.apify.com/v2/acts';
 const APIFY_HASHTAG_ENDPOINT = `${APIFY_BASE}/apify~instagram-hashtag-scraper/run-sync-get-dataset-items`;
 const APIFY_PROFILE_ENDPOINT = `${APIFY_BASE}/apify~instagram-profile-scraper/run-sync-get-dataset-items`;
 const APIFY_TIMEOUT_MS = 22_000;
-const APIFY_RESULTS_LIMIT = 50;
+const APIFY_RESULTS_LIMIT = 30;
 const TOP_RESULTS = 30;
 const PROFILE_BATCH_SIZE = 20;
 const PROFILE_TIMEOUT_MS = 4_000;
@@ -144,6 +144,12 @@ function buildHashtagCandidates(topic: string): string[] {
 
   const topicWords = topic.split(/\s+/).map(toHashtag).filter(Boolean);
   const compactTopic = toHashtag(topicWords.join(''));
+  const hasCanadaSignal = ['canada', ...CANADIAN_CITIES].some((signal) => base.includes(signal));
+
+  // If the user already entered a specific hashtag-like Canadian term, keep it exact.
+  // Expanding #canadagolf into #torontocanadagolf makes Apify slower and less useful.
+  if (hasCanadaSignal && topicWords.length === 1) return [base];
+
   const candidates = [
     base,
     compactTopic,

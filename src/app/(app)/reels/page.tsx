@@ -58,7 +58,20 @@ export default function ReelsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ topic: cleaned }),
       });
-      const payload = await res.json();
+      const text = await res.text();
+      let payload: any = null;
+      try {
+        payload = text ? JSON.parse(text) : null;
+      } catch {
+        payload = null;
+      }
+      if (!payload) {
+        throw new Error(
+          res.ok
+            ? 'The scraper returned an empty response. Please try a more specific topic.'
+            : `The scraper did not return a valid response (${res.status}). Try a more specific topic.`
+        );
+      }
       if (!res.ok || !payload.ok) throw new Error(payload?.error || `Request failed (${res.status}).`);
       setReels(Array.isArray(payload.reels) ? payload.reels : []);
       setMeta({

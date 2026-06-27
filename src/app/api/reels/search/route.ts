@@ -11,10 +11,10 @@ const APIFY_BASE = 'https://api.apify.com/v2/acts';
 const APIFY_HASHTAG_ENDPOINT = `${APIFY_BASE}/apify~instagram-hashtag-scraper/run-sync-get-dataset-items`;
 const APIFY_PROFILE_ENDPOINT = `${APIFY_BASE}/apify~instagram-profile-scraper/run-sync-get-dataset-items`;
 const APIFY_TIMEOUT_MS = 120_000;
-const APIFY_RESULTS_LIMIT = 300;
+const APIFY_RESULTS_LIMIT = 120;
 const TOP_RESULTS = 30;
 const PROFILE_BATCH_SIZE = 50;
-const MAX_HASHTAGS_PER_SEARCH = 12;
+const MAX_HASHTAGS_PER_SEARCH = 6;
 
 // Re-scrape if the topic was last scraped more than 8 hours ago.
 const CACHE_TTL_MS = 8 * 60 * 60 * 1_000;

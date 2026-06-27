@@ -11,7 +11,6 @@ import {
   Lightbulb,
   Loader2,
   Megaphone,
-  Package,
   Search,
   Sparkles,
   Tag,
@@ -159,7 +158,7 @@ export default function ReelsPage() {
         <div>
           <h1 className="text-2xl font-bold text-surface-900 dark:text-white">Creative Intelligence</h1>
           <p className="text-surface-500 dark:text-surface-400 text-sm">
-            Seasonal campaign signals for Budget Promotion: organic content, useful hooks, product opportunities, and campaign ideas.
+            Find likely high-performing reels around a topic, then extract reusable creative patterns and campaign ideas.
           </p>
         </div>
       </div>
@@ -176,7 +175,7 @@ export default function ReelsPage() {
               value={topic}
               disabled={status === 'loading' || status === 'pending'}
               onChange={(e) => setTopic(e.target.value)}
-              placeholder="e.g. Stampede, golf events, Canada Day, trade shows"
+              placeholder="e.g. football, Stampede, golf events, Canada Day"
               className="input pl-9"
             />
           </div>
@@ -209,7 +208,7 @@ export default function ReelsPage() {
           <MetricSummary items={items} status={status} />
           <Section title="Top Organic Reels" icon={<Flame className="w-5 h-5" />}>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {organicReels.slice(0, 8).map((item, index) => <CreativeCard key={item.id} item={item} rank={index + 1} />)}
+              {organicReels.slice(0, 30).map((item, index) => <CreativeCard key={item.id} item={item} rank={index + 1} />)}
             </div>
           </Section>
         </>
@@ -227,10 +226,6 @@ export default function ReelsPage() {
             <InsightList items={[...insights.topHooks, ...insights.visualPatterns].slice(0, 10)} />
           </Section>
 
-          <Section title="Product Opportunities" icon={<Package className="w-5 h-5" />}>
-            <InsightList items={insights.productOpportunities} />
-          </Section>
-
           <Section title="Campaign Ideas" icon={<Box className="w-5 h-5" />}>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               {insights.campaignIdeas.map((idea) => <CampaignCard key={idea.title} idea={idea} />)}
@@ -243,7 +238,7 @@ export default function ReelsPage() {
         <div className="card p-10 text-center border-dashed">
           <Sparkles className="w-8 h-8 mx-auto mb-2 text-surface-300" />
           <p className="font-semibold text-surface-700 dark:text-surface-200">Start with a seasonal moment</p>
-          <p className="text-sm text-surface-500 mt-1">Try Stampede, golf events, Canada Day, staff uniforms, or trade shows.</p>
+          <p className="text-sm text-surface-500 mt-1">Try football, Stampede, golf events, Canada Day, or trade shows.</p>
         </div>
       )}
     </div>
@@ -263,9 +258,9 @@ function ExpandedTopicPanel({ topic, status }: { topic: ExpandedTopic; status: s
         </span>
       </div>
       <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4 text-sm">
-        <TokenGroup label="Hashtags" icon={<Tag className="w-4 h-4" />} items={topic.hashtags.map((tag) => `#${tag}`)} />
-        <TokenGroup label="Products" icon={<Package className="w-4 h-4" />} items={topic.productKeywords.slice(0, 8)} />
-        <TokenGroup label="Audiences" icon={<BarChart3 className="w-4 h-4" />} items={topic.audienceKeywords.slice(0, 8)} />
+        <TokenGroup label="Search Hashtags" icon={<Tag className="w-4 h-4" />} items={topic.hashtags.map((tag) => `#${tag}`)} />
+        <TokenGroup label="Related Terms" icon={<Flame className="w-4 h-4" />} items={topic.relatedKeywords.slice(0, 8)} />
+        <TokenGroup label="Context Signals" icon={<BarChart3 className="w-4 h-4" />} items={[...topic.locations, ...topic.eventKeywords].slice(0, 8)} />
       </div>
     </div>
   );
@@ -293,7 +288,7 @@ function MetricSummary({ items, status }: { items: CreativeItem[]; status: strin
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
       <Stat label="Creative Items" value={String(items.length)} sub={status === 'cached' ? 'Returned from cache' : 'Collected and scored'} icon={<Sparkles className="w-5 h-5" />} />
       <Stat label="Organic Reach Signals" value={compact(views)} sub="Total public views found" icon={<Eye className="w-5 h-5" />} />
-      <Stat label="Avg Usefulness" value={score(avgScore)} sub="Budget Promotion fit score" icon={<BarChart3 className="w-5 h-5" />} />
+      <Stat label="Avg Viral Fit" value={score(avgScore)} sub="Topic relevance plus viral signals" icon={<BarChart3 className="w-5 h-5" />} />
     </div>
   );
 }
@@ -344,9 +339,8 @@ function CreativeCard({ item, rank }: { item: CreativeItem; rank: number }) {
         <Metric label="Comments" value={compact(item.commentCount)} />
       </div>
       <div className="mt-4 space-y-2 text-sm">
-        <Usefulness label="Why useful" value={item.aiSummary} />
+        <Usefulness label="Viral signal" value={item.aiSummary} />
         <Usefulness label="Hook" value={item.hook} />
-        <Usefulness label="Product fit" value={item.productFit} />
       </div>
       <a href={item.url} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-surface-900 dark:bg-surface-700 px-3 py-2 text-sm text-white hover:bg-surface-800 dark:hover:bg-surface-600">
         <ExternalLink className="w-3.5 h-3.5" /> Open source

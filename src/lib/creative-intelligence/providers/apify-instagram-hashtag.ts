@@ -13,7 +13,7 @@ const RUN_STATUS_ENDPOINT = `${APIFY_BASE}/actor-runs`;
 const DATASETS_ENDPOINT = `${APIFY_BASE}/datasets`;
 const WAIT_FOR_FINISH_SECONDS = 18;
 const ACTOR_TIMEOUT_SECONDS = 180;
-const RESULTS_LIMIT = 40;
+const RESULTS_LIMIT = 100;
 
 type ApifyRun = {
   id: string;
@@ -30,6 +30,8 @@ type InstagramItem = {
   igPlayCount?: number;
   likesCount?: number;
   commentsCount?: number;
+  ownerFollowersCount?: number;
+  followersCount?: number;
   ownerUsername?: string;
   ownerFullName?: string;
   locationName?: string;

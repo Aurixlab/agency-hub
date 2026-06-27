@@ -51,7 +51,6 @@ function textFor(item: RawCreativeItem): string {
     item.adCopy,
     item.creatorHandle,
     item.creatorName,
-    item.topic,
     item.city,
     item.country,
     JSON.stringify(item.metadata ?? {}),
@@ -68,6 +67,21 @@ function countMatches(text: string, terms: string[]): number {
 function safeNumber(value: unknown): number {
   const n = Number(value ?? 0);
   return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function metadataNumber(item: RawCreativeItem, keys: string[]): number {
+  const metadata = item.metadata ?? {};
+  for (const key of keys) {
+    const value = (metadata as any)?.[key];
+    const n = safeNumber(value);
+    if (n > 0) return n;
+  }
+  const owner = (metadata as any)?.owner ?? (metadata as any)?.user;
+  for (const key of keys) {
+    const n = safeNumber(owner?.[key]);
+    if (n > 0) return n;
+  }
+  return 0;
 }
 
 function detectHook(text: string): string | null {
@@ -102,29 +116,39 @@ function detectContentAngle(text: string): string | null {
 }
 
 function productFit(text: string, expandedTopic: ExpandedTopic): string | null {
-  return expandedTopic.productKeywords.find((product) => text.includes(product.toLowerCase()))
-    ?? expandedTopic.productKeywords[0]
-    ?? null;
+  return expandedTopic.productKeywords.find((product) => text.includes(product.toLowerCase())) ?? null;
 }
 
 function targetAudience(text: string, expandedTopic: ExpandedTopic): string | null {
-  return expandedTopic.audienceKeywords.find((audience) => text.includes(audience.toLowerCase()))
-    ?? expandedTopic.audienceKeywords[0]
-    ?? null;
+  return expandedTopic.audienceKeywords.find((audience) => text.includes(audience.toLowerCase())) ?? null;
 }
 
 export function scoreCreativeItem(item: RawCreativeItem, expandedTopic: ExpandedTopic) {
   const text = textFor(item);
+  const normalizedTopicTerms = expandedTopic.normalizedTopic.split(/\s+/).filter(Boolean);
   const relevanceTerms = [
     expandedTopic.primaryTopic,
+    expandedTopic.normalizedTopic,
+    ...normalizedTopicTerms,
     ...expandedTopic.relatedKeywords,
     ...expandedTopic.eventKeywords,
     ...expandedTopic.hashtags,
   ];
-  const relevanceScore = clamp(20 + countMatches(text, relevanceTerms) * 15);
+  const relevanceMatches = countMatches(text, relevanceTerms);
+  const exactTopicMatch = text.includes(expandedTopic.normalizedTopic.toLowerCase()) ? 1 : 0;
+  const relevanceScore = clamp(exactTopicMatch * 45 + relevanceMatches * 12);
 
   const engagement = safeNumber(item.viewCount) + safeNumber(item.likeCount) * 2 + safeNumber(item.commentCount) * 5 + safeNumber(item.shareCount) * 8;
-  const viralScore = clamp(Math.log10(engagement + 1) * 18);
+  const views = safeNumber(item.viewCount);
+  const likes = safeNumber(item.likeCount);
+  const comments = safeNumber(item.commentCount);
+  const followers = metadataNumber(item, ['ownerFollowersCount', 'followersCount', 'followerCount', 'followers']);
+  const engagementRate = views > 0 ? (likes + comments * 3) / views : 0;
+  const followerLift = followers > 0 ? views / Math.max(1, followers) : 0;
+  const rawReachScore = Math.log10(views + 1) * 13;
+  const engagementRateScore = Math.min(35, engagementRate * 550);
+  const followerLiftScore = followers > 0 ? Math.min(40, Math.log10(followerLift + 1) * 35) : 15;
+  const viralScore = clamp(rawReachScore + engagementRateScore + followerLiftScore + Math.log10(engagement + 1) * 4);
 
   const publishedAt = item.publishedAt?.getTime();
   const ageDays = publishedAt ? (Date.now() - publishedAt) / 86_400_000 : 14;
@@ -135,11 +159,9 @@ export function scoreCreativeItem(item: RawCreativeItem, expandedTopic: Expanded
   const creativeScore = clamp(15 + countMatches(text, CREATIVE_TERMS) * 15);
 
   const finalScore = clamp(
-    relevanceScore * 0.3 +
-      viralScore * 0.2 +
-      recencyScore * 0.15 +
-      localityScore * 0.15 +
-      businessScore * 0.1 +
+    relevanceScore * 0.45 +
+      viralScore * 0.35 +
+      recencyScore * 0.1 +
       creativeScore * 0.1
   );
 
@@ -162,7 +184,9 @@ export function scoreCreativeItem(item: RawCreativeItem, expandedTopic: Expanded
     contentAngle,
     productFit: fit,
     targetAudience: audience,
-    aiSummary: `${expandedTopic.primaryTopic} inspiration with ${fit ?? 'custom merch'} potential for ${audience ?? 'Canadian businesses'}.`,
+    aiSummary: followers > 0
+      ? `${expandedTopic.primaryTopic} reel with viral lift of ${followerLift.toFixed(2)}x audience size and ${Math.round(engagementRate * 1000) / 10}% engagement per view.`
+      : `${expandedTopic.primaryTopic} reel ranked by topic match, views, comments, likes, recency, and reusable creative signals.`,
   };
 }
 

@@ -11,9 +11,9 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
-const CACHE_TTL_MS = 8 * 60 * 60 * 1_000;
-const CACHE_MIN_ITEMS = 5;
-const TOP_RESULTS = 30;
+const CACHE_TTL_MS = 30 * 60 * 1_000;
+const CACHE_MIN_ITEMS = 100;
+const TOP_RESULTS = 60;
 const DEFAULT_SOURCES: CreativeProviderName[] = ['apify-instagram-hashtag'];
 let tablesReady = false;
 
@@ -78,7 +78,7 @@ async function recentCreativeItems(normalizedTopic: string) {
 async function saveCreativeItems(items: RawCreativeItem[], expandedTopic: ExpandedTopic) {
   if (items.length === 0) return [];
 
-  await prisma.$transaction(
+  const savedItems = await prisma.$transaction(
     items.map((item) => {
       const scored = scoreCreativeItem(item, expandedTopic);
       const data = {
@@ -127,7 +127,7 @@ async function saveCreativeItems(items: RawCreativeItem[], expandedTopic: Expand
     })
   );
 
-  return recentCreativeItems(expandedTopic.normalizedTopic);
+  return savedItems;
 }
 
 function responseWithItems(status: 'cached' | 'success', expandedTopic: ExpandedTopic, items: any[], jobId?: string) {

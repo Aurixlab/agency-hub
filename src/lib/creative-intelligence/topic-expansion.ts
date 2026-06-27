@@ -62,8 +62,6 @@ const PRESETS: TopicPreset[] = [
       'stampedefashion',
       'rodeostyle',
       'corporateevents',
-      'customapparel',
-      'brandedmerch',
     ],
     productKeywords: [
       'custom cowboy hats',
@@ -133,7 +131,7 @@ const PRESETS: TopicPreset[] = [
     match: ['back to school', 'backtoschool'],
     primaryTopic: 'Back to School Campaigns',
     relatedKeywords: ['school spirit wear', 'student giveaways', 'campus merch', 'orientation week'],
-    hashtags: ['backtoschool', 'schoolspirit', 'campuslife', 'studentgiveaway', 'customapparel'],
+    hashtags: ['backtoschool', 'schoolspirit', 'campuslife', 'studentgiveaway'],
     productKeywords: ['school hoodies', 'tote bags', 'water bottles', 'orientation shirts', 'staff shirts'],
     audienceKeywords: ['schools', 'student unions', 'campus teams', 'parent councils'],
     eventKeywords: ['orientation', 'school launch', 'student event'],
@@ -205,12 +203,13 @@ export function expandTopic(rawTopic: string): ExpandedTopic {
   const primaryTopic = preset?.primaryTopic ?? originalTopic;
   const genericHashtags = [
     baseHashtag,
+    `${baseHashtag}reels`,
+    `${baseHashtag}highlights`,
+    `${baseHashtag}viral`,
     `${baseHashtag}canada`,
+    `canada${baseHashtag}`,
     `calgary${baseHashtag}`,
     `${baseHashtag}yyc`,
-    'yycbusiness',
-    'customapparel',
-    'brandedmerch',
   ];
 
   return {
@@ -223,7 +222,6 @@ export function expandTopic(rawTopic: string): ExpandedTopic {
       ...(preset?.relatedKeywords ?? []),
       `${primaryTopic} ideas`,
       `${primaryTopic} campaign`,
-      `${primaryTopic} merch`,
     ]),
     hashtags: uniq([...(preset?.hashtags ?? []), ...genericHashtags]).slice(0, 12),
     locations: BASE_LOCATIONS,

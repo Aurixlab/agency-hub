@@ -2,19 +2,22 @@ import { NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
-// Performs network I/O (Apify) + DB writes — force Node runtime, allow 120s.
+// Performs network I/O (Apify) + DB writes — force Node runtime.
+// vercel.json caps API functions at 30s, so keep internal timeouts below that.
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-export const maxDuration = 120;
+export const maxDuration = 30;
 
 const APIFY_BASE = 'https://api.apify.com/v2/acts';
 const APIFY_HASHTAG_ENDPOINT = `${APIFY_BASE}/apify~instagram-hashtag-scraper/run-sync-get-dataset-items`;
 const APIFY_PROFILE_ENDPOINT = `${APIFY_BASE}/apify~instagram-profile-scraper/run-sync-get-dataset-items`;
-const APIFY_TIMEOUT_MS = 120_000;
-const APIFY_RESULTS_LIMIT = 120;
+const APIFY_TIMEOUT_MS = 22_000;
+const APIFY_RESULTS_LIMIT = 50;
 const TOP_RESULTS = 30;
-const PROFILE_BATCH_SIZE = 50;
-const MAX_HASHTAGS_PER_SEARCH = 6;
+const PROFILE_BATCH_SIZE = 20;
+const PROFILE_TIMEOUT_MS = 4_000;
+const MAX_PROFILE_LOOKUPS = 20;
+const MAX_HASHTAGS_PER_SEARCH = 4;
 
 // Re-scrape if the topic was last scraped more than 8 hours ago.
 const CACHE_TTL_MS = 8 * 60 * 60 * 1_000;
@@ -217,12 +220,13 @@ async function fetchFollowerCounts(
   if (usernames.length === 0) return new Map();
 
   const map = new Map<string, number>();
+  const limitedUsernames = usernames.slice(0, MAX_PROFILE_LOOKUPS);
 
   // Fire batches sequentially to stay within Apify's per-request payload limits.
-  for (let i = 0; i < usernames.length; i += PROFILE_BATCH_SIZE) {
-    const batch = usernames.slice(i, i + PROFILE_BATCH_SIZE);
+  for (let i = 0; i < limitedUsernames.length; i += PROFILE_BATCH_SIZE) {
+    const batch = limitedUsernames.slice(i, i + PROFILE_BATCH_SIZE);
     const ac = new AbortController();
-    const t = setTimeout(() => ac.abort(), 30_000);
+    const t = setTimeout(() => ac.abort(), PROFILE_TIMEOUT_MS);
     try {
       const res = await fetch(`${APIFY_PROFILE_ENDPOINT}?token=${encodeURIComponent(token)}`, {
         method: 'POST',
@@ -338,7 +342,7 @@ export async function POST(request: Request) {
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
       return NextResponse.json(
-        { ok: false, error: 'Scraping timed out after 120 seconds. Try a more specific topic or a city hashtag.' },
+        { ok: false, error: 'Scraping timed out before Vercel could finish the request. Try a more specific topic or city hashtag.' },
         { status: 504 }
       );
     }

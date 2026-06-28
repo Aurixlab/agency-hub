@@ -34,6 +34,7 @@ export default function SEODashboard() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [periodOpen, setPeriodOpen] = useState(false);
 
   async function fetchData() {
@@ -53,13 +54,23 @@ export default function SEODashboard() {
 
   async function handleSync() {
     setSyncing(true);
+    setSyncError(null);
     try {
-      const res = await fetch('/api/cron/sync-seo');
+      // Pass days=30 to backfill history so the chart and 7/30-day views populate immediately
+      const res = await fetch('/api/cron/sync-seo?days=30');
       const json = await res.json();
       if (json.success) {
-        fetchData(); // Refresh data
+        fetchData();
+        // Surface per-client errors as a warning so the user knows if one GSC property failed
+        const failed = (json.results || []).filter((r: any) => r.status === 'error');
+        if (failed.length > 0) {
+          setSyncError(`Partial sync: ${failed.map((r: any) => `${r.client} — ${r.error}`).join('; ')}`);
+        }
+      } else {
+        setSyncError(json.error || 'Sync failed. Check server logs.');
       }
     } catch (error) {
+      setSyncError('Network error — could not reach sync endpoint.');
       console.error('Sync failed:', error);
     } finally {
       setSyncing(false);
@@ -121,6 +132,14 @@ export default function SEODashboard() {
         </div>
       </div>
 
+      {syncError && (
+        <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 text-sm text-rose-700 dark:text-rose-400">
+          <span className="font-semibold shrink-0">Sync error:</span>
+          <span>{syncError}</span>
+          <button onClick={() => setSyncError(null)} className="ml-auto shrink-0 text-rose-400 hover:text-rose-600">✕</button>
+        </div>
+      )}
+
       {/* Client Tabs & Tab Navigation */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 sm:gap-6 border-b border-surface-100 dark:border-surface-800 pb-2 max-w-full">
         <div className="max-w-full overflow-x-auto">
@@ -178,7 +197,7 @@ export default function SEODashboard() {
 
               <TrendChart snapshots={data?.snapshots} />
 
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <div className="space-y-6">
                 <QueriesSection slug={activeClient.slug} period={period.value} />
                 <RankingComparison slug={activeClient.slug} />
               </div>

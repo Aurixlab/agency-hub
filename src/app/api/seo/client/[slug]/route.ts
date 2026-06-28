@@ -18,6 +18,11 @@ export async function GET(
   startDate.setDate(startDate.getDate() - days - 1);
   const startStr = startDate.toISOString().split('T')[0];
 
+  const keywordDays = Math.max(days, 30);
+  const keywordStartDate = new Date();
+  keywordStartDate.setDate(keywordStartDate.getDate() - keywordDays - 1);
+  const keywordStartStr = keywordStartDate.toISOString().split('T')[0];
+
   try {
     // 1. Get client info
     const { data: client, error: clientError } = await supabase
@@ -45,7 +50,7 @@ export async function GET(
       .from('seo_keyword_rankings')
       .select('keyword, clicks, impressions, ctr, position')
       .eq('client_id', client.id)
-      .gte('date', startStr);
+      .gte('date', keywordStartStr);
 
     if (kwError) throw kwError;
 

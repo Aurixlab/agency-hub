@@ -91,24 +91,30 @@ export async function GET(
     }
   }
 
-  const comparison = Array.from(currentMap.entries())
-    .map(([keyword, cur]) => {
-      const prev = prevMap.get(keyword);
-      const currentPos = cur.posSum / cur.count;
-      const prevPos = prev ? prev.posSum / prev.count : null;
-      const delta = prevPos !== null ? prevPos - currentPos : null;
+  const allCurrent = Array.from(currentMap.entries()).map(([keyword, cur]) => {
+    const prev = prevMap.get(keyword);
+    const currentPos = cur.posSum / cur.count;
+    const prevPos = prev ? prev.posSum / prev.count : null;
+    const delta = prevPos !== null ? prevPos - currentPos : null;
 
-      return {
-        keyword,
-        currentPosition: parseFloat(currentPos.toFixed(1)),
-        previousPosition: prevPos !== null ? parseFloat(prevPos.toFixed(1)) : null,
-        delta: delta !== null ? parseFloat(delta.toFixed(1)) : null,
-        clicks: cur.clicks,
-        impressions: cur.impressions,
-      };
-    })
+    return {
+      keyword,
+      currentPosition: parseFloat(currentPos.toFixed(1)),
+      previousPosition: prevPos !== null ? parseFloat(prevPos.toFixed(1)) : null,
+      delta: delta !== null ? parseFloat(delta.toFixed(1)) : null,
+      clicks: cur.clicks,
+      impressions: cur.impressions,
+    };
+  });
+
+  const comparison = allCurrent
     .filter(k => k.delta !== null)
     .sort((a, b) => (b.delta ?? 0) - (a.delta ?? 0));
+
+  const newKeywords = allCurrent
+    .filter(k => k.delta === null)
+    .sort((a, b) => b.clicks - a.clicks)
+    .slice(0, 10);
 
   return NextResponse.json({
     type,
@@ -119,6 +125,7 @@ export async function GET(
     improved: comparison.filter(k => (k.delta ?? 0) > 0).slice(0, 10),
     declined: comparison.filter(k => (k.delta ?? 0) < 0).slice(0, 10),
     unchanged: comparison.filter(k => k.delta === 0).slice(0, 5),
-    total: comparison.length,
+    newKeywords,
+    total: allCurrent.length,
   });
 }

@@ -23,6 +23,7 @@ interface ComparisonResponse {
   improved: ComparisonItem[];
   declined: ComparisonItem[];
   unchanged: ComparisonItem[];
+  newKeywords: ComparisonItem[];
   total: number;
 }
 
@@ -127,7 +128,7 @@ export default function RankingComparison({ slug }: { slug: string }) {
           <div className="space-y-3">{skeletonRows}</div>
         ) : !response || !response.periods || response.total === 0 ? (
           <p className="text-center text-surface-400 dark:text-surface-500 py-8 text-sm">
-            No comparison data yet. Need at least 2 {mode === 'weekly' ? 'weeks' : 'months'} of history.
+            No keyword data found for this period.
           </p>
         ) : (
           <>
@@ -165,6 +166,31 @@ export default function RankingComparison({ slug }: { slug: string }) {
                 <div className="space-y-3">
                   {response.unchanged.map((item, i) => (
                     <KeywordRow key={i} item={item} />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {response.newKeywords?.length > 0 && (
+              <section>
+                <div className="text-[10px] font-bold text-brand-500 dark:text-brand-400 uppercase tracking-widest mb-3">
+                  New This Period ({response.newKeywords.length})
+                </div>
+                <div className="space-y-3">
+                  {response.newKeywords.map((item, i) => (
+                    <div key={i} className="flex items-center justify-between group">
+                      <div className="flex-1 min-w-0 pr-4">
+                        <p className="text-sm font-medium text-surface-900 dark:text-white truncate group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">
+                          {item.keyword}
+                        </p>
+                        <p className="text-xs text-surface-500 dark:text-surface-400">
+                          #{item.currentPosition} · {item.clicks} clicks
+                        </p>
+                      </div>
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400">
+                        New
+                      </span>
+                    </div>
                   ))}
                 </div>
               </section>

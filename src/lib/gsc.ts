@@ -74,6 +74,75 @@ export async function getKeywordRankings(
 }
 
 /**
+ * Fetches queries matching a keyword filter with full metrics
+ */
+export async function getFilteredQueries(
+  propertyUrl: string,
+  startDate: string,
+  endDate: string,
+  filterExpression: string,
+  rowLimit = 100
+) {
+  try {
+    const res = await searchConsole.searchanalytics.query({
+      siteUrl: propertyUrl,
+      requestBody: {
+        startDate,
+        endDate,
+        dimensions: ['query'],
+        dimensionFilterGroups: [{
+          filters: [{
+            dimension: 'query',
+            operator: 'contains',
+            expression: filterExpression,
+          }],
+        }],
+        rowLimit,
+      },
+    });
+    const rows = res.data.rows || [];
+    return rows.sort((a, b) => (Number(b.clicks) || 0) - (Number(a.clicks) || 0));
+  } catch (error) {
+    console.error(`Error fetching filtered queries for ${propertyUrl}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Fetches daily time series for a specific query filter (for compare chart)
+ */
+export async function getQueryTimeSeries(
+  propertyUrl: string,
+  startDate: string,
+  endDate: string,
+  queryFilter: string
+) {
+  try {
+    const res = await searchConsole.searchanalytics.query({
+      siteUrl: propertyUrl,
+      requestBody: {
+        startDate,
+        endDate,
+        dimensions: ['date'],
+        dimensionFilterGroups: [{
+          filters: [{
+            dimension: 'query',
+            operator: 'contains',
+            expression: queryFilter,
+          }],
+        }],
+        rowLimit: 90,
+      },
+    });
+    const rows = res.data.rows || [];
+    return rows.sort((a: any, b: any) => a.keys[0].localeCompare(b.keys[0]));
+  } catch (error) {
+    console.error(`Error fetching query time series for ${propertyUrl}:`, error);
+    throw error;
+  }
+}
+
+/**
  * Fetches indexing status (indexed vs total) from Sitemaps API
  */
 export async function getIndexingStatus(propertyUrl: string) {

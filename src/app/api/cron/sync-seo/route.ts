@@ -8,34 +8,37 @@ const supabase = createClient(
 );
 
 export async function GET(req: NextRequest) {
-  // Security check: Verify Cron Secret if set, or just rely on service role
-  // const authHeader = req.headers.get('authorization');
-  // if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-  //   return new Response('Unauthorized', { status: 401 });
-  // }
+  const { searchParams } = new URL(req.url);
 
-  try {
-    console.log('🚀 Starting SEO Data Sync...');
-    
-    // GSC data is typically 2-3 days delayed; sync the last 3 days to be safe
-    const today = new Date();
-    const end = new Date(today);
-    end.setDate(today.getDate() - 2);
-    const start = new Date(today);
-    start.setDate(today.getDate() - 5);
+  // `days` controls the historical backfill window.
+  // Manual "Sync Now" passes days=30 to populate chart history.
+  // Cron jobs default to 5 days to catch GSC delay without over-fetching.
+  const days = Math.min(parseInt(searchParams.get('days') || '5'), 90);
 
-    const startStr = start.toISOString().split('T')[0];
-    const endStr = end.toISOString().split('T')[0];
+  const today = new Date();
+  // GSC data is typically 2 days delayed
+  const end = new Date(today);
+  end.setDate(today.getDate() - 2);
+  const start = new Date(today);
+  start.setDate(today.getDate() - days - 1);
 
-    const { data: clients, error: clientError } = await supabase.from('seo_clients').select('*');
-    if (clientError) throw clientError;
+  const startStr = start.toISOString().split('T')[0];
+  const endStr = end.toISOString().split('T')[0];
 
-    const results = [];
+  console.log(`SEO Sync: ${startStr} → ${endStr} (${days}-day window)`);
 
-    for (const client of clients) {
-      console.log(`  Syncing ${client.name}...`);
-      
-      // 1. Sync Site Metrics
+  const { data: clients, error: clientError } = await supabase.from('seo_clients').select('*');
+  if (clientError) {
+    return NextResponse.json({ success: false, error: clientError.message }, { status: 500 });
+  }
+
+  const results: any[] = [];
+
+  for (const client of clients) {
+    const clientResult: any = { client: client.name, status: 'ok', metricsCount: 0, keywordsCount: 0, error: null };
+
+    try {
+      // 1. Sync site metrics (fills the trend chart)
       const metrics = await getSiteMetrics(client.gsc_property_url, startStr, endStr);
       if (metrics.length > 0) {
         const snapshots = metrics.map((row: any) => ({
@@ -44,13 +47,13 @@ export async function GET(req: NextRequest) {
           clicks: Math.round(row.clicks),
           impressions: Math.round(row.impressions),
           ctr: row.ctr,
-          avg_position: row.position
+          avg_position: row.position,
         }));
-
         await supabase.from('seo_daily_snapshots').upsert(snapshots, { onConflict: 'client_id,date' });
+        clientResult.metricsCount = metrics.length;
       }
 
-      // 2. Sync Top Keywords for yesterday (endStr = today - 2, accounting for GSC 2-day delay)
+      // 2. Sync top keywords for the most recent available day (endStr)
       const keywords = await getKeywordRankings(client.gsc_property_url, endStr, endStr, 50);
       if (keywords.length > 0) {
         const kwRows = keywords.map((row: any) => ({
@@ -62,12 +65,11 @@ export async function GET(req: NextRequest) {
           impressions: Math.round(row.impressions),
           ctr: Math.round(row.ctr * 10000) / 10000,
         }));
-
         await supabase.from('seo_keyword_rankings').upsert(kwRows, { onConflict: 'client_id,date,keyword' });
-        console.log(`    Stored ${kwRows.length} keyword rankings for ${client.name} on ${endStr}`);
+        clientResult.keywordsCount = kwRows.length;
       }
 
-      // 3. Sync Indexing Status
+      // 3. Sync indexing status
       const indexing = await getIndexingStatus(client.gsc_property_url);
       if (indexing) {
         await supabase.from('seo_indexing').upsert({
@@ -75,11 +77,11 @@ export async function GET(req: NextRequest) {
           date: endStr,
           indexed_pages: indexing.indexed,
           not_indexed_pages: Math.max(0, indexing.submitted - indexing.indexed),
-          coverage_issues: { source: 'Sitemaps API' }
+          coverage_issues: { source: 'Sitemaps API' },
         }, { onConflict: 'client_id,date' });
       }
 
-      // 4. Generate Daily Overview (as specified in Phase 9)
+      // 4. Write daily report entry
       const { data: snapshot } = await supabase
         .from('seo_daily_snapshots')
         .select('*')
@@ -105,21 +107,19 @@ export async function GET(req: NextRequest) {
           impressions: snapshot?.impressions ?? 0,
           ctr: snapshot?.ctr ?? 0,
           avg_position: snapshot?.avg_position ?? 0,
-          top_keywords: topKeywords ?? []
-        }
+          top_keywords: topKeywords ?? [],
+        },
       }, { onConflict: 'client_id,report_type,period_start' });
 
-      results.push({
-        client: client.name,
-        metricsCount: metrics.length,
-        keywordsCount: keywords.length,
-        indexingStatus: indexing ? 'Success' : 'Failed'
-      });
+    } catch (err: any) {
+      console.error(`SEO Sync error for ${client.name}:`, err.message);
+      clientResult.status = 'error';
+      clientResult.error = err.message;
     }
 
-    return NextResponse.json({ success: true, results });
-  } catch (error: any) {
-    console.error('SEO Sync Error:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    results.push(clientResult);
   }
+
+  const anySuccess = results.some(r => r.status === 'ok');
+  return NextResponse.json({ success: anySuccess, results });
 }

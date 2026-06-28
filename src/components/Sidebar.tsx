@@ -27,6 +27,7 @@ import {
   Inbox,
   Flame,
   ShoppingBag,
+  Megaphone,
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { formatDistanceToNow } from 'date-fns';
@@ -57,6 +58,7 @@ const navItems = [
   { href: '/inbox', label: 'Task Inbox', icon: Inbox },
   { href: '/reels', label: 'Creative Intel', icon: Flame },
   { href: '/product-automation', label: 'Product Automation', icon: ShoppingBag },
+  { href: '/posting', label: 'Posting Automation', icon: Megaphone },
   { href: '/pipeline', label: 'Pipeline', icon: GitBranch },
   { href: '/seo', label: 'SEO', icon: Search },
   { href: '/templates', label: 'Templates', icon: LayoutTemplate },

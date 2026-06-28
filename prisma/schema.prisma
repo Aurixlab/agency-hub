@@ -22,6 +22,24 @@ enum Priority {
   NONE
 }
 
+enum PostingPlatform {
+  META
+}
+
+enum PostingPostStatus {
+  DRAFT
+  SCHEDULED
+  POSTING
+  POSTED
+  FAILED
+}
+
+enum PostingLogStatus {
+  POSTED
+  FAILED
+  RETRY
+}
+
 model User {
   id                 String    @id @default(cuid())
   username           String    @unique
@@ -46,6 +64,8 @@ model User {
   pipelines     Pipeline[]
   transcriptImports TranscriptImport[]
   productAutomationRuns ProductAutomationRun[]
+  postingAccounts PostingAccount[]
+  scheduledPosts ScheduledPost[]
 
   @@map("users")
 }
@@ -356,4 +376,67 @@ model ProductAutomationRun {
   @@index([status])
   @@index([createdAt])
   @@map("product_automation_runs")
+}
+
+model PostingAccount {
+  id                    String          @id @default(cuid())
+  createdBy             String          @map("created_by")
+  name                  String
+  platform              PostingPlatform @default(META)
+  pageId                String          @map("page_id")
+  accessTokenCiphertext String          @map("access_token_ciphertext")
+  accessTokenIv         String          @map("access_token_iv")
+  accessTokenTag        String          @map("access_token_tag")
+  tokenExpiresAt        DateTime?       @map("token_expires_at")
+  createdAt             DateTime        @default(now()) @map("created_at")
+  updatedAt             DateTime        @updatedAt @map("updated_at")
+
+  creator User @relation(fields: [createdBy], references: [id])
+  posts   ScheduledPost[]
+
+  @@index([createdBy])
+  @@map("posting_accounts")
+}
+
+model ScheduledPost {
+  id            String            @id @default(cuid())
+  accountId     String            @map("account_id")
+  createdBy     String            @map("created_by")
+  content       String
+  mediaUrls     Json              @default("[]") @map("media_urls")
+  scheduledTime DateTime?         @map("scheduled_time")
+  status        PostingPostStatus @default(DRAFT)
+  approvedAt    DateTime?         @map("approved_at")
+  postedAt      DateTime?         @map("posted_at")
+  failureReason String?           @map("failure_reason")
+  lockToken     String?           @map("lock_token")
+  lockedAt      DateTime?         @map("locked_at")
+  attemptCount  Int               @default(0) @map("attempt_count")
+  nextRetryAt   DateTime?         @map("next_retry_at")
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+
+  account PostingAccount    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  creator User              @relation(fields: [createdBy], references: [id])
+  logs    PostExecutionLog[]
+
+  @@index([accountId])
+  @@index([createdBy])
+  @@index([status, scheduledTime, nextRetryAt])
+  @@map("scheduled_posts")
+}
+
+model PostExecutionLog {
+  id              String           @id @default(cuid())
+  postId          String           @map("post_id")
+  attemptNumber   Int              @map("attempt_number")
+  status          PostingLogStatus
+  errorMessage    String?          @map("error_message")
+  responsePayload Json?            @map("response_payload")
+  createdAt       DateTime         @default(now()) @map("created_at")
+
+  post ScheduledPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
+  @@map("post_execution_logs")
 }

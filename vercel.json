@@ -16,10 +16,6 @@
     {
       "path": "/api/cron/monthly-report",
       "schedule": "0 11 1 * *"
-    },
-    {
-      "path": "/api/cron/publish-posts",
-      "schedule": "*/5 * * * *"
     }
   ]
 }

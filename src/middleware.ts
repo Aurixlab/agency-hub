@@ -12,9 +12,12 @@ export function middleware(request: NextRequest) {
   }
 
   if (pathname.startsWith('/api/cron')) {
-    const authHeader = request.headers.get('authorization');
     const cronSecret = process.env.CRON_SECRET;
-    const isAuthorizedCron = cronSecret && authHeader === `Bearer ${cronSecret}`;
+    const authHeader = request.headers.get('authorization');
+    const querySecret = request.nextUrl.searchParams.get('secret');
+    const isAuthorizedCron =
+      cronSecret &&
+      (authHeader === `Bearer ${cronSecret}` || querySecret === cronSecret);
 
     if (sessionToken || isAuthorizedCron) {
       return NextResponse.next();

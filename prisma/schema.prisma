@@ -64,6 +64,7 @@ model User {
   pipelines     Pipeline[]
   transcriptImports TranscriptImport[]
   productAutomationRuns ProductAutomationRun[]
+  importedShopifyProducts ImportedShopifyProduct[]
   postingAccounts PostingAccount[]
   scheduledPosts ScheduledPost[]
 
@@ -376,6 +377,44 @@ model ProductAutomationRun {
   @@index([status])
   @@index([createdAt])
   @@map("product_automation_runs")
+}
+
+// Compact local catalog cache for Product Automation. Shopify remains the source of truth;
+// media is stored as URLs and metadata only, never as binary files.
+model ImportedShopifyProduct {
+  id                 String   @id @default(cuid())
+  shopifyProductId   String   @unique @map("shopify_product_id")
+  legacyResourceId   String?  @map("legacy_resource_id")
+  handle             String?
+  title              String
+  vendor             String?
+  productType        String?  @map("product_type")
+  shopifyStatus      String?  @map("shopify_status")
+  templateSuffix     String?  @map("template_suffix")
+  tags               Json     @default("[]")
+  descriptionHtml    String   @default("") @map("description_html")
+  seoTitle           String?  @map("seo_title")
+  seoDescription     String?  @map("seo_description")
+  featuredImageUrl   String?  @map("featured_image_url")
+  variantCount       Int      @default(0) @map("variant_count")
+  imageCount         Int      @default(0) @map("image_count")
+  metafieldCount     Int      @default(0) @map("metafield_count")
+  snapshot           Json
+  snapshotBytes      Int      @map("snapshot_bytes")
+  sourceHash         String   @map("source_hash")
+  shopifyUpdatedAt   DateTime? @map("shopify_updated_at")
+  lastSyncedAt       DateTime @default(now()) @map("last_synced_at")
+  lastSyncedBy       String?  @map("last_synced_by")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  syncedBy User? @relation(fields: [lastSyncedBy], references: [id])
+
+  @@index([handle])
+  @@index([title])
+  @@index([shopifyStatus])
+  @@index([lastSyncedAt])
+  @@map("imported_shopify_products")
 }
 
 model PostingAccount {

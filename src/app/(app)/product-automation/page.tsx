@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   Check,
   CheckCircle2,
+  Database,
   ExternalLink,
   FileSpreadsheet,
   Loader2,
@@ -22,6 +23,7 @@ import type {
   ScrapedProductData,
   ShopifyPayload,
 } from '@/lib/product-automation/types';
+import { ImportedProductsSection } from '@/components/product-automation/ImportedProductsSection';
 
 interface ProductAutomationRun {
   id: string;
@@ -87,7 +89,7 @@ const hasAiCopyContent = (copy: AiProductCopy | null | undefined) =>
   || Boolean(copy?.customization_fit?.length);
 
 export default function ProductAutomationPage() {
-  const [mode, setMode] = useState<'table' | 'workspace'>('table');
+  const [mode, setMode] = useState<'table' | 'workspace' | 'imports'>('table');
   const [form, setForm] = useState(initialForm);
   const [runs, setRuns] = useState<ProductAutomationRun[]>([]);
   const [run, setRun] = useState<ProductAutomationRun | null>(null);
@@ -205,13 +207,21 @@ export default function ProductAutomationPage() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          {mode === 'workspace' ? <ShoppingBag className="w-6 h-6 text-brand-600" /> : <FileSpreadsheet className="w-6 h-6 text-brand-600" />}
+          {mode === 'workspace'
+            ? <ShoppingBag className="w-6 h-6 text-brand-600" />
+            : mode === 'imports'
+              ? <Database className="w-6 h-6 text-brand-600" />
+              : <FileSpreadsheet className="w-6 h-6 text-brand-600" />}
           <div>
             <h1 className="text-2xl font-bold text-surface-900 dark:text-white">
-              {mode === 'workspace' ? 'Create Product' : 'Product Automation'}
+              {mode === 'workspace' ? 'Create Product' : mode === 'imports' ? 'Imported Products' : 'Product Automation'}
             </h1>
             <p className="text-sm text-surface-500 dark:text-surface-400">
-              {mode === 'workspace' ? 'Build and review a Shopify draft product.' : 'Spreadsheet view of generated Shopify product drafts.'}
+              {mode === 'workspace'
+                ? 'Build and review a Shopify draft product.'
+                : mode === 'imports'
+                  ? 'Compact Shopify catalog snapshots, ready for bulk enrichment.'
+                  : 'Spreadsheet view of generated Shopify product drafts.'}
             </p>
           </div>
         </div>
@@ -219,8 +229,15 @@ export default function ProductAutomationPage() {
           <button onClick={backToProducts} className="btn-secondary">
             <ArrowLeft className="w-4 h-4" /> Go Back
           </button>
+        ) : mode === 'imports' ? (
+          <button onClick={() => setMode('table')} className="btn-secondary">
+            <ArrowLeft className="w-4 h-4" /> Product drafts
+          </button>
         ) : (
           <div className="flex flex-wrap gap-2">
+            <button onClick={() => setMode('imports')} className="btn-secondary">
+              <Database className="w-4 h-4" /> Imported Products
+            </button>
             <button onClick={fetchRuns} className="btn-secondary">
               <RefreshCw className="w-4 h-4" /> Refresh
             </button>
@@ -243,6 +260,8 @@ export default function ProductAutomationPage() {
 
       {mode === 'table' ? (
         <ProductsSpreadsheet runs={runs} onOpen={syncRun} onCreate={startNewProduct} />
+      ) : mode === 'imports' ? (
+        <ImportedProductsSection />
       ) : (
         <ProductWorkspace
           form={form}

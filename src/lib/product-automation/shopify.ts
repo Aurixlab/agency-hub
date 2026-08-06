@@ -20,7 +20,8 @@ async function shopifyGraphql<T>(
   endpoint: string,
   token: string,
   query: string,
-  variables: Record<string, unknown>
+  variables: Record<string, unknown>,
+  retryCount = 0
 ): Promise<T> {
   const response = await fetch(endpoint, {
     method: 'POST',
@@ -31,10 +32,27 @@ async function shopifyGraphql<T>(
     body: JSON.stringify({ query, variables }),
   });
 
-  if (!response.ok) throw new Error(`Shopify request failed (${response.status})`);
+  if (!response.ok) {
+    if (response.status === 429 && retryCount < 4) {
+      await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * 1500));
+      return shopifyGraphql<T>(endpoint, token, query, variables, retryCount + 1);
+    }
+    throw new Error('Shopify request failed (' + String(response.status) + ')');
+  }
 
   const result = await response.json();
   if (result.errors?.length) {
+    const throttled = result.errors.some((error: any) => error.extensions?.code === 'THROTTLED');
+    if (throttled && retryCount < 4) {
+      const cost = result.extensions?.cost;
+      const throttle = cost?.throttleStatus;
+      const requested = Number(cost?.requestedQueryCost || 100);
+      const available = Number(throttle?.currentlyAvailable || 0);
+      const restoreRate = Number(throttle?.restoreRate || 50);
+      const waitMs = Math.max(1000, Math.ceil(Math.max(requested - available, 50) / restoreRate * 1000));
+      await new Promise(resolve => setTimeout(resolve, waitMs));
+      return shopifyGraphql<T>(endpoint, token, query, variables, retryCount + 1);
+    }
     throw new Error(result.errors.map((error: any) => error.message).join('; '));
   }
 
@@ -257,7 +275,7 @@ async function verifyProductMetafields(
   // take a few seconds to expose those values through the product connection.
 }
 
-function shopifyConfig() {
+export function shopifyConfig() {
   const storeDomain = process.env.SHOPIFY_STORE_DOMAIN;
   const token = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
   const apiVersion = process.env.SHOPIFY_API_VERSION || '2025-01';
@@ -271,6 +289,13 @@ function shopifyConfig() {
     endpoint: `https://${cleanDomain}/admin/api/${apiVersion}/graphql.json`,
     token,
   };
+}
+
+// Shared server-only Admin API helper. Catalog import uses the same configured
+// Shopify connection as draft creation, so credentials never reach the browser.
+export async function shopifyAdminGraphql<T>(query: string, variables: Record<string, unknown> = {}) {
+  const { endpoint, token } = shopifyConfig();
+  return shopifyGraphql<T>(endpoint, token, query, variables);
 }
 
 async function resolvedMetafields(

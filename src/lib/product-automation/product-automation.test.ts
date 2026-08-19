@@ -9,7 +9,7 @@ import {
 } from './catalog-enrichment';
 import { composeShopifyPayload } from './payload';
 import { calculatePricing } from './pricing';
-import { buildShopifyVariantInput } from './shopify';
+import { buildShopifyVariantInput, matchIndustryCollectionIds } from './shopify';
 import { generateVariants } from './variants';
 
 test('calculates print and embroidery pricing tiers', () => {
@@ -115,6 +115,29 @@ test('places variant SKU inside inventoryItem for Shopify bulk input', () => {
     ],
   });
   assert.equal('sku' in input, false);
+});
+
+test('resolves an industry collection by title when its Shopify handle was renamed', () => {
+  const resolved = matchIndustryCollectionIds(['events', 'trades', 'non-profits'], [
+    { id: 'gid://shopify/Collection/1', handle: 'events', title: 'Events' },
+    { id: 'gid://shopify/Collection/2', handle: 'trade-workwear', title: 'Trades' },
+    { id: 'gid://shopify/Collection/3', handle: 'charities', title: 'Non-Profits' },
+  ]);
+
+  assert.deepEqual(resolved, {
+    events: 'gid://shopify/Collection/1',
+    trades: 'gid://shopify/Collection/2',
+    'non-profits': 'gid://shopify/Collection/3',
+  });
+});
+
+test('prefers an exact industry handle over a duplicate collection title', () => {
+  const resolved = matchIndustryCollectionIds(['trades'], [
+    { id: 'gid://shopify/Collection/title-match', handle: 'trade-workwear', title: 'Trades' },
+    { id: 'gid://shopify/Collection/handle-match', handle: 'trades', title: 'Trade Products' },
+  ]);
+
+  assert.equal(resolved.trades, 'gid://shopify/Collection/handle-match');
 });
 
 test('classifies approved catalog bulk ladder rules', () => {

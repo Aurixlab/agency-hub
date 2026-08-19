@@ -298,31 +298,84 @@ export async function shopifyAdminGraphql<T>(query: string, variables: Record<st
   return shopifyGraphql<T>(endpoint, token, query, variables);
 }
 
-export async function resolveShopifyCollectionIds(handles: string[]) {
-  const uniqueHandles = Array.from(new Set(handles.map(handle => handle.trim()).filter(Boolean)));
+type ShopifyCollectionCandidate = {
+  id: string;
+  handle: string;
+  title: string;
+};
+
+const INDUSTRY_COLLECTION_TITLES: Record<string, string> = {
+  events: 'Events',
+  trades: 'Trades',
+  camps: 'Camps',
+  schools: 'Schools',
+  sports: 'Sports',
+  'non-profits': 'Non-Profits',
+  restaurants: 'Restaurants',
+  corporates: 'Corporates',
+  retail: 'Retail',
+};
+
+const normalizeCollectionLabel = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+export function matchIndustryCollectionIds(
+  handles: string[],
+  collections: ShopifyCollectionCandidate[]
+) {
+  const uniqueHandles = Array.from(new Set(handles.map(handle => handle.trim().toLowerCase()).filter(Boolean)));
   const resolved: Record<string, string> = {};
-  const query = `
-    query ResolveCollectionByHandle($query: String!) {
-      collections(first: 10, query: $query) {
-        nodes {
-          id
-          handle
-          title
-        }
-      }
-    }
-  `;
 
   for (const handle of uniqueHandles) {
-    const data = await shopifyAdminGraphql<{
-      collections: { nodes: Array<{ id: string; handle: string; title: string }> };
-    }>(query, { query: `handle:${handle}` });
-    const collection = data.collections.nodes.find(item => item.handle === handle);
+    const exactHandleMatch = collections.find(item => item.handle.trim().toLowerCase() === handle);
+    const expectedTitle = INDUSTRY_COLLECTION_TITLES[handle] || handle.replace(/-/g, ' ');
+    const normalizedExpectedTitle = normalizeCollectionLabel(expectedTitle);
+    const titleMatch = collections.find(
+      item => normalizeCollectionLabel(item.title) === normalizedExpectedTitle
+    );
+    const collection = exactHandleMatch || titleMatch;
+
     if (!collection) throw new Error(`Shopify collection not found for industry: ${handle}`);
     resolved[handle] = collection.id;
   }
 
   return resolved;
+}
+
+export async function resolveShopifyCollectionIds(handles: string[]) {
+  const uniqueHandles = Array.from(new Set(handles.map(handle => handle.trim()).filter(Boolean)));
+  if (!uniqueHandles.length) return {};
+
+  const query = `
+    query ResolveIndustryCollections($after: String) {
+      collections(first: 250, after: $after) {
+        nodes {
+          id
+          handle
+          title
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }
+  `;
+  const collections: ShopifyCollectionCandidate[] = [];
+  type CollectionPageResult = {
+    collections: {
+      nodes: ShopifyCollectionCandidate[];
+      pageInfo: { hasNextPage: boolean; endCursor: string | null };
+    };
+  };
+  let after: string | null = null;
+
+  do {
+    const data: CollectionPageResult = await shopifyAdminGraphql<CollectionPageResult>(query, { after });
+    collections.push(...data.collections.nodes);
+    after = data.collections.pageInfo.hasNextPage ? data.collections.pageInfo.endCursor : null;
+  } while (after);
+
+  return matchIndustryCollectionIds(uniqueHandles, collections);
 }
 
 export async function fetchShopifyEnrichmentTarget(productId: string) {

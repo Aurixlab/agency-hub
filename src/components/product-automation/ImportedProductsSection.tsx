@@ -14,8 +14,10 @@ import {
   RefreshCw,
   Search,
   Shapes,
+  Sparkles,
   Tag,
 } from 'lucide-react';
+import { ATC1000_PILOT_PRODUCT_ID } from '@/lib/product-automation/catalog-enrichment';
 
 type ImportedProductSummary = {
   id: string;
@@ -59,6 +61,13 @@ type ShopifySyncResponse = {
   error?: string;
 };
 
+type PilotApplyResponse = {
+  message?: string;
+  productUrl?: string;
+  savedKeys?: string[];
+  error?: string;
+};
+
 const emptyStats: CatalogStats = {
   totalProducts: 0,
   storageBytes: 0,
@@ -98,6 +107,8 @@ export function ImportedProductsSection() {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<ImportedProductDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [pilotApplying, setPilotApplying] = useState(false);
+  const [pilotResult, setPilotResult] = useState<{ message: string; productUrl: string; savedCount: number } | null>(null);
 
   const loadProducts = useCallback(async (query = '') => {
     setLoading(true);
@@ -173,6 +184,33 @@ export function ImportedProductsSection() {
   const submitSearch = (event: FormEvent) => {
     event.preventDefault();
     loadProducts(search);
+  };
+
+  const applyAtc1000Pilot = async () => {
+    if (selected?.shopifyProductId !== ATC1000_PILOT_PRODUCT_ID) return;
+    if (!window.confirm('Apply the approved enrichment metafields to ATC 1000 Short Sleeve (Men) only?')) return;
+
+    setPilotApplying(true);
+    setPilotResult(null);
+    setError(null);
+    try {
+      const response = await fetch('/api/product-automation/imported-products/atc1000-pilot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmation: 'ATC1000-ONLY' }),
+      });
+      const payload: PilotApplyResponse = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Unable to apply the ATC1000 pilot');
+      setPilotResult({
+        message: payload.message || 'ATC1000 pilot saved to Shopify',
+        productUrl: payload.productUrl || '',
+        savedCount: payload.savedKeys?.length || 0,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to apply the ATC1000 pilot');
+    } finally {
+      setPilotApplying(false);
+    }
   };
 
   const tags = Array.isArray(selected?.tags) ? selected.tags : [];
@@ -317,6 +355,9 @@ export function ImportedProductsSection() {
             mediaNodes={mediaNodes}
             metafieldNodes={metafieldNodes}
             tags={tags}
+            pilotApplying={pilotApplying}
+            pilotResult={pilotResult}
+            onApplyPilot={applyAtc1000Pilot}
           />
         </aside>
       </div>
@@ -347,8 +388,22 @@ function ProductSnapshotPanel(props: {
   mediaNodes: unknown[];
   metafieldNodes: unknown[];
   tags: string[];
+  pilotApplying: boolean;
+  pilotResult: { message: string; productUrl: string; savedCount: number } | null;
+  onApplyPilot: () => void;
 }) {
-  const { product, loading, optionNodes, variantNodes, mediaNodes, metafieldNodes, tags } = props;
+  const {
+    product,
+    loading,
+    optionNodes,
+    variantNodes,
+    mediaNodes,
+    metafieldNodes,
+    tags,
+    pilotApplying,
+    pilotResult,
+    onApplyPilot,
+  } = props;
 
   if (loading) {
     return (
@@ -387,6 +442,35 @@ function ProductSnapshotPanel(props: {
       </div>
 
       <div className="space-y-5 p-5">
+        {product.shopifyProductId === ATC1000_PILOT_PRODUCT_ID && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/70 dark:bg-amber-950/20">
+            <p className="text-xs font-bold uppercase tracking-[0.12em] text-amber-800 dark:text-amber-300">ATC1000 enrichment pilot</p>
+            <p className="mt-1 text-xs leading-5 text-amber-700 dark:text-amber-200">
+              Applies only the approved new metafields to this product. Existing content, pricing, variants, tags, and size chart remain unchanged.
+            </p>
+            <button
+              type="button"
+              onClick={onApplyPilot}
+              disabled={pilotApplying}
+              className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-amber-400 px-3 text-sm font-bold text-surface-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {pilotApplying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {pilotApplying ? 'Applying to Shopify…' : 'Apply ATC1000 pilot to Shopify'}
+            </button>
+            {pilotResult && (
+              <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">
+                <p className="font-semibold">{pilotResult.message}</p>
+                <p className="mt-1">Saved {pilotResult.savedCount} metafields.</p>
+                {pilotResult.productUrl && (
+                  <a href={pilotResult.productUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block font-bold underline">
+                    Open product in Shopify
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         <SnapshotCounts
           variants={product.variantCount}
           media={product.imageCount}

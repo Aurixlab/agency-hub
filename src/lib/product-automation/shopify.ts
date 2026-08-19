@@ -298,6 +298,117 @@ export async function shopifyAdminGraphql<T>(query: string, variables: Record<st
   return shopifyGraphql<T>(endpoint, token, query, variables);
 }
 
+export async function resolveShopifyCollectionIds(handles: string[]) {
+  const uniqueHandles = Array.from(new Set(handles.map(handle => handle.trim()).filter(Boolean)));
+  const resolved: Record<string, string> = {};
+  const query = `
+    query ResolveCollectionByHandle($query: String!) {
+      collections(first: 10, query: $query) {
+        nodes {
+          id
+          handle
+          title
+        }
+      }
+    }
+  `;
+
+  for (const handle of uniqueHandles) {
+    const data = await shopifyAdminGraphql<{
+      collections: { nodes: Array<{ id: string; handle: string; title: string }> };
+    }>(query, { query: `handle:${handle}` });
+    const collection = data.collections.nodes.find(item => item.handle === handle);
+    if (!collection) throw new Error(`Shopify collection not found for industry: ${handle}`);
+    resolved[handle] = collection.id;
+  }
+
+  return resolved;
+}
+
+export async function fetchShopifyEnrichmentTarget(productId: string) {
+  const query = `
+    query ProductEnrichmentTarget($id: ID!) {
+      product(id: $id) {
+        id
+        title
+        handle
+        vendor
+        tags
+        updatedAt
+        metafields(first: 100, namespace: "custom") {
+          nodes {
+            namespace
+            key
+            type
+            value
+          }
+        }
+      }
+    }
+  `;
+  const data = await shopifyAdminGraphql<{
+    product: {
+      id: string;
+      title: string;
+      handle: string;
+      vendor: string;
+      tags: string[];
+      updatedAt: string;
+      metafields: { nodes: Array<{ namespace: string; key: string; type: string; value: string }> };
+    } | null;
+  }>(query, { id: productId });
+  if (!data.product) throw new Error('Shopify enrichment target was not found');
+  return data.product;
+}
+
+export async function setShopifyProductMetafieldsOnly(
+  productId: string,
+  requestedMetafields: ShopifyPayload['metafields']
+) {
+  const { cleanDomain, endpoint, token } = shopifyConfig();
+  const metafields = await alignMetafieldsWithDefinitions(endpoint, token, requestedMetafields);
+  const mutation = `
+    mutation SetProductEnrichmentMetafields($metafields: [MetafieldsSetInput!]!) {
+      metafieldsSet(metafields: $metafields) {
+        metafields {
+          namespace
+          key
+          type
+          value
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  `;
+  const result = await shopifyGraphql<{
+    metafieldsSet: {
+      metafields: Array<{ namespace: string; key: string; type: string; value: string }>;
+      userErrors: Array<{ field?: string[]; message: string; code?: string }>;
+    };
+  }>(endpoint, token, mutation, {
+    metafields: metafields.map(metafield => ({ ownerId: productId, ...metafield })),
+  });
+  const errors = result.metafieldsSet?.userErrors || [];
+  if (errors.length) throw new Error(errors.map(error => error.message).join('; '));
+
+  const saved = new Map((result.metafieldsSet?.metafields || []).map(item => [item.key, item.value]));
+  const missing = metafields
+    .filter(metafield => metafield.value !== '' && metafield.value !== '[]')
+    .filter(metafield => !saved.get(metafield.key))
+    .map(metafield => metafield.key);
+  if (missing.length) throw new Error(`Shopify did not save enrichment metafields: ${missing.join(', ')}`);
+
+  return {
+    productId,
+    productUrl: `https://${cleanDomain}/admin/products/${gidToAdminId(productId)}`,
+    metafields: result.metafieldsSet?.metafields || [],
+  };
+}
+
 async function resolvedMetafields(
   endpoint: string,
   token: string,

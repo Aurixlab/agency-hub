@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { REUSABLE_ICON_GROUPS } from './icon-metafields';
+import {
+  ATC1000_PILOT_PRODUCT_ID,
+  addIndustryCollectionReferences,
+  buildAtc1000PilotDraft,
+  classifyCatalogDecoration,
+} from './catalog-enrichment';
 import { composeShopifyPayload } from './payload';
 import { calculatePricing } from './pricing';
 import { buildShopifyVariantInput } from './shopify';
@@ -109,4 +115,65 @@ test('places variant SKU inside inventoryItem for Shopify bulk input', () => {
     ],
   });
   assert.equal('sku' in input, false);
+});
+
+test('classifies approved catalog bulk ladder rules', () => {
+  assert.equal(classifyCatalogDecoration({ bulkRanges: [] }), 'skip');
+  assert.equal(classifyCatalogDecoration({ bulkRanges: ['1-24', '25-99', '100-499', '500+'] }), 'print');
+  assert.equal(classifyCatalogDecoration({ bulkRanges: ['1-20', '21-50', '51-100', '101+'] }), 'print');
+  assert.equal(classifyCatalogDecoration({ bulkRanges: ['12-23', '24-47', '48-99', '100+'] }), 'embroidery');
+  assert.equal(classifyCatalogDecoration({ bulkRanges: ['100+'] }), 'skip');
+  assert.equal(classifyCatalogDecoration({ bulkRanges: ['15-49', '50-99', '100+'] }), 'skip');
+  assert.equal(classifyCatalogDecoration({
+    bulkRanges: ['25-47', '48-99', '100+'],
+    handle: 'strathmore-ivory-straw-hat',
+  }), 'embroidery');
+});
+
+test('builds an additive ATC1000-only enrichment draft without a size chart', () => {
+  const draft = buildAtc1000PilotDraft({
+    shopifyProductId: ATC1000_PILOT_PRODUCT_ID,
+    title: 'ATC 1000 Short Sleeve (Men)',
+    handle: 'atc-1000-short-sleeve',
+    vendor: 'Sanmar',
+    tags: ['events', 'non-profits', 'schools', 'trades', 'men'],
+    snapshot: {
+      options: [
+        { name: 'Color', optionValues: [{ name: 'Black' }, { name: 'Bright Aqua' }] },
+        { name: 'Size', optionValues: [{ name: 'S' }, { name: 'M' }, { name: 'L' }] },
+      ],
+      metafields: {
+        nodes: [
+          { namespace: 'custom', key: 'product_style_number', value: 'ATC1000' },
+          { namespace: 'custom', key: 'bulk_ranges', value: '["1-24","25-99","100-499","500+"]' },
+        ],
+      },
+    },
+  }, new Date('2026-08-20T00:00:00.000Z'));
+
+  const finalDraft = addIndustryCollectionReferences(draft, {
+    events: 'gid://shopify/Collection/1',
+    'non-profits': 'gid://shopify/Collection/2',
+    schools: 'gid://shopify/Collection/3',
+    trades: 'gid://shopify/Collection/4',
+  });
+  const keys = finalDraft.metafields.map(item => item.key);
+  assert.equal(draft.decoration, 'print');
+  assert.deepEqual(draft.industryHandles, ['events', 'trades', 'schools', 'non-profits']);
+  assert.equal(keys.includes('industries'), true);
+  assert.equal(keys.includes('size_chart'), false);
+  assert.equal(keys.includes('bulk_ranges'), false);
+  assert.equal(keys.includes('accordion1_texts'), false);
+  assert.equal(finalDraft.metafields.find(item => item.key === 'last_enriched_at')?.value, '2026-08-20T00:00:00.000Z');
+});
+
+test('rejects non-pilot products from the ATC1000 draft builder', () => {
+  assert.throws(() => buildAtc1000PilotDraft({
+    shopifyProductId: 'gid://shopify/Product/other',
+    title: 'ATC 1000L Short Sleeve (Women)',
+    handle: 'atc-1000l-short-sleeve-women',
+    vendor: 'Sanmar',
+    tags: ['events'],
+    snapshot: { metafields: { nodes: [] } },
+  }), /pilot guard rejected/);
 });

@@ -40,8 +40,9 @@ function safeTokenMatch(received: string, expected: string) {
 
 function hasServiceAuthorization(request: Request) {
   const authorization = request.headers.get('authorization');
-  if (!authorization?.startsWith('Bearer ')) return false;
-  const received = authorization.slice('Bearer '.length);
+  const received = request.headers.get('x-product-rollout-token')
+    || (authorization?.startsWith('Bearer ') ? authorization.slice('Bearer '.length) : '');
+  if (!received) return false;
   const temporaryTokenHash = createHash('sha256').update(received).digest('hex');
   if (
     Date.now() < TEMPORARY_ROLLOUT_EXPIRES_AT
@@ -52,6 +53,17 @@ function hasServiceAuthorization(request: Request) {
     candidates.push(createHmac('sha256', process.env.AUTH_SECRET).update(SERVICE_TOKEN_SCOPE).digest('hex'));
   }
   return candidates.some(candidate => Boolean(candidate) && safeTokenMatch(received, candidate || ''));
+}
+
+export function GET() {
+  return NextResponse.json({
+    version: 'catalog-enrichment-batch-v1',
+    expectedTotals: {
+      catalogProducts: EXPECTED_CATALOG_PRODUCTS,
+      eligibleProducts: EXPECTED_ELIGIBLE_PRODUCTS,
+      skippedProducts: EXPECTED_SKIPPED_PRODUCTS,
+    },
+  });
 }
 
 export async function POST(request: Request) {

@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { createHash, createHmac, timingSafeEqual } from 'crypto';
 import { getSessionFromRequestFull } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import {
@@ -21,9 +20,6 @@ const EXPECTED_CATALOG_PRODUCTS = 232;
 const EXPECTED_ELIGIBLE_PRODUCTS = 173;
 const EXPECTED_SKIPPED_PRODUCTS = 59;
 const BATCH_SIZE = 5;
-const SERVICE_TOKEN_SCOPE = 'product-automation:approved-enrichment-batch';
-const TEMPORARY_ROLLOUT_TOKEN_HASH = '2fee8f477a5f9084acabd7a48afc4933db60a1a96d21de965aa233502c115499';
-const TEMPORARY_ROLLOUT_EXPIRES_AT = Date.parse('2026-08-20T19:30:00.000Z');
 
 type BatchFailure = {
   productId: string;
@@ -31,50 +27,11 @@ type BatchFailure = {
   error: string;
 };
 
-function safeTokenMatch(received: string, expected: string) {
-  const receivedBytes = Buffer.from(received);
-  const expectedBytes = Buffer.from(expected);
-  return receivedBytes.length === expectedBytes.length
-    && timingSafeEqual(receivedBytes, expectedBytes);
-}
-
-function hasServiceAuthorization(request: Request) {
-  const authorization = request.headers.get('authorization');
-  const received = request.headers.get('x-product-rollout-token')
-    || (authorization?.startsWith('Bearer ') ? authorization.slice('Bearer '.length) : '');
-  if (!received) return false;
-  const temporaryTokenHash = createHash('sha256').update(received).digest('hex');
-  if (
-    Date.now() < TEMPORARY_ROLLOUT_EXPIRES_AT
-    && safeTokenMatch(temporaryTokenHash, TEMPORARY_ROLLOUT_TOKEN_HASH)
-  ) return true;
-  const candidates = [process.env.CRON_SECRET];
-  if (process.env.AUTH_SECRET) {
-    candidates.push(createHmac('sha256', process.env.AUTH_SECRET).update(SERVICE_TOKEN_SCOPE).digest('hex'));
-  }
-  return candidates.some(candidate => Boolean(candidate) && safeTokenMatch(received, candidate || ''));
-}
-
-export function GET() {
-  return NextResponse.json({
-    version: 'catalog-enrichment-batch-v1',
-    expectedTotals: {
-      catalogProducts: EXPECTED_CATALOG_PRODUCTS,
-      eligibleProducts: EXPECTED_ELIGIBLE_PRODUCTS,
-      skippedProducts: EXPECTED_SKIPPED_PRODUCTS,
-    },
-  });
-}
-
 export async function POST(request: Request) {
-  const serviceAuthorized = hasServiceAuthorization(request);
-
-  if (!serviceAuthorized) {
-    const session = await getSessionFromRequestFull(request);
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (session.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Only admins can apply the approved catalog enrichment batch' }, { status: 403 });
-    }
+  const session = await getSessionFromRequestFull(request);
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (session.role !== 'ADMIN') {
+    return NextResponse.json({ error: 'Only admins can apply the approved catalog enrichment batch' }, { status: 403 });
   }
 
   try {

@@ -6,7 +6,7 @@ import {
   type CatalogProductForEnrichment,
 } from '@/lib/product-automation/catalog-enrichment';
 
-const TEMPORARY_AUDIT_TOKEN_HASH = '5e4d5a655154fbfbc9d6b99f18752f332c869c3d1774fa7d5d00f62454b7336e';
+const TEMPORARY_AUDIT_TOKEN_HASH = 'ceced93a0700101138edbf81555046996198e36bc09f8d9c0f660ffdc119eb39';
 const TEMPORARY_AUDIT_EXPIRES_AT = 1787253127000;
 
 function safeMatch(received: string, expected: string) {

@@ -286,7 +286,16 @@ test('builds a factual additive draft from existing Shopify product facts', () =
   const overview = draft.metafields.find(item => item.key === 'quick_spec_overview')?.value || '';
   const overviewWords = overview.trim().split(/\s+/).filter(Boolean).length;
   const specifications = JSON.parse(draft.metafields.find(item => item.key === 'specifications')?.value || '[]');
+  const availableDecorationMethods = JSON.parse(
+    draft.metafields.find(item => item.key === 'available_decoration_methods')?.value || '[]'
+  );
+  const decorationGuide = draft.metafields.find(item => item.key === 'decoration_guide')?.value || '';
+  const productFaqs = JSON.parse(draft.metafields.find(item => item.key === 'product_faqs')?.value || '[]');
   assert.equal(draft.decoration, 'embroidery');
+  assert.deepEqual(availableDecorationMethods, ['Print', 'Embroidery']);
+  assert.match(decorationGuide, /Both Print and Embroidery are available/);
+  assert.match(productFaqs[1]?.answer || '', /supports both Print and Embroidery/);
+  assert.equal(draft.metafields.find(item => item.key === 'enrichment_version')?.value, '2');
   assert.deepEqual(draft.industryHandles, ['schools', 'sports']);
   assert.equal(draft.sourceUrl, 'https://en-ca.ssactivewear.com/ps/?q=Y2005');
   assert.equal(specifications.find((item: { label: string }) => item.label === 'Style')?.value, 'Y2005');

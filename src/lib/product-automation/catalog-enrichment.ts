@@ -119,6 +119,24 @@ const EMBROIDERY_OVERRIDE_HANDLES = new Set([
   'ladies-freestyle-sublimated-cap-sleeve-volleyball-jersey',
 ]);
 
+// Website Product.xlsx marks these product families as supporting both print
+// and embroidery. The list includes the women/youth child styles that are
+// present in Shopify; some child products intentionally repeat the parent
+// style metafield, so matching by style includes those records as well.
+const BOTH_DECORATION_STYLES = new Set([
+  'ATCF2500', 'ATCY2500', 'ATCF2100', '18500', '18500B', 'L00550',
+  'KOI2250', 'ATCF6500', 'F2005', 'Y2005', 'SF500', 'SF500B',
+  'DF7656', 'DF7656L', '3719', 'IND4000', '1379757', 'ATCF2600',
+  'ATCY2600', '18600', '18600B', 'KOI2052', 'F2018', 'L2018',
+  'NKFD9890', 'IND4000Z', 'ATCF2400', 'ATCY2400', '18000', '18000B',
+  'KOI2057', 'SS3000', 'ATCF2700', 'KOI2058', 'S4046', 'L4046',
+  'S4007', 'L4007', '88181', '78181', '88181Y', 'S445', 'L445',
+  'Y445', '1370399', '1370431', 'NKDC1963', 'NKDC1991', 'TT51L',
+  'TT51LW', '88192', '78192', 'S365LS', 'M348L', 'M348LW', 'DG20L',
+  'DG20LW', 'D110', 'D110W', 'NKDC2104', 'ATCF2800', 'ATCY2800',
+  'KOI2280', 'SF100', 'ATCF2875', 'J0760', 'L0760', 'WERK7645',
+]);
+
 // The user asked to keep these 17 regular products out of the batch until their
 // missing industry assignments have been reviewed. Keep this guard even if a
 // later catalog sync introduces an accidental tag.
@@ -285,6 +303,14 @@ function productStyle(product: CatalogProductForEnrichment) {
     || metafieldValue(product, 'custom', 'product_style_number').trim();
 }
 
+export function supportsBothCatalogDecorations(product: CatalogProductForEnrichment) {
+  const styles = [
+    terminalStyleFromTitle(product.title),
+    metafieldValue(product, 'custom', 'product_style_number').trim(),
+  ].map(style => style.toUpperCase()).filter(Boolean);
+  return styles.some(style => BOTH_DECORATION_STYLES.has(style));
+}
+
 function productCategory(product: CatalogProductForEnrichment) {
   const categories = parseList(metafieldValue(product, 'custom', 'sub_category'));
   return firstNonEmpty(categories) || product.title;
@@ -436,7 +462,11 @@ function genericOverview(product: CatalogProductForEnrichment) {
   return distinct(parts).join(' ');
 }
 
-function genericFaqs(product: CatalogProductForEnrichment, decoration: DecorationType) {
+function genericFaqs(
+  product: CatalogProductForEnrichment,
+  decoration: DecorationType,
+  supportsBoth: boolean
+) {
   const style = productStyle(product);
   const reference = style || product.title;
   const sizes = optionValues(product, 'Size').length
@@ -459,7 +489,9 @@ function genericFaqs(product: CatalogProductForEnrichment, decoration: Decoratio
     },
     {
       question: `What customization method is priced for ${reference}?`,
-      answer: `${reference} uses the ${decoration === 'print' ? 'Print' : 'Embroidery'} pricing ladder shown on this product.`,
+      answer: supportsBoth
+        ? `${reference} supports both Print and Embroidery. The ${decoration === 'print' ? 'Print' : 'Embroidery'} ladder shown on this product is the pricing basis for the current bulk tiers.`
+        : `${reference} uses the ${decoration === 'print' ? 'Print' : 'Embroidery'} pricing ladder shown on this product.`,
     },
     {
       question: `What is ${reference} made from and how should it be cared for?`,
@@ -482,6 +514,10 @@ export function buildCatalogEnrichmentDraft(
   }
 
   const decorationName = assessment.decoration === 'print' ? 'Print' : 'Embroidery';
+  const supportsBoth = supportsBothCatalogDecorations(product);
+  const availableDecorationMethods = supportsBoth
+    ? ['Print', 'Embroidery']
+    : [decorationName];
   const brand = metafieldValue(product, 'custom', 'brand').trim();
   const style = productStyle(product);
   const category = productCategory(product);
@@ -492,23 +528,27 @@ export function buildCatalogEnrichmentDraft(
     context: INDUSTRY_CONTEXT[handle]
       || `A versatile branded ${category.toLowerCase()} option for ${name.toLowerCase()} programs and teams.`,
   }));
-  const decorationGuide = assessment.decoration === 'print'
-    ? `This product uses Print pricing. Print is suited to logos, text, campaign artwork, and event graphics; the price tiers shown on the product determine the applicable bulk rate.`
-    : `This product uses Embroidery pricing. Embroidery gives logos and text a durable, professional finish; the price tiers shown on the product determine the applicable bulk rate.`;
+  const decorationGuide = supportsBoth
+    ? `Both Print and Embroidery are available for this product. The current bulk tiers use ${decorationName} pricing; print suits logos, text, campaign artwork, and event graphics, while embroidery provides a durable, professional finish.`
+    : assessment.decoration === 'print'
+      ? `This product uses Print pricing. Print is suited to logos, text, campaign artwork, and event graphics; the price tiers shown on the product determine the applicable bulk rate.`
+      : `This product uses Embroidery pricing. Embroidery gives logos and text a durable, professional finish; the price tiers shown on the product determine the applicable bulk rate.`;
   const metafields: ShopifyPayload['metafields'] = [
     textMetafield(
       'quick_spec_tagline',
-      `${product.title} prepared for custom ${assessment.decoration === 'print' ? 'printing' : 'embroidery'}.`
+      supportsBoth
+        ? `${product.title} prepared for custom printing and embroidery.`
+        : `${product.title} prepared for custom ${assessment.decoration === 'print' ? 'printing' : 'embroidery'}.`
     ),
     textMetafield('quick_spec_overview', genericOverview(product), 'multi_line_text_field'),
     jsonMetafield('specifications', genericSpecifications(product)),
     jsonMetafield('who_its_great_for', industryContexts),
     textMetafield('supplier_name', supplier),
     textMetafield('pricing_decoration_method', decorationName),
-    textMetafield('available_decoration_methods', JSON.stringify([decorationName]), 'list.single_line_text_field'),
+    textMetafield('available_decoration_methods', JSON.stringify(availableDecorationMethods), 'list.single_line_text_field'),
     textMetafield('decoration_guide', decorationGuide, 'multi_line_text_field'),
-    jsonMetafield('product_faqs', genericFaqs(product, assessment.decoration)),
-    textMetafield('enrichment_version', '1', 'number_integer'),
+    jsonMetafield('product_faqs', genericFaqs(product, assessment.decoration, supportsBoth)),
+    textMetafield('enrichment_version', supportsBoth ? '2' : '1', 'number_integer'),
     textMetafield('last_enriched_at', enrichedAt.toISOString(), 'date_time'),
   ];
   if (sourceUrl) {

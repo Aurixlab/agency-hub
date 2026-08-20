@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { createHmac, timingSafeEqual } from 'crypto';
 import { getSessionFromRequestFull } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import {
@@ -20,6 +21,7 @@ const EXPECTED_CATALOG_PRODUCTS = 232;
 const EXPECTED_ELIGIBLE_PRODUCTS = 173;
 const EXPECTED_SKIPPED_PRODUCTS = 59;
 const BATCH_SIZE = 5;
+const SERVICE_TOKEN_SCOPE = 'product-automation:approved-enrichment-batch';
 
 type BatchFailure = {
   productId: string;
@@ -27,13 +29,26 @@ type BatchFailure = {
   error: string;
 };
 
-export async function POST(request: Request) {
+function safeTokenMatch(received: string, expected: string) {
+  const receivedBytes = Buffer.from(received);
+  const expectedBytes = Buffer.from(expected);
+  return receivedBytes.length === expectedBytes.length
+    && timingSafeEqual(receivedBytes, expectedBytes);
+}
+
+function hasServiceAuthorization(request: Request) {
   const authorization = request.headers.get('authorization');
-  const serviceSecret = process.env.CRON_SECRET;
-  const serviceAuthorized = Boolean(
-    serviceSecret
-    && authorization === `Bearer ${serviceSecret}`
-  );
+  if (!authorization?.startsWith('Bearer ')) return false;
+  const received = authorization.slice('Bearer '.length);
+  const candidates = [process.env.CRON_SECRET];
+  if (process.env.AUTH_SECRET) {
+    candidates.push(createHmac('sha256', process.env.AUTH_SECRET).update(SERVICE_TOKEN_SCOPE).digest('hex'));
+  }
+  return candidates.some(candidate => Boolean(candidate) && safeTokenMatch(received, candidate || ''));
+}
+
+export async function POST(request: Request) {
+  const serviceAuthorized = hasServiceAuthorization(request);
 
   if (!serviceAuthorized) {
     const session = await getSessionFromRequestFull(request);

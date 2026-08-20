@@ -28,10 +28,19 @@ type BatchFailure = {
 };
 
 export async function POST(request: Request) {
-  const session = await getSessionFromRequestFull(request);
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (session.role !== 'ADMIN') {
-    return NextResponse.json({ error: 'Only admins can apply the approved catalog enrichment batch' }, { status: 403 });
+  const authorization = request.headers.get('authorization');
+  const serviceSecret = process.env.CRON_SECRET;
+  const serviceAuthorized = Boolean(
+    serviceSecret
+    && authorization === `Bearer ${serviceSecret}`
+  );
+
+  if (!serviceAuthorized) {
+    const session = await getSessionFromRequestFull(request);
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (session.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Only admins can apply the approved catalog enrichment batch' }, { status: 403 });
+    }
   }
 
   try {

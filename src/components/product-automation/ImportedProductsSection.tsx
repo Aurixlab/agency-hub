@@ -68,6 +68,24 @@ type PilotApplyResponse = {
   error?: string;
 };
 
+type BatchApplyResponse = {
+  totals?: {
+    catalogProducts: number;
+    eligibleProducts: number;
+    skippedProducts: number;
+  };
+  batch?: {
+    offset: number;
+    attempted: number;
+    succeeded: number;
+    failed: number;
+  };
+  failures?: Array<{ productId: string; title: string; error: string }>;
+  nextOffset?: number;
+  done?: boolean;
+  error?: string;
+};
+
 const emptyStats: CatalogStats = {
   totalProducts: 0,
   storageBytes: 0,
@@ -109,6 +127,9 @@ export function ImportedProductsSection() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [pilotApplying, setPilotApplying] = useState(false);
   const [pilotResult, setPilotResult] = useState<{ message: string; productUrl: string; savedCount: number } | null>(null);
+  const [batchApplying, setBatchApplying] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<{ attempted: number; eligible: number } | null>(null);
+  const [batchResult, setBatchResult] = useState<{ succeeded: number; failed: number; skipped: number } | null>(null);
 
   const loadProducts = useCallback(async (query = '') => {
     setLoading(true);
@@ -213,6 +234,59 @@ export function ImportedProductsSection() {
     }
   };
 
+  const applyApprovedBatch = async () => {
+    if (!window.confirm('Apply the audited enrichment metafields to 173 eligible Shopify products? The 59 approved skips and all existing product content will remain unchanged.')) return;
+
+    setBatchApplying(true);
+    setBatchResult(null);
+    setBatchProgress({ attempted: 0, eligible: 173 });
+    setError(null);
+
+    let offset = 0;
+    let succeeded = 0;
+    const failures: NonNullable<BatchApplyResponse['failures']> = [];
+    let skipped = 59;
+
+    try {
+      while (true) {
+        const response = await fetch('/api/product-automation/imported-products/enrichment-batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            confirmation: 'APPLY-173-APPROVED-PRODUCTS',
+            offset,
+          }),
+        });
+        const payload: BatchApplyResponse = await response.json();
+        if (!response.ok) throw new Error(payload.error || 'Unable to apply the approved catalog batch');
+        if (!payload.batch || typeof payload.nextOffset !== 'number') {
+          throw new Error('The catalog batch returned an incomplete response');
+        }
+
+        succeeded += payload.batch.succeeded;
+        failures.push(...(payload.failures || []));
+        skipped = payload.totals?.skippedProducts ?? skipped;
+        offset = payload.nextOffset;
+        setBatchProgress({ attempted: offset, eligible: payload.totals?.eligibleProducts ?? 173 });
+
+        if (payload.batch.attempted > 0 && payload.batch.succeeded === 0) {
+          throw new Error(payload.failures?.[0]?.error || 'Shopify rejected an entire enrichment batch');
+        }
+        if (payload.done) break;
+      }
+
+      setBatchResult({ succeeded, failed: failures.length, skipped });
+      if (failures.length) {
+        setError(`${failures.length} product${failures.length === 1 ? '' : 's'} could not be enriched. First failure: ${failures[0].title} — ${failures[0].error}`);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to apply the approved catalog batch');
+      setBatchResult({ succeeded, failed: failures.length, skipped });
+    } finally {
+      setBatchApplying(false);
+    }
+  };
+
   const tags = Array.isArray(selected?.tags) ? selected.tags : [];
   const optionNodes = selected && Array.isArray(selected.snapshot.options) ? selected.snapshot.options : [];
   const variantNodes = selected ? nodesFrom(selected.snapshot, 'variants') : [];
@@ -264,6 +338,34 @@ export function ImportedProductsSection() {
           {error}
         </div>
       )}
+
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/70 dark:bg-amber-950/20 sm:flex sm:items-center sm:justify-between sm:gap-5">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-amber-800 dark:text-amber-300">Approved catalog enrichment</p>
+          <p className="mt-1 text-sm leading-6 text-amber-800 dark:text-amber-200">
+            Applies the tested additive metafields to 173 eligible products. The 59 approved skips, existing descriptions, pricing, variants, tags, accordions, and size charts remain unchanged.
+          </p>
+          {batchProgress && (
+            <p className="mt-2 text-xs font-semibold text-amber-900 dark:text-amber-100">
+              Processed {batchProgress.attempted} of {batchProgress.eligible} eligible products.
+            </p>
+          )}
+          {batchResult && (
+            <p className="mt-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+              Saved {batchResult.succeeded}; failed {batchResult.failed}; deliberately skipped {batchResult.skipped}.
+            </p>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={applyApprovedBatch}
+          disabled={batchApplying || syncing}
+          className="mt-3 inline-flex min-h-11 flex-none items-center justify-center gap-2 rounded-lg bg-amber-400 px-4 text-sm font-bold text-surface-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60 sm:mt-0"
+        >
+          {batchApplying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+          {batchApplying ? 'Applying approved batch…' : 'Apply approved batch'}
+        </button>
+      </div>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="min-w-0 overflow-hidden rounded-2xl border border-surface-200 bg-white dark:border-surface-800 dark:bg-surface-900">

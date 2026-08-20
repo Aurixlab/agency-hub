@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { shopifyAdminGraphql } from './shopify';
+import type { CatalogProductForEnrichment } from './catalog-enrichment';
 
 type PageInfo = {
   hasNextPage: boolean;
@@ -275,4 +276,75 @@ export async function fetchShopifyCatalogPage(after?: string | null, first = 3):
   }
 
   return { products, pageInfo: data.products.pageInfo };
+}
+
+// Lightweight read-only catalog fetch for enrichment previews. It deliberately
+// excludes descriptions, variants, inventory, media, and pricing, and requests
+// only the product data needed to build the additive metafield drafts.
+export async function fetchShopifyEnrichmentCatalog(): Promise<CatalogProductForEnrichment[]> {
+  const query = `
+    query ProductEnrichmentCatalog($after: String) {
+      products(first: 10, after: $after, sortKey: TITLE) {
+        nodes {
+          id
+          title
+          handle
+          vendor
+          tags
+          options {
+            name
+            optionValues {
+              name
+            }
+          }
+          metafields(first: 50, namespace: "custom") {
+            nodes {
+              namespace
+              key
+              value
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }
+  `;
+  type EnrichmentNode = {
+    id: string;
+    title: string;
+    handle: string | null;
+    vendor: string | null;
+    tags: string[];
+    options: Array<{ name: string; optionValues: Array<{ name: string }> }>;
+    metafields: { nodes: Array<{ namespace: string; key: string; value: string }> };
+  };
+  type EnrichmentPage = {
+    products: {
+      nodes: EnrichmentNode[];
+      pageInfo: PageInfo;
+    };
+  };
+
+  const products: CatalogProductForEnrichment[] = [];
+  let after: string | null = null;
+  do {
+    const data: EnrichmentPage = await shopifyAdminGraphql<EnrichmentPage>(query, { after });
+    products.push(...data.products.nodes.map(product => ({
+      shopifyProductId: product.id,
+      title: product.title,
+      handle: product.handle,
+      vendor: product.vendor,
+      tags: product.tags,
+      snapshot: {
+        options: product.options,
+        metafields: product.metafields,
+      },
+    })));
+    after = data.products.pageInfo.hasNextPage ? data.products.pageInfo.endCursor : null;
+  } while (after);
+
+  return products;
 }

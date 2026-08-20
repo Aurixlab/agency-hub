@@ -4,7 +4,9 @@ import { REUSABLE_ICON_GROUPS } from './icon-metafields';
 import {
   ATC1000_PILOT_PRODUCT_ID,
   addIndustryCollectionReferences,
+  assessCatalogProductForEnrichment,
   buildAtc1000PilotDraft,
+  buildCatalogEnrichmentDraft,
   classifyCatalogDecoration,
 } from './catalog-enrichment';
 import { composeShopifyPayload } from './payload';
@@ -199,4 +201,132 @@ test('rejects non-pilot products from the ATC1000 draft builder', () => {
     tags: ['events'],
     snapshot: { metafields: { nodes: [] } },
   }), /pilot guard rejected/);
+});
+
+test('applies all approved catalog skip guards before batch enrichment', () => {
+  const product = (overrides: Record<string, unknown> = {}) => ({
+    shopifyProductId: 'gid://shopify/Product/test',
+    title: 'Eligible Product - TEST100',
+    handle: 'eligible-product-test100',
+    vendor: 'S&S',
+    tags: ['events'],
+    snapshot: {
+      metafields: {
+        nodes: [
+          { namespace: 'custom', key: 'bulk_ranges', value: '["1-24","25-99","100-499","500+"]' },
+        ],
+      },
+    },
+    ...overrides,
+  });
+
+  assert.deepEqual(assessCatalogProductForEnrichment(product()).status, 'eligible');
+  assert.deepEqual(assessCatalogProductForEnrichment(product({ handle: 'new-sameday-demo-t-shirt' })), {
+    status: 'skip',
+    reason: 'deferred_missing_industry_review',
+    bulkRanges: ['1-24', '25-99', '100-499', '500+'],
+    industryHandles: ['events'],
+  });
+  assert.equal(assessCatalogProductForEnrichment(product({ title: 'World Cup Team Product' })).status, 'skip');
+  assert.equal(assessCatalogProductForEnrichment(product({ title: 'Executive Golf Package' })).status, 'skip');
+  assert.equal(assessCatalogProductForEnrichment(product({ tags: [] })).status, 'skip');
+  assert.equal(assessCatalogProductForEnrichment(product({
+    snapshot: { metafields: { nodes: [] } },
+  })).status, 'skip');
+});
+
+test('keeps the six approved jersey overrides eligible as embroidery', () => {
+  const assessment = assessCatalogProductForEnrichment({
+    shopifyProductId: 'gid://shopify/Product/jersey',
+    title: 'Ladies Freestyle Sublimated Volleyball Jersey',
+    handle: 'test-product-copy',
+    vendor: 'Momentec Brands',
+    tags: ['sports', 'women'],
+    snapshot: {
+      metafields: {
+        nodes: [
+          { namespace: 'custom', key: 'bulk_ranges', value: '["12-47","48-71","72-149","150+"]' },
+        ],
+      },
+    },
+  });
+
+  assert.equal(assessment.status, 'eligible');
+  assert.equal(assessment.status === 'eligible' ? assessment.decoration : null, 'embroidery');
+});
+
+test('builds a factual additive draft from existing Shopify product facts', () => {
+  const draft = buildCatalogEnrichmentDraft({
+    shopifyProductId: 'gid://shopify/Product/generic',
+    title: 'Game Day Jersey - Y2005',
+    handle: 'game-day-jersey-y2005',
+    vendor: 'S&S',
+    tags: ['sports', 'schools'],
+    snapshot: {
+      options: [
+        { name: 'Color', optionValues: [{ name: 'Black' }, { name: 'Navy' }] },
+        { name: 'Size', optionValues: [{ name: 'S' }, { name: 'M' }] },
+      ],
+      metafields: {
+        nodes: [
+          { namespace: 'custom', key: 'bulk_ranges', value: '["12-23","24-47","48-99","100+"]' },
+          { namespace: 'custom', key: 'product_style_number', value: 'F2005' },
+          { namespace: 'custom', key: 'brand', value: 'Augusta Sportswear' },
+          { namespace: 'custom', key: 'quality', value: 'Premium' },
+          { namespace: 'custom', key: 'sub_category', value: '["Jerseys"]' },
+          { namespace: 'custom', key: 'accordion1_texts', value: '["Lightweight performance knit.","Reinforced seams for team use."]' },
+          { namespace: 'custom', key: 'accordion3_texts', value: '["100% polyester","Machine wash cold; tumble dry low"]' },
+          { namespace: 'custom', key: 'accordion4_texts', value: '["Athletic fit for movement."]' },
+        ],
+      },
+    },
+  }, new Date('2026-08-20T00:00:00.000Z'));
+
+  const keys = draft.metafields.map(item => item.key);
+  const overview = draft.metafields.find(item => item.key === 'quick_spec_overview')?.value || '';
+  const overviewWords = overview.trim().split(/\s+/).filter(Boolean).length;
+  const specifications = JSON.parse(draft.metafields.find(item => item.key === 'specifications')?.value || '[]');
+  assert.equal(draft.decoration, 'embroidery');
+  assert.deepEqual(draft.industryHandles, ['schools', 'sports']);
+  assert.equal(draft.sourceUrl, 'https://en-ca.ssactivewear.com/ps/?q=Y2005');
+  assert.equal(specifications.find((item: { label: string }) => item.label === 'Style')?.value, 'Y2005');
+  assert.equal(specifications.find((item: { label: string }) => item.label === 'Fabric / material')?.value, '100% polyester');
+  assert.equal(keys.includes('size_chart'), false);
+  assert.equal(keys.includes('bulk_ranges'), false);
+  assert.equal(keys.includes('accordion1_texts'), false);
+  assert.equal(keys.includes('supplier_product_url'), true);
+  assert.equal(overviewWords >= 50 && overviewWords <= 70, true);
+  assert.equal(draft.metafields.find(item => item.key === 'last_enriched_at')?.value, '2026-08-20T00:00:00.000Z');
+});
+
+test('uses verified SanMar PDF exceptions and omits an unverified new-style PDF', () => {
+  const product = (style: string) => ({
+    shopifyProductId: `gid://shopify/Product/${style}`,
+    title: `ATC Product. ${style}`,
+    handle: `atc-product-${style.toLowerCase()}`,
+    vendor: 'Sanmar',
+    tags: ['events'],
+    snapshot: {
+      options: [
+        { name: 'Color', optionValues: [{ name: 'Black' }] },
+        { name: 'Size', optionValues: [{ name: 'M' }] },
+      ],
+      metafields: {
+        nodes: [
+          { namespace: 'custom', key: 'brand', value: 'ATC' },
+          { namespace: 'custom', key: 'product_style_number', value: style },
+          { namespace: 'custom', key: 'bulk_ranges', value: '["1-24","25-99","100-499","500+"]' },
+          { namespace: 'custom', key: 'accordion1_texts', value: '["Durable everyday construction with reinforced seams."]' },
+          { namespace: 'custom', key: 'accordion3_texts', value: '["Cotton/polyester blend","Machine wash cold"]' },
+          { namespace: 'custom', key: 'accordion4_texts', value: '["Classic fit"]' },
+        ],
+      },
+    },
+  });
+
+  assert.equal(
+    buildCatalogEnrichmentDraft(product('ATCF2500')).sourceUrl,
+    'https://media.sanmarcanada.com/pdfs/ATCF2500.pdf'
+  );
+  assert.equal(buildCatalogEnrichmentDraft(product('ATCF6500')).sourceUrl, null);
 });

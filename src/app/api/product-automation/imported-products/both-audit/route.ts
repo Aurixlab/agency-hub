@@ -162,6 +162,13 @@ export async function POST(request: Request) {
         throw new Error('Workbook Both override was not present in the generated draft');
       }
       const result = await setShopifyProductMetafieldsOnly(product.shopifyProductId, correctionMetafields);
+      const saved = new Map(result.metafields.map(item => [item.key, item.value]));
+      if (saved.get('available_decoration_methods') !== JSON.stringify(['Print', 'Embroidery'])) {
+        throw new Error('Shopify did not return the expected Both decoration availability');
+      }
+      if (saved.get('enrichment_version') !== '2') {
+        throw new Error('Shopify did not return enrichment version 2');
+      }
       succeeded.push({
         productId: product.shopifyProductId,
         title: product.title,

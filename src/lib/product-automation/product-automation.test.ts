@@ -183,12 +183,22 @@ test('builds an additive ATC1000-only enrichment draft without a size chart', ()
     trades: 'gid://shopify/Collection/4',
   });
   const keys = finalDraft.metafields.map(item => item.key);
+  const features = JSON.parse(draft.metafields.find(item => item.key === 'accordion1_texts')?.value || '[]');
+  const specifications = JSON.parse(draft.metafields.find(item => item.key === 'specifications')?.value || '[]');
+  const productFaqs = JSON.parse(draft.metafields.find(item => item.key === 'product_faqs')?.value || '[]');
+  const overview = draft.metafields.find(item => item.key === 'quick_spec_overview')?.value || '';
+  const overviewWords = overview.trim().split(/\s+/).filter(Boolean).length;
   assert.equal(draft.decoration, 'print');
   assert.deepEqual(draft.industryHandles, ['events', 'trades', 'schools', 'non-profits']);
   assert.equal(keys.includes('industries'), true);
   assert.equal(keys.includes('size_chart'), false);
   assert.equal(keys.includes('bulk_ranges'), false);
-  assert.equal(keys.includes('accordion1_texts'), false);
+  assert.equal(keys.includes('accordion1_texts'), true);
+  assert.equal(features.length, 8);
+  assert.equal(specifications.length, 5);
+  assert.equal(productFaqs.length, 3);
+  assert.equal(overviewWords >= 50 && overviewWords <= 70, true);
+  assert.equal(draft.metafields.find(item => item.key === 'enrichment_version')?.value, '3');
   assert.equal(finalDraft.metafields.find(item => item.key === 'last_enriched_at')?.value, '2026-08-20T00:00:00.000Z');
 });
 
@@ -295,14 +305,16 @@ test('builds a factual additive draft from existing Shopify product facts', () =
   assert.deepEqual(availableDecorationMethods, ['Print', 'Embroidery']);
   assert.match(decorationGuide, /Both Print and Embroidery are available/);
   assert.match(productFaqs[1]?.answer || '', /supports both Print and Embroidery/);
-  assert.equal(draft.metafields.find(item => item.key === 'enrichment_version')?.value, '2');
+  assert.equal(draft.metafields.find(item => item.key === 'enrichment_version')?.value, '3');
   assert.deepEqual(draft.industryHandles, ['schools', 'sports']);
   assert.equal(draft.sourceUrl, 'https://en-ca.ssactivewear.com/ps/?q=Y2005');
-  assert.equal(specifications.find((item: { label: string }) => item.label === 'Style')?.value, 'Y2005');
-  assert.equal(specifications.find((item: { label: string }) => item.label === 'Fabric / material')?.value, '100% polyester');
+  assert.equal(specifications.find((item: { label: string }) => item.label === 'Style / SKU')?.value, 'Y2005');
+  assert.equal(specifications.find((item: { label: string }) => item.label === 'Fabric / material'), undefined);
+  assert.equal(specifications.length, 5);
+  assert.equal(productFaqs.length, 3);
   assert.equal(keys.includes('size_chart'), false);
   assert.equal(keys.includes('bulk_ranges'), false);
-  assert.equal(keys.includes('accordion1_texts'), false);
+  assert.equal(keys.includes('accordion1_texts'), true);
   assert.equal(keys.includes('supplier_product_url'), true);
   assert.equal(overviewWords >= 50 && overviewWords <= 70, true);
   assert.equal(draft.metafields.find(item => item.key === 'last_enriched_at')?.value, '2026-08-20T00:00:00.000Z');

@@ -21,6 +21,11 @@ export async function POST(request: Request) {
   if (session.role !== 'ADMIN') {
     return NextResponse.json({ error: 'Only admins can apply the ATC1000 pilot' }, { status: 403 });
   }
+  if (process.env.PRODUCT_ENRICHMENT_SHOPIFY_WRITES_ENABLED !== 'true') {
+    return NextResponse.json({
+      error: 'Shopify enrichment writes are locked while the new content is under review',
+    }, { status: 423 });
+  }
 
   try {
     const body = await request.json().catch(() => ({}));

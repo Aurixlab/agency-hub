@@ -1,6 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
 import {
-  ATC1000_PILOT_PRODUCT_ID,
   assessCatalogProductForEnrichment,
   buildCatalogEnrichmentDraft,
   type CatalogProductForEnrichment,
@@ -9,6 +8,7 @@ import {
 import { fetchShopifyEnrichmentCatalog } from '../src/lib/product-automation/shopify-catalog';
 
 const APPROVED_KEYS = new Set([
+  'accordion1_texts',
   'quick_spec_tagline',
   'quick_spec_overview',
   'specifications',
@@ -87,6 +87,7 @@ async function main() {
   const errors: Array<{ title: string; message: string }> = [];
   const overviewOutsideTarget: Array<{ title: string; words: number }> = [];
   const specificationsUnderFive: Array<{ title: string; specifications: number }> = [];
+  const featureCountIssues: Array<{ title: string; features: number }> = [];
   const faqCountIssues: Array<{ title: string; faqs: number }> = [];
   const missingSupplierUrlTitles: string[] = [];
   let withSupplierUrl = 0;
@@ -116,18 +117,25 @@ async function main() {
       const metafieldsByKey = new Map(draft.metafields.map(item => [item.key, item.value]));
       const overview = metafieldsByKey.get('quick_spec_overview') || '';
       const overviewWords = overview.trim().split(/\s+/).filter(Boolean).length;
-      if (product.shopifyProductId !== ATC1000_PILOT_PRODUCT_ID && (overviewWords < 50 || overviewWords > 70)) {
+      if (overviewWords < 50 || overviewWords > 70) {
         overviewOutsideTarget.push({ title: product.title, words: overviewWords });
       }
+      const features = JSON.parse(metafieldsByKey.get('accordion1_texts') || '[]');
+      if (!Array.isArray(features) || features.length < 7 || features.length > 9) {
+        featureCountIssues.push({
+          title: product.title,
+          features: Array.isArray(features) ? features.length : 0,
+        });
+      }
       const specifications = JSON.parse(metafieldsByKey.get('specifications') || '[]');
-      if (!Array.isArray(specifications) || specifications.length < 5) {
+      if (!Array.isArray(specifications) || specifications.length < 4 || specifications.length > 5) {
         specificationsUnderFive.push({
           title: product.title,
           specifications: Array.isArray(specifications) ? specifications.length : 0,
         });
       }
       const faqs = JSON.parse(metafieldsByKey.get('product_faqs') || '[]');
-      if (!Array.isArray(faqs) || faqs.length < 3 || faqs.length > 4) {
+      if (!Array.isArray(faqs) || faqs.length !== 3) {
         faqCountIssues.push({ title: product.title, faqs: Array.isArray(faqs) ? faqs.length : 0 });
       }
       eligibleProducts.push({
@@ -161,6 +169,7 @@ async function main() {
     skipReasons,
     contentQuality: {
       overviewOutsideTarget,
+      featureCountIssues,
       specificationsUnderFive,
       faqCountIssues,
       missingSupplierUrlTitles,

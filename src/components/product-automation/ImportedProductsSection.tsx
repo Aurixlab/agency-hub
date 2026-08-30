@@ -14,10 +14,24 @@ import {
   RefreshCw,
   Search,
   Shapes,
-  Sparkles,
+  ShieldCheck,
   Tag,
 } from 'lucide-react';
-import { ATC1000_PILOT_PRODUCT_ID } from '@/lib/product-automation/catalog-enrichment';
+
+type EnrichmentMetafield = {
+  namespace: string;
+  key: string;
+  type: string;
+  value: string;
+};
+
+type EnrichmentPreview = {
+  status: 'eligible' | 'skip' | 'error';
+  reason?: string;
+  decoration?: string;
+  industryHandles: string[];
+  metafields: EnrichmentMetafield[];
+};
 
 type ImportedProductSummary = {
   id: string;
@@ -46,6 +60,7 @@ type ImportedProductDetail = ImportedProductSummary & {
   sourceHash: string;
   snapshot: Record<string, unknown>;
   syncedBy: { id: string; name: string; username: string } | null;
+  enrichmentPreview: EnrichmentPreview;
 };
 
 type CatalogStats = {
@@ -58,31 +73,6 @@ type ShopifySyncResponse = {
   synced?: number;
   hasNextPage?: boolean;
   nextCursor?: string | null;
-  error?: string;
-};
-
-type PilotApplyResponse = {
-  message?: string;
-  productUrl?: string;
-  savedKeys?: string[];
-  error?: string;
-};
-
-type BatchApplyResponse = {
-  totals?: {
-    catalogProducts: number;
-    eligibleProducts: number;
-    skippedProducts: number;
-  };
-  batch?: {
-    offset: number;
-    attempted: number;
-    succeeded: number;
-    failed: number;
-  };
-  failures?: Array<{ productId: string; title: string; error: string }>;
-  nextOffset?: number;
-  done?: boolean;
   error?: string;
 };
 
@@ -125,11 +115,6 @@ export function ImportedProductsSection() {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<ImportedProductDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [pilotApplying, setPilotApplying] = useState(false);
-  const [pilotResult, setPilotResult] = useState<{ message: string; productUrl: string; savedCount: number } | null>(null);
-  const [batchApplying, setBatchApplying] = useState(false);
-  const [batchProgress, setBatchProgress] = useState<{ attempted: number; eligible: number } | null>(null);
-  const [batchResult, setBatchResult] = useState<{ succeeded: number; failed: number; skipped: number } | null>(null);
 
   const loadProducts = useCallback(async (query = '') => {
     setLoading(true);
@@ -207,86 +192,6 @@ export function ImportedProductsSection() {
     loadProducts(search);
   };
 
-  const applyAtc1000Pilot = async () => {
-    if (selected?.shopifyProductId !== ATC1000_PILOT_PRODUCT_ID) return;
-    if (!window.confirm('Apply the approved enrichment metafields to ATC 1000 Short Sleeve (Men) only?')) return;
-
-    setPilotApplying(true);
-    setPilotResult(null);
-    setError(null);
-    try {
-      const response = await fetch('/api/product-automation/imported-products/atc1000-pilot', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ confirmation: 'ATC1000-ONLY' }),
-      });
-      const payload: PilotApplyResponse = await response.json();
-      if (!response.ok) throw new Error(payload.error || 'Unable to apply the ATC1000 pilot');
-      setPilotResult({
-        message: payload.message || 'ATC1000 pilot saved to Shopify',
-        productUrl: payload.productUrl || '',
-        savedCount: payload.savedKeys?.length || 0,
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to apply the ATC1000 pilot');
-    } finally {
-      setPilotApplying(false);
-    }
-  };
-
-  const applyApprovedBatch = async () => {
-    if (!window.confirm('Apply the audited enrichment metafields to 173 eligible Shopify products? The 59 approved skips and all existing product content will remain unchanged.')) return;
-
-    setBatchApplying(true);
-    setBatchResult(null);
-    setBatchProgress({ attempted: 0, eligible: 173 });
-    setError(null);
-
-    let offset = 0;
-    let succeeded = 0;
-    const failures: NonNullable<BatchApplyResponse['failures']> = [];
-    let skipped = 59;
-
-    try {
-      while (true) {
-        const response = await fetch('/api/product-automation/imported-products/enrichment-batch', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            confirmation: 'APPLY-173-APPROVED-PRODUCTS',
-            offset,
-          }),
-        });
-        const payload: BatchApplyResponse = await response.json();
-        if (!response.ok) throw new Error(payload.error || 'Unable to apply the approved catalog batch');
-        if (!payload.batch || typeof payload.nextOffset !== 'number') {
-          throw new Error('The catalog batch returned an incomplete response');
-        }
-
-        succeeded += payload.batch.succeeded;
-        failures.push(...(payload.failures || []));
-        skipped = payload.totals?.skippedProducts ?? skipped;
-        offset = payload.nextOffset;
-        setBatchProgress({ attempted: offset, eligible: payload.totals?.eligibleProducts ?? 173 });
-
-        if (payload.batch.attempted > 0 && payload.batch.succeeded === 0) {
-          throw new Error(payload.failures?.[0]?.error || 'Shopify rejected an entire enrichment batch');
-        }
-        if (payload.done) break;
-      }
-
-      setBatchResult({ succeeded, failed: failures.length, skipped });
-      if (failures.length) {
-        setError(`${failures.length} product${failures.length === 1 ? '' : 's'} could not be enriched. First failure: ${failures[0].title} — ${failures[0].error}`);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to apply the approved catalog batch');
-      setBatchResult({ succeeded, failed: failures.length, skipped });
-    } finally {
-      setBatchApplying(false);
-    }
-  };
-
   const tags = Array.isArray(selected?.tags) ? selected.tags : [];
   const optionNodes = selected && Array.isArray(selected.snapshot.options) ? selected.snapshot.options : [];
   const variantNodes = selected ? nodesFrom(selected.snapshot, 'variants') : [];
@@ -339,35 +244,19 @@ export function ImportedProductsSection() {
         </div>
       )}
 
-      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/70 dark:bg-amber-950/20 sm:flex sm:items-center sm:justify-between sm:gap-5">
+      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/70 dark:bg-emerald-950/20 sm:flex sm:items-center sm:justify-between sm:gap-5">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-amber-800 dark:text-amber-300">Approved catalog enrichment</p>
-          <p className="mt-1 text-sm leading-6 text-amber-800 dark:text-amber-200">
-            Applies the tested additive metafields to 173 eligible products. The 59 approved skips, existing descriptions, pricing, variants, tags, accordions, and size charts remain unchanged.
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-emerald-800 dark:text-emerald-300">Content review mode</p>
+          <p className="mt-1 text-sm leading-6 text-emerald-800 dark:text-emerald-200">
+            Select any product to review the proposed new content format. Shopify writing is locked: nothing on the storefront or in Shopify Admin will change during this review.
           </p>
-          {batchProgress && (
-            <p className="mt-2 text-xs font-semibold text-amber-900 dark:text-amber-100">
-              Processed {batchProgress.attempted} of {batchProgress.eligible} eligible products.
-            </p>
-          )}
-          {batchResult && (
-            <p className="mt-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-              Saved {batchResult.succeeded}; failed {batchResult.failed}; deliberately skipped {batchResult.skipped}.
-            </p>
-          )}
         </div>
-        <button
-          type="button"
-          onClick={applyApprovedBatch}
-          disabled={batchApplying || syncing}
-          className="mt-3 inline-flex min-h-11 flex-none items-center justify-center gap-2 rounded-lg bg-amber-400 px-4 text-sm font-bold text-surface-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60 sm:mt-0"
-        >
-          {batchApplying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-          {batchApplying ? 'Applying approved batch…' : 'Apply approved batch'}
-        </button>
+        <div className="mt-3 inline-flex min-h-11 flex-none items-center justify-center gap-2 rounded-lg border border-emerald-300 bg-white px-4 text-sm font-bold text-emerald-800 dark:border-emerald-800 dark:bg-surface-900 dark:text-emerald-300 sm:mt-0">
+          <ShieldCheck className="h-4 w-4" /> Shopify push locked
+        </div>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_34rem]">
         <div className="min-w-0 overflow-hidden rounded-2xl border border-surface-200 bg-white dark:border-surface-800 dark:bg-surface-900">
           <div className="flex flex-col gap-3 border-b border-surface-200 px-4 py-4 dark:border-surface-800 sm:flex-row sm:items-center sm:justify-between sm:px-5">
             <form onSubmit={submitSearch} className="relative min-w-0 flex-1 sm:max-w-md">
@@ -457,9 +346,6 @@ export function ImportedProductsSection() {
             mediaNodes={mediaNodes}
             metafieldNodes={metafieldNodes}
             tags={tags}
-            pilotApplying={pilotApplying}
-            pilotResult={pilotResult}
-            onApplyPilot={applyAtc1000Pilot}
           />
         </aside>
       </div>
@@ -490,9 +376,6 @@ function ProductSnapshotPanel(props: {
   mediaNodes: unknown[];
   metafieldNodes: unknown[];
   tags: string[];
-  pilotApplying: boolean;
-  pilotResult: { message: string; productUrl: string; savedCount: number } | null;
-  onApplyPilot: () => void;
 }) {
   const {
     product,
@@ -502,9 +385,6 @@ function ProductSnapshotPanel(props: {
     mediaNodes,
     metafieldNodes,
     tags,
-    pilotApplying,
-    pilotResult,
-    onApplyPilot,
   } = props;
 
   if (loading) {
@@ -544,34 +424,7 @@ function ProductSnapshotPanel(props: {
       </div>
 
       <div className="space-y-5 p-5">
-        {product.shopifyProductId === ATC1000_PILOT_PRODUCT_ID && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/70 dark:bg-amber-950/20">
-            <p className="text-xs font-bold uppercase tracking-[0.12em] text-amber-800 dark:text-amber-300">ATC1000 enrichment pilot</p>
-            <p className="mt-1 text-xs leading-5 text-amber-700 dark:text-amber-200">
-              Applies only the approved new metafields to this product. Existing content, pricing, variants, tags, and size chart remain unchanged.
-            </p>
-            <button
-              type="button"
-              onClick={onApplyPilot}
-              disabled={pilotApplying}
-              className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-amber-400 px-3 text-sm font-bold text-surface-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {pilotApplying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              {pilotApplying ? 'Applying to Shopify…' : 'Apply ATC1000 pilot to Shopify'}
-            </button>
-            {pilotResult && (
-              <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">
-                <p className="font-semibold">{pilotResult.message}</p>
-                <p className="mt-1">Saved {pilotResult.savedCount} metafields.</p>
-                {pilotResult.productUrl && (
-                  <a href={pilotResult.productUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block font-bold underline">
-                    Open product in Shopify
-                  </a>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+        <ProposedContentReview preview={product.enrichmentPreview} />
 
         <SnapshotCounts
           variants={product.variantCount}
@@ -612,6 +465,144 @@ function ProductSnapshotPanel(props: {
         </div>
       </div>
     </div>
+  );
+}
+
+function ProposedContentReview({ preview }: { preview: EnrichmentPreview }) {
+  if (preview.status !== 'eligible') {
+    const reason = preview.reason?.replace(/_/g, ' ') || 'Preview unavailable';
+    return (
+      <section className="rounded-xl border border-surface-200 bg-surface-50 p-4 dark:border-surface-800 dark:bg-surface-950/40">
+        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-surface-600 dark:text-surface-300">
+          <ShieldCheck className="h-4 w-4" /> No Shopify changes
+        </div>
+        <p className="mt-2 text-sm leading-6 text-surface-600 dark:text-surface-300">
+          This product is {preview.status === 'skip' ? 'deliberately excluded from enrichment' : 'not ready for preview'}: {reason}.
+        </p>
+      </section>
+    );
+  }
+
+  const field = (key: string) => preview.metafields.find(item => item.key === key)?.value || '';
+  const jsonArray = <T,>(key: string): T[] => {
+    const value = field(key);
+    if (!value) return [];
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed as T[] : [];
+    } catch {
+      return [];
+    }
+  };
+  const features = jsonArray<string>('accordion1_texts');
+  const specs = jsonArray<{ label?: string; value?: string }>('specifications');
+  const audiences = jsonArray<{ industry?: string; context?: string }>('who_its_great_for');
+  const faqs = jsonArray<{ question?: string; answer?: string }>('product_faqs');
+  const methods = jsonArray<string>('available_decoration_methods');
+
+  return (
+    <section className="space-y-4 rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-900/70 dark:bg-emerald-950/10">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-emerald-800 dark:text-emerald-300">
+            <ShieldCheck className="h-4 w-4" /> Proposed content — review only
+          </p>
+          <p className="mt-1 text-xs leading-5 text-emerald-700 dark:text-emerald-200">
+            Generated inside Mission Control. Nothing below has been sent to Shopify.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {(methods.length ? methods : [preview.decoration || '']).filter(Boolean).map(method => (
+            <span key={method} className="rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-emerald-800 shadow-sm dark:bg-surface-900 dark:text-emerald-300">
+              {method}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <ReviewText label="Tagline" value={field('quick_spec_tagline')} />
+      <ReviewText label="Overview (50–70 words)" value={field('quick_spec_overview')} />
+
+      <ReviewList label={`Product features (${features.length})`} items={features} />
+
+      <ReviewGroup label={`Specifications (${specs.length} rows)`}>
+        <dl className="divide-y divide-surface-200 overflow-hidden rounded-lg border border-surface-200 bg-white text-xs dark:divide-surface-800 dark:border-surface-800 dark:bg-surface-900">
+          {specs.map((item, index) => (
+            <div key={`${item.label || 'spec'}-${index}`} className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-3 px-3 py-2.5">
+              <dt className="font-semibold text-surface-500">{item.label || 'Specification'}</dt>
+              <dd className="text-surface-800 dark:text-surface-200">{item.value || '—'}</dd>
+            </div>
+          ))}
+        </dl>
+      </ReviewGroup>
+
+      <ReviewGroup label="Who it’s great for">
+        <div className="space-y-2">
+          {audiences.map((item, index) => (
+            <div key={`${item.industry || 'industry'}-${index}`} className="rounded-lg border border-surface-200 bg-white px-3 py-2.5 text-xs dark:border-surface-800 dark:bg-surface-900">
+              <p className="font-bold text-surface-900 dark:text-white">{item.industry || 'Industry'}</p>
+              <p className="mt-1 leading-5 text-surface-600 dark:text-surface-300">{item.context || '—'}</p>
+            </div>
+          ))}
+        </div>
+      </ReviewGroup>
+
+      <ReviewText label="Decoration guide" value={field('decoration_guide')} />
+
+      <ReviewGroup label={`Product FAQs (${faqs.length})`}>
+        <div className="space-y-2">
+          {faqs.map((item, index) => (
+            <div key={`${item.question || 'faq'}-${index}`} className="rounded-lg border border-surface-200 bg-white px-3 py-2.5 text-xs dark:border-surface-800 dark:bg-surface-900">
+              <p className="font-bold leading-5 text-surface-900 dark:text-white">{item.question || 'Question'}</p>
+              <p className="mt-1 leading-5 text-surface-600 dark:text-surface-300">{item.answer || '—'}</p>
+            </div>
+          ))}
+        </div>
+      </ReviewGroup>
+
+      <ReviewGroup label="Supplier source">
+        <div className="space-y-1 text-xs leading-5 text-surface-600 dark:text-surface-300">
+          <p><span className="font-semibold text-surface-800 dark:text-surface-200">Supplier:</span> {field('supplier_name') || 'Not available'}</p>
+          <p className="break-all"><span className="font-semibold text-surface-800 dark:text-surface-200">URL:</span> {field('supplier_product_url') || 'Not available'}</p>
+        </div>
+      </ReviewGroup>
+    </section>
+  );
+}
+
+function ReviewGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h4 className="mb-2 text-[11px] font-bold uppercase tracking-[0.1em] text-surface-500">{label}</h4>
+      {children}
+    </div>
+  );
+}
+
+function ReviewText({ label, value }: { label: string; value: string }) {
+  return (
+    <ReviewGroup label={label}>
+      <p className="rounded-lg border border-surface-200 bg-white px-3 py-2.5 text-sm leading-6 text-surface-700 dark:border-surface-800 dark:bg-surface-900 dark:text-surface-200">
+        {value || 'No proposed value.'}
+      </p>
+    </ReviewGroup>
+  );
+}
+
+function ReviewList({ label, items }: { label: string; items: string[] }) {
+  return (
+    <ReviewGroup label={label}>
+      {items.length ? (
+        <ul className="space-y-2 rounded-lg border border-surface-200 bg-white px-3 py-3 text-xs leading-5 text-surface-700 dark:border-surface-800 dark:bg-surface-900 dark:text-surface-200">
+          {items.map((item, index) => (
+            <li key={`${item}-${index}`} className="flex gap-2">
+              <span className="mt-1.5 h-1.5 w-1.5 flex-none rounded-full bg-brand-500" />
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      ) : <p className="text-xs text-surface-500">No verified feature bullets are available.</p>}
+    </ReviewGroup>
   );
 }
 

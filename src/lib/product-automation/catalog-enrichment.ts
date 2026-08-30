@@ -6,6 +6,7 @@ export const ATC1000_PILOT_STYLE = 'ATC1000';
 export const ATC1000_SUPPLIER_URL = 'https://media.sanmarcanada.com/pdfs/ATC_ATC1000.pdf';
 
 export const APPROVED_CATALOG_ENRICHMENT_KEYS = new Set([
+  'accordion1_texts',
   'quick_spec_tagline',
   'quick_spec_overview',
   'specifications',
@@ -93,15 +94,15 @@ const INDUSTRIES = [
 ] as const;
 
 const INDUSTRY_CONTEXT: Record<string, string> = {
-  events: 'A dependable choice for staff shirts, attendee apparel, giveaways, and branded event merchandise.',
-  trades: 'Well suited to casual crew wear, company promotions, and branded giveaways for trade-focused businesses.',
-  camps: 'A practical choice for counsellor apparel, camper groups, activity programs, and camp merchandise.',
-  schools: 'A practical option for clubs, field days, fundraisers, spirit wear, and student or staff programs.',
-  sports: 'A useful option for team staff, training groups, supporters, tournaments, and branded club merchandise.',
-  'non-profits': 'An accessible choice for volunteer teams, awareness campaigns, fundraising merchandise, and community programs.',
-  restaurants: 'Well suited to staff apparel, front-of-house teams, promotions, and consistent restaurant branding.',
-  corporates: 'A polished option for employee apparel, company events, client programs, and branded team merchandise.',
-  retail: 'A versatile option for branded retail programs, private-label merchandise, promotions, and resale collections.',
+  events: 'Staff apparel, attendee merchandise, giveaways, and branded event runs.',
+  trades: 'Crew uniforms, company promotions, and trade-focused branded apparel.',
+  camps: 'Counsellor apparel, camper groups, activity programs, and camp merchandise.',
+  schools: 'Clubs, field days, fundraisers, spirit wear, and staff programs.',
+  sports: 'Team staff, training groups, supporters, tournaments, and club merchandise.',
+  'non-profits': 'Volunteer teams, awareness campaigns, fundraisers, and community programs.',
+  restaurants: 'Front-of-house teams, kitchen crews, promotions, and restaurant branding.',
+  corporates: 'Employee apparel, company events, client programs, and branded teams.',
+  retail: 'Private-label merchandise, promotions, branded retail, and resale collections.',
 };
 
 const EMBROIDERY_LADDER = ['12-23', '24-47', '48-99', '100+'];
@@ -397,44 +398,70 @@ function productFacts(product: CatalogProductForEnrichment) {
   return { features, materialsAndCare, fitAndDecoration, material, care, weight, fit };
 }
 
+function featureBullets(product: CatalogProductForEnrichment) {
+  const facts = productFacts(product);
+  const sizes = optionValues(product, 'Size').length
+    ? optionValues(product, 'Size')
+    : optionValues(product, 'Accessory size');
+  const colours = optionValues(product, 'Color');
+  const candidates = [
+    ...facts.features,
+    ...facts.materialsAndCare.filter(value => !facts.care.includes(value)),
+    ...facts.fitAndDecoration,
+    sizes.length ? `Available in ${sizes.join(', ')} to support mixed-size group orders.` : '',
+    colours.length ? `Choose from ${colours.length} current colour options shown in the product selector.` : '',
+  ].map(sentence);
+
+  const seen = new Set<string>();
+  return candidates.filter(value => {
+    const key = normalize(value).replace(/[^a-z0-9]+/g, ' ');
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 9);
+}
+
 function genericSpecifications(product: CatalogProductForEnrichment) {
   const brand = metafieldValue(product, 'custom', 'brand').trim();
-  const quality = metafieldValue(product, 'custom', 'quality').trim();
   const style = productStyle(product);
-  const category = productCategory(product);
   const sizes = optionValues(product, 'Size').length
     ? optionValues(product, 'Size')
     : optionValues(product, 'Accessory size');
   const colours = optionValues(product, 'Color');
   const facts = productFacts(product);
   const specs = [
-    { label: 'Product', value: product.title },
-    { label: 'Brand', value: brand },
-    { label: 'Style', value: style },
-    { label: 'Product type', value: category },
-    { label: 'Quality', value: quality },
-    { label: 'Fabric / material', value: facts.material },
-    { label: 'Fabric weight', value: facts.weight },
-    { label: 'Fit', value: facts.fit },
-    { label: 'Construction / details', value: firstNonEmpty(facts.features) },
-    { label: 'Available sizes', value: sizes.join(', ') },
-    { label: 'Available colours', value: colours.join(', ') },
+    { label: 'Brand', value: brand || supplierName(product) },
+    { label: 'Style / SKU', value: style },
+    { label: 'Sizes', value: sizes.join(', ') },
+    { label: 'Colours', value: colours.join(', ') },
     { label: 'Care', value: facts.care.join('; ') },
   ];
   return specs.filter(spec => spec.value.trim());
 }
 
-function genericOverview(product: CatalogProductForEnrichment) {
+function genericOverview(
+  product: CatalogProductForEnrichment,
+  decoration: DecorationType,
+  supportsBoth: boolean,
+  industryNames: string[]
+) {
   const brand = metafieldValue(product, 'custom', 'brand').trim();
   const style = productStyle(product);
+  const category = productCategory(product);
   const facts = productFacts(product);
   const sizes = optionValues(product, 'Size').length
     ? optionValues(product, 'Size')
     : optionValues(product, 'Accessory size');
   const colours = optionValues(product, 'Color');
-  const identity = [brand, style ? `style ${style}` : ''].filter(Boolean).join(', ');
+  const identity = [brand, style ? `style ${style}` : ''].filter(Boolean).join(' ');
+  const audience = industryNames.length
+    ? industryNames.slice(0, 3).join(', ')
+    : 'teams and organizations';
+  const method = supportsBoth
+    ? 'printing and embroidery'
+    : decoration === 'print' ? 'printing' : 'embroidery';
   const parts = [sentence(
-    `${product.title} is ${identity ? `${identity}, and is ` : ''}prepared for custom branded orders`
+    `${product.title} is a ${identity ? `${identity} ` : ''}${category.toLowerCase()} selected for ${audience.toLowerCase()} and custom ${method}`
   )];
   const wordCount = (values: string[]) => values.join(' ').trim().split(/\s+/).filter(Boolean).length;
   const addIfItFits = (value: string) => {
@@ -442,7 +469,7 @@ function genericOverview(product: CatalogProductForEnrichment) {
     if (!clean || parts.includes(clean)) return;
     if (wordCount([...parts, clean]) <= 70) parts.push(clean);
   };
-  for (const fact of [...facts.features.slice(0, 3), facts.material, facts.fit]) {
+  for (const fact of [...facts.features.slice(0, 2), facts.material, facts.fit]) {
     if (wordCount(parts) >= 38) break;
     addIfItFits(fact);
   }
@@ -454,12 +481,28 @@ function genericOverview(product: CatalogProductForEnrichment) {
     addIfItFits(`Shopify currently lists ${availability}; availability can vary by inventory`);
   }
   if (wordCount(parts) < 50) {
-    addIfItFits('Review the selected size, colour, decoration method, and live inventory before confirming the final branded order');
+    addIfItFits('Its verified product details help buyers compare construction, fit, and decoration suitability before requesting a quote');
   }
   if (wordCount(parts) < 50) {
-    addIfItFits('Specifications and options can vary by the selected colour or size');
+    addIfItFits('Review the selected size, colour, decoration method, and live inventory before confirming the final branded order');
   }
   return distinct(parts).join(' ');
+}
+
+function genericTagline(
+  product: CatalogProductForEnrichment,
+  decoration: DecorationType,
+  supportsBoth: boolean,
+  industryNames: string[]
+) {
+  const quality = metafieldValue(product, 'custom', 'quality').trim().toLowerCase();
+  const categoryValue = productCategory(product);
+  const category = normalize(categoryValue) === normalize(product.title) ? 'product' : categoryValue.toLowerCase();
+  const audience = industryNames.length ? industryNames[0].toLowerCase() : 'team';
+  const method = supportsBoth
+    ? 'printing and embroidery'
+    : decoration === 'print' ? 'custom printing' : 'custom embroidery';
+  return `A ${quality ? `${quality} ` : ''}${category} built for ${audience} programs and ${method}.`;
 }
 
 function genericFaqs(
@@ -528,19 +571,18 @@ export function buildCatalogEnrichmentDraft(
     context: INDUSTRY_CONTEXT[handle]
       || `A versatile branded ${category.toLowerCase()} option for ${name.toLowerCase()} programs and teams.`,
   }));
+  const industryNames = industryContexts.map(item => item.industry);
+  const facts = productFacts(product);
+  const materialDetail = firstNonEmpty([facts.material, facts.weight, facts.fit]);
   const decorationGuide = supportsBoth
-    ? `Both Print and Embroidery are available for this product. The current bulk tiers use ${decorationName} pricing; print suits logos, text, campaign artwork, and event graphics, while embroidery provides a durable, professional finish.`
+    ? `Both Print and Embroidery are available for this product${materialDetail ? `, based on its ${materialDetail.replace(/[.!?]$/, '')}` : ''}. Print works well for detailed logos, text, and campaign artwork, while embroidery provides a durable stitched finish. The current bulk tiers use ${decorationName} pricing.`
     : assessment.decoration === 'print'
-      ? `This product uses Print pricing. Print is suited to logos, text, campaign artwork, and event graphics; the price tiers shown on the product determine the applicable bulk rate.`
-      : `This product uses Embroidery pricing. Embroidery gives logos and text a durable, professional finish; the price tiers shown on the product determine the applicable bulk rate.`;
+      ? `This product uses Print pricing${materialDetail ? ` and is presented with its verified ${materialDetail.replace(/[.!?]$/, '')} construction` : ''}. Print is suited to logos, text, campaign artwork, and event graphics. The quantity tiers shown on the product determine the applicable bulk rate.`
+      : `This product uses Embroidery pricing${materialDetail ? ` and is presented with its verified ${materialDetail.replace(/[.!?]$/, '')} construction` : ''}. Embroidery gives logos and text a durable stitched finish. The quantity tiers shown on the product determine the applicable bulk rate.`;
   const metafields: ShopifyPayload['metafields'] = [
-    textMetafield(
-      'quick_spec_tagline',
-      supportsBoth
-        ? `${product.title} prepared for custom printing and embroidery.`
-        : `${product.title} prepared for custom ${assessment.decoration === 'print' ? 'printing' : 'embroidery'}.`
-    ),
-    textMetafield('quick_spec_overview', genericOverview(product), 'multi_line_text_field'),
+    textMetafield('accordion1_texts', JSON.stringify(featureBullets(product)), 'list.single_line_text_field'),
+    textMetafield('quick_spec_tagline', genericTagline(product, assessment.decoration, supportsBoth, industryNames)),
+    textMetafield('quick_spec_overview', genericOverview(product, assessment.decoration, supportsBoth, industryNames), 'multi_line_text_field'),
     jsonMetafield('specifications', genericSpecifications(product)),
     jsonMetafield('who_its_great_for', industryContexts),
     textMetafield('supplier_name', supplier),
@@ -548,7 +590,7 @@ export function buildCatalogEnrichmentDraft(
     textMetafield('available_decoration_methods', JSON.stringify(availableDecorationMethods), 'list.single_line_text_field'),
     textMetafield('decoration_guide', decorationGuide, 'multi_line_text_field'),
     jsonMetafield('product_faqs', genericFaqs(product, assessment.decoration, supportsBoth)),
-    textMetafield('enrichment_version', supportsBoth ? '2' : '1', 'number_integer'),
+    textMetafield('enrichment_version', '3', 'number_integer'),
     textMetafield('last_enriched_at', enrichedAt.toISOString(), 'date_time'),
   ];
   if (sourceUrl) {
@@ -599,36 +641,37 @@ export function buildAtc1000PilotDraft(
     context: INDUSTRY_CONTEXT[handle] || `A versatile branded apparel option for ${name.toLowerCase()} programs and teams.`,
   }));
 
+  const featureList = [
+    '100% cotton construction with a 9.1 oz Canadian fabric weight holds print decoration cleanly across repeat orders.',
+    'Compacted yarns help reduce shrinkage and keep sizing more consistent after washing.',
+    'Double-needle stitching at the sleeves and hem adds reinforcement for regular team and staff wear.',
+    'Taped neck and shoulders help the shirt retain its structure through repeated use.',
+    'A tear-away label makes the shirt a clean choice for private-label branding.',
+    'The 1 × 1 rib-knit collar and classic fit create a familiar everyday profile.',
+    `Available in ${sizes.join(', ')} across ${colours.length} current colour options for mixed group orders.`,
+    'Select colours use cotton/polyester blends, so fibre content should be checked before final approval.',
+  ];
+
   const specifications = [
-    { label: 'Style', value: ATC1000_PILOT_STYLE },
-    { label: 'Product', value: 'ATC™ Everyday Cotton Tee' },
-    { label: 'Fabric weight', value: '9.1 oz.' },
-    { label: 'Fabric', value: '100% cotton; select colours use cotton/polyester blends' },
-    { label: 'Fit', value: 'Classic fit' },
-    { label: 'Collar', value: '1 × 1 rib-knit collar' },
-    { label: 'Construction', value: 'Compacted yarns, taped neck and shoulders, and double-needle sleeve and bottom hems' },
-    { label: 'Label', value: 'Tear-away label for private branding' },
-    { label: 'Certification', value: 'OEKO-TEX® STANDARD 100' },
-    { label: 'Available sizes', value: sizes.join(', ') },
-    { label: 'Available colours', value: colours.join(', ') },
+    { label: 'Brand', value: 'ATC (SanMar Canada)' },
+    { label: 'Style / SKU', value: ATC1000_PILOT_STYLE },
+    { label: 'Sizes', value: sizes.join(', ') },
+    { label: 'Colours', value: colours.join(', ') },
+    { label: 'Care', value: 'Machine wash cold and tumble dry low; follow the garment care label.' },
   ];
 
   const faqs = [
     {
-      question: 'What sizes are currently available for this shirt?',
-      answer: `This product is currently offered in ${sizes.join(', ')}. Available colours and sizes may vary by inventory.`,
+      question: `What sizes and colours are available for ${ATC1000_PILOT_STYLE}?`,
+      answer: `This product is currently offered in ${sizes.join(', ')} across ${colours.length} colour options. Availability can vary by inventory.`,
     },
     {
-      question: 'What customization method is priced for this product?',
-      answer: 'This product uses our Print pricing ladder, making it suitable for custom logos, artwork, campaign graphics, and event designs.',
+      question: `How is custom decoration priced for ${ATC1000_PILOT_STYLE}?`,
+      answer: 'This product uses the Print pricing ladder shown on the page. The applicable per-piece rate changes with the selected quantity tier.',
     },
     {
-      question: 'Is the ATC1000 made from 100% cotton?',
-      answer: 'The standard fabric is 100% cotton. Select colours use cotton/polyester blends, so fibre content can vary by colour.',
-    },
-    {
-      question: 'How does the shirt help reduce shrinkage?',
-      answer: 'The fabric uses compacted yarns designed to minimize shrinkage. Following the garment care instructions will help preserve its fit.',
+      question: `What is ${ATC1000_PILOT_STYLE} made from and how does it fit?`,
+      answer: 'The standard fabric is 100% cotton with compacted yarns, while select colours use cotton/polyester blends. It has a classic fit and a 1 × 1 rib-knit collar.',
     },
   ];
 
@@ -640,10 +683,11 @@ export function buildAtc1000PilotDraft(
     industryHandles: industries.map(([handle]) => handle),
     sourceUrl: ATC1000_SUPPLIER_URL,
     metafields: [
-      textMetafield('quick_spec_tagline', 'Dependable everyday cotton tee made for custom printing.'),
+      textMetafield('accordion1_texts', JSON.stringify(featureList), 'list.single_line_text_field'),
+      textMetafield('quick_spec_tagline', 'A dependable cotton tee built for private-label branding and high-volume print runs.'),
       textMetafield(
         'quick_spec_overview',
-        `A classic-fit, 9.1-oz cotton tee with compacted yarns, reinforced hems, and a tear-away label. Currently available in ${sizes.join(', ')} across ${colours.length} colour options.`,
+        `The ATC 1000 is a 100% cotton tee built for teams, staff, and events that need a dependable blank in bulk. Compacted yarns help reduce shrinkage after washing, and the tear-away label makes it a clean choice for private branding. It is currently offered in ${sizes.join(', ')} across ${colours.length} colour options, subject to live inventory.`,
         'multi_line_text_field'
       ),
       jsonMetafield('specifications', specifications),
@@ -654,11 +698,11 @@ export function buildAtc1000PilotDraft(
       textMetafield('available_decoration_methods', JSON.stringify(['Print']), 'list.single_line_text_field'),
       textMetafield(
         'decoration_guide',
-        'This product uses Print pricing. Its classic cotton surface is a practical choice for logos, text, event artwork, and campaign graphics across small and bulk orders.',
+        'The ATC1000 uses Print pricing, and its classic cotton surface is suited to logos, text, event artwork, and campaign graphics. Select blended colours can behave differently during decoration, so confirm the chosen colour before production. The quantity tiers shown on the product determine the applicable bulk rate.',
         'multi_line_text_field'
       ),
       jsonMetafield('product_faqs', faqs),
-      textMetafield('enrichment_version', '1', 'number_integer'),
+      textMetafield('enrichment_version', '3', 'number_integer'),
       textMetafield('last_enriched_at', enrichedAt.toISOString(), 'date_time'),
     ],
   };

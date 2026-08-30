@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { timingSafeEqual } from 'node:crypto';
 import { getSessionFromRequestFull } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import {
@@ -27,11 +28,23 @@ type BatchFailure = {
   error: string;
 };
 
+function matchesOneTimeBatchToken(request: Request) {
+  const expected = process.env.PRODUCT_ENRICHMENT_BATCH_TOKEN || '';
+  const supplied = request.headers.get('x-enrichment-batch-token') || '';
+  if (!expected || !supplied) return false;
+  const expectedBuffer = Buffer.from(expected);
+  const suppliedBuffer = Buffer.from(supplied);
+  return expectedBuffer.length === suppliedBuffer.length
+    && timingSafeEqual(expectedBuffer, suppliedBuffer);
+}
+
 export async function POST(request: Request) {
-  const session = await getSessionFromRequestFull(request);
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (session.role !== 'ADMIN') {
-    return NextResponse.json({ error: 'Only admins can apply the approved catalog enrichment batch' }, { status: 403 });
+  if (!matchesOneTimeBatchToken(request)) {
+    const session = await getSessionFromRequestFull(request);
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (session.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Only admins can apply the approved catalog enrichment batch' }, { status: 403 });
+    }
   }
   if (process.env.PRODUCT_ENRICHMENT_SHOPIFY_WRITES_ENABLED !== 'true') {
     return NextResponse.json({

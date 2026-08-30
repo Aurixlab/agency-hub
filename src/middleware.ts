@@ -6,6 +6,17 @@ const publicPaths = ['/login', '/api/auth/login', '/api/auth/google', '/api/seo'
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const sessionToken = request.cookies.get('agency-hub-session')?.value;
+  const enrichmentBatchPath = '/api/product-automation/imported-products/enrichment-batch';
+  const enrichmentBatchToken = process.env.PRODUCT_ENRICHMENT_BATCH_TOKEN;
+  const suppliedEnrichmentBatchToken = request.headers.get('x-enrichment-batch-token');
+
+  if (
+    pathname === enrichmentBatchPath
+    && enrichmentBatchToken
+    && suppliedEnrichmentBatchToken === enrichmentBatchToken
+  ) {
+    return NextResponse.next();
+  }
 
   if (publicPaths.some(p => pathname.startsWith(p))) {
     return NextResponse.next();

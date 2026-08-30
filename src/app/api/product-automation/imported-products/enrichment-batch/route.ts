@@ -10,6 +10,7 @@ import {
   type CatalogProductForEnrichment,
 } from '@/lib/product-automation/catalog-enrichment';
 import {
+  fetchShopifyEnrichmentTarget,
   resolveShopifyCollectionIds,
   setShopifyProductMetafieldsOnly,
 } from '@/lib/product-automation/shopify';
@@ -59,6 +60,7 @@ export async function POST(request: Request) {
     }
 
     const offset = Number(body.offset ?? 0);
+    const mode = body.mode === 'verify' ? 'verify' : 'apply';
     if (!Number.isInteger(offset) || offset < 0) {
       return NextResponse.json({ error: 'Batch offset must be a non-negative integer' }, { status: 400 });
     }
@@ -124,6 +126,25 @@ export async function POST(request: Request) {
           throw new Error(`Draft contains unapproved metafields: ${unapprovedKeys.join(', ')}`);
         }
 
+        if (mode === 'verify') {
+          const savedProduct = await fetchShopifyEnrichmentTarget(finalDraft.productId);
+          const saved = new Map(savedProduct.metafields.nodes.map(item => [item.key, item.value]));
+          const mismatchedKeys = finalDraft.metafields
+            .filter(item => item.key !== 'last_enriched_at')
+            .filter(item => saved.get(item.key) !== item.value)
+            .map(item => item.key);
+          if (!saved.get('last_enriched_at')) mismatchedKeys.push('last_enriched_at');
+          if (mismatchedKeys.length) {
+            throw new Error(`Shopify verification mismatch: ${mismatchedKeys.join(', ')}`);
+          }
+          succeeded.push({
+            productId: finalDraft.productId,
+            title: finalDraft.productTitle,
+            savedKeys: finalDraft.metafields.map(item => item.key),
+          });
+          continue;
+        }
+
         const result = await setShopifyProductMetafieldsOnly(finalDraft.productId, finalDraft.metafields);
         succeeded.push({
           productId: finalDraft.productId,
@@ -147,6 +168,7 @@ export async function POST(request: Request) {
         skippedProducts: skipped,
       },
       batch: {
+        mode,
         offset,
         attempted: batch.length,
         succeeded: succeeded.length,

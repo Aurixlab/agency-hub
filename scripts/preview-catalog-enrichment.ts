@@ -2,6 +2,7 @@ import type { PrismaClient } from '@prisma/client';
 import {
   assessCatalogProductForEnrichment,
   buildCatalogEnrichmentDraft,
+  supportsBothCatalogDecorations,
   type CatalogProductForEnrichment,
   type CatalogEnrichmentSkipReason,
 } from '../src/lib/product-automation/catalog-enrichment';
@@ -89,6 +90,11 @@ async function main() {
   const specificationsUnderFive: Array<{ title: string; specifications: number }> = [];
   const featureCountIssues: Array<{ title: string; features: number }> = [];
   const faqCountIssues: Array<{ title: string; faqs: number }> = [];
+  const overviewSentenceIssues: Array<{ title: string; sentences: number }> = [];
+  const specificationLabelIssues: Array<{ title: string; labels: string[] }> = [];
+  const emptyContentIssues: Array<{ title: string; field: string }> = [];
+  const decorationMethodIssues: Array<{ title: string; expected: string[]; actual: string[] }> = [];
+  const categoryContradictionIssues: Array<{ title: string; text: string }> = [];
   const missingSupplierUrlTitles: string[] = [];
   let withSupplierUrl = 0;
 
@@ -120,6 +126,11 @@ async function main() {
       if (overviewWords < 50 || overviewWords > 70) {
         overviewOutsideTarget.push({ title: product.title, words: overviewWords });
       }
+      const sentenceSafeOverview = overview.replace(/\b(Co|Inc|Ltd)\./g, '$1');
+      const overviewSentences = sentenceSafeOverview.split(/(?<=[.!?])\s+/).filter(Boolean).length;
+      if (overviewSentences < 2 || overviewSentences > 3) {
+        overviewSentenceIssues.push({ title: product.title, sentences: overviewSentences });
+      }
       const features = JSON.parse(metafieldsByKey.get('accordion1_texts') || '[]');
       if (!Array.isArray(features) || features.length < 7 || features.length > 9) {
         featureCountIssues.push({
@@ -134,9 +145,43 @@ async function main() {
           specifications: Array.isArray(specifications) ? specifications.length : 0,
         });
       }
+      const specificationLabels = Array.isArray(specifications)
+        ? specifications.map(item => String(item?.label || ''))
+        : [];
+      const expectedSpecificationLabels = ['Brand', 'Style / SKU', 'Sizes', 'Colours', 'Care'];
+      if (JSON.stringify(specificationLabels) !== JSON.stringify(expectedSpecificationLabels)) {
+        specificationLabelIssues.push({ title: product.title, labels: specificationLabels });
+      }
       const faqs = JSON.parse(metafieldsByKey.get('product_faqs') || '[]');
       if (!Array.isArray(faqs) || faqs.length !== 3) {
         faqCountIssues.push({ title: product.title, faqs: Array.isArray(faqs) ? faqs.length : 0 });
+      }
+      const methods = JSON.parse(metafieldsByKey.get('available_decoration_methods') || '[]');
+      const expectedMethods = supportsBothCatalogDecorations(product)
+        ? ['Print', 'Embroidery']
+        : [draft.decoration === 'print' ? 'Print' : 'Embroidery'];
+      if (!Array.isArray(methods) || JSON.stringify(methods) !== JSON.stringify(expectedMethods)) {
+        decorationMethodIssues.push({
+          title: product.title,
+          expected: expectedMethods,
+          actual: Array.isArray(methods) ? methods : [],
+        });
+      }
+      for (const [field, value] of Array.from(metafieldsByKey.entries())) {
+        if (!String(value).trim()) emptyContentIssues.push({ title: product.title, field });
+      }
+      const searchableTitle = product.title.toLowerCase();
+      const generatedText = [overview, ...(Array.isArray(features) ? features : [])].join(' ').toLowerCase();
+      const contradiction =
+        /\b(cap|hat|toque|beanie|snapback|trucker)\b/.test(searchableTitle)
+          ? /\b(tee|t-shirt|hoodie|sweatshirt|bottom hem|neck and shoulders)\b/.exec(generatedText)
+          : /\b(jacket|vest|shell|coat)\b/.test(searchableTitle)
+            ? /\b(tee|t-shirt|polo|tank|shorts|sweatpants)\b/.exec(generatedText)
+            : /\b(backpack|duffel|bag)\b/.test(searchableTitle)
+              ? /\b(tee|t-shirt|hoodie|sweatshirt|sleeve|collar|cuff|waistband|fit)\b/.exec(generatedText)
+              : null;
+      if (contradiction) {
+        categoryContradictionIssues.push({ title: product.title, text: contradiction[0] });
       }
       eligibleProducts.push({
         title: product.title,
@@ -169,9 +214,14 @@ async function main() {
     skipReasons,
     contentQuality: {
       overviewOutsideTarget,
+      overviewSentenceIssues,
       featureCountIssues,
       specificationsUnderFive,
+      specificationLabelIssues,
       faqCountIssues,
+      emptyContentIssues,
+      decorationMethodIssues,
+      categoryContradictionIssues,
       missingSupplierUrlTitles,
     },
     ...(includeDetails ? {

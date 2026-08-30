@@ -1,0 +1,1101 @@
+{
+  "112": {
+    "fabric": "Blend",
+    "decoration": "Embroidery",
+    "sheet": "✅Hats & Toques",
+    "row": 5,
+    "match": "exact"
+  },
+  "2000": {
+    "fabric": "Cotton",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 5,
+    "match": "exact"
+  },
+  "3001": {
+    "fabric": "Cotton",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 9,
+    "match": "exact"
+  },
+  "3200": {
+    "fabric": "Blend",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 27,
+    "match": "exact"
+  },
+  "3480": {
+    "fabric": "Cotton",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 36,
+    "match": "exact"
+  },
+  "3501": {
+    "fabric": "Cotton",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 21,
+    "match": "exact"
+  },
+  "3719": {
+    "fabric": "Blend",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 12,
+    "match": "exact"
+  },
+  "4424": {
+    "fabric": "Cotton",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 46,
+    "match": "exact"
+  },
+  "6008": {
+    "fabric": "Cotton",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 36,
+    "match": "exact"
+  },
+  "6277": {
+    "fabric": "Blend",
+    "decoration": "Embroidery",
+    "sheet": "✅Hats & Toques",
+    "row": 14,
+    "match": "exact"
+  },
+  "6511": {
+    "fabric": "Blend",
+    "decoration": "Embroidery",
+    "sheet": "✅Hats & Toques",
+    "row": 13,
+    "match": "exact"
+  },
+  "6597": {
+    "fabric": "Polyester",
+    "decoration": "Embroidery",
+    "sheet": "✅Hats & Toques",
+    "row": 15,
+    "match": "exact"
+  },
+  "6606": {
+    "fabric": "Blend",
+    "decoration": "Embroidery",
+    "sheet": "✅Hats & Toques",
+    "row": 3,
+    "match": "exact"
+  },
+  "6733": {
+    "fabric": "Blend",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 34,
+    "match": "exact"
+  },
+  "18000": {
+    "fabric": "Blend",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 26,
+    "match": "exact"
+  },
+  "18500": {
+    "fabric": "Cotton",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 5,
+    "match": "exact"
+  },
+  "18600": {
+    "fabric": "Cotton",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 18,
+    "match": "exact"
+  },
+  "64000": {
+    "fabric": "Cotton",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 6,
+    "match": "exact"
+  },
+  "64400": {
+    "fabric": "Cotton",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 17,
+    "match": "exact"
+  },
+  "78181": {
+    "fabric": "Polyester",
+    "decoration": "Both",
+    "sheet": "✅PoloGolf Shirts",
+    "row": 5,
+    "match": "exact"
+  },
+  "78192": {
+    "fabric": "Polyester",
+    "decoration": "Both",
+    "sheet": "✅PoloGolf Shirts",
+    "row": 12,
+    "match": "exact"
+  },
+  "88181": {
+    "fabric": "Polyester",
+    "decoration": "Both",
+    "sheet": "✅PoloGolf Shirts",
+    "row": 5,
+    "match": "exact"
+  },
+  "88192": {
+    "fabric": "Polyester",
+    "decoration": "Both",
+    "sheet": "✅PoloGolf Shirts",
+    "row": 12,
+    "match": "exact"
+  },
+  "209690": {
+    "fabric": "Blend",
+    "decoration": "Embroidery",
+    "sheet": "Fleece & Jacket",
+    "row": 6,
+    "match": "exact"
+  },
+  "212486": {
+    "fabric": "Blend",
+    "decoration": "Embroidery",
+    "sheet": "Fleece & Jacket",
+    "row": 17,
+    "match": "exact"
+  },
+  "333115": {
+    "fabric": "Polyester",
+    "decoration": "Embroidery",
+    "sheet": "✅Hats & Toques",
+    "row": 18,
+    "match": "exact"
+  },
+  "1369785": {
+    "fabric": "Blend",
+    "decoration": "Embroidery",
+    "sheet": "✅Hats & Toques",
+    "row": 8,
+    "match": "exact"
+  },
+  "1370399": {
+    "fabric": "Polyester",
+    "decoration": "Both",
+    "sheet": "✅PoloGolf Shirts",
+    "row": 7,
+    "match": "exact"
+  },
+  "1370431": {
+    "fabric": "Polyester",
+    "decoration": "Both",
+    "sheet": "✅PoloGolf Shirts",
+    "row": 7,
+    "match": "exact"
+  },
+  "1376702": {
+    "fabric": "Polyester",
+    "decoration": "Embroidery",
+    "sheet": "✅Hats & Toques",
+    "row": 17,
+    "match": "exact"
+  },
+  "1376842": {
+    "fabric": "Polyester",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 10,
+    "match": "exact"
+  },
+  "1376847": {
+    "fabric": "Polyester",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 10,
+    "match": "family:1376842"
+  },
+  "1379757": {
+    "fabric": "Polyester",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 14,
+    "match": "exact"
+  },
+  "S05937": {
+    "fabric": "Polyester",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 19,
+    "match": "exact"
+  },
+  "ATC1000": {
+    "fabric": "Cotton",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 3,
+    "match": "exact"
+  },
+  "ATC1000L": {
+    "fabric": "Cotton",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 3,
+    "match": "family:ATC1000"
+  },
+  "ATC1000Y": {
+    "fabric": "Cotton",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 3,
+    "match": "family:ATC1000"
+  },
+  "ATCF2100": {
+    "fabric": "Polyester",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 4,
+    "match": "exact"
+  },
+  "ATC3715": {
+    "fabric": "Polyester",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 15,
+    "match": "exact"
+  },
+  "ATC3715Y": {
+    "fabric": "Polyester",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 15,
+    "match": "family:ATC3715"
+  },
+  "WERK1207": {
+    "fabric": "Blend",
+    "decoration": "Embroidery",
+    "sheet": "✅Hats & Toques",
+    "row": 25,
+    "match": "exact"
+  },
+  "WERK7645": {
+    "fabric": "Blend",
+    "decoration": "Both",
+    "sheet": "Fleece & Jacket",
+    "row": 16,
+    "match": "exact"
+  },
+  "ATCF6500": {
+    "fabric": "Blend",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 8,
+    "match": "exact"
+  },
+  "F2018": {
+    "fabric": "Blend",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 20,
+    "match": "exact"
+  },
+  "L2018": {
+    "fabric": "Blend",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 20,
+    "match": "family:F2018"
+  },
+  "ATC0822": {
+    "fabric": "Cotton",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 25,
+    "match": "exact"
+  },
+  "ATC0822Y": {
+    "fabric": "Cotton",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 25,
+    "match": "family:ATC0822"
+  },
+  "ATC1015": {
+    "fabric": "Cotton",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 14,
+    "match": "exact"
+  },
+  "ATC1015Y": {
+    "fabric": "Cotton",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 14,
+    "match": "family:ATC1015"
+  },
+  "ATC1002": {
+    "fabric": "Cotton",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 31,
+    "match": "exact"
+  },
+  "C130": {
+    "fabric": "Cotton",
+    "decoration": "Embroidery",
+    "sheet": "✅Hats & Toques",
+    "row": 4,
+    "match": "exact"
+  },
+  "ATCF2700": {
+    "fabric": "Blend",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 31,
+    "match": "exact"
+  },
+  "ATCF2400": {
+    "fabric": "Blend",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 25,
+    "match": "exact"
+  },
+  "ATCY2400": {
+    "fabric": "Blend",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 25,
+    "match": "exact"
+  },
+  "ATCF2600": {
+    "fabric": "Cotton",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 17,
+    "match": "exact"
+  },
+  "ATCY2600": {
+    "fabric": "Cotton",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 17,
+    "match": "family:ATCF2600"
+  },
+  "ATCF2500": {
+    "fabric": "Cotton",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 3,
+    "match": "exact"
+  },
+  "ATCF2875": {
+    "fabric": "Blend",
+    "decoration": "Both",
+    "sheet": "✅SweatpantsShorts",
+    "row": 10,
+    "match": "exact"
+  },
+  "ATCF2800": {
+    "fabric": "Blend",
+    "decoration": "Both",
+    "sheet": "✅SweatpantsShorts",
+    "row": 3,
+    "match": "exact"
+  },
+  "ATCY2500": {
+    "fabric": "Cotton",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 3,
+    "match": "family:ATCF2500"
+  },
+  "ATCY2800": {
+    "fabric": "Blend",
+    "decoration": "Both",
+    "sheet": "✅SweatpantsShorts",
+    "row": 3,
+    "match": "exact"
+  },
+  "C100": {
+    "fabric": "Acrylic",
+    "decoration": "Embroidery",
+    "sheet": "✅Hats & Toques",
+    "row": 21,
+    "match": "exact"
+  },
+  "C105": {
+    "fabric": "Acrylic",
+    "decoration": "Embroidery",
+    "sheet": "✅Hats & Toques",
+    "row": 22,
+    "match": "exact"
+  },
+  "C112": {
+    "fabric": "Acrylic",
+    "decoration": "Embroidery",
+    "sheet": "✅Hats & Toques",
+    "row": 23,
+    "match": "exact"
+  },
+  "F2005": {
+    "fabric": "Polyester",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 9,
+    "match": "exact"
+  },
+  "L2005": {
+    "fabric": "Polyester",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 9,
+    "match": "family:F2005"
+  },
+  "Y2005": {
+    "fabric": "Polyester",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 9,
+    "match": "family:F2005"
+  },
+  "C1008": {
+    "fabric": "Acrylic",
+    "decoration": "Embroidery",
+    "sheet": "✅Hats & Toques",
+    "row": 24,
+    "match": "exact"
+  },
+  "S3535": {
+    "fabric": "Polyester",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 35,
+    "match": "exact"
+  },
+  "Y3535": {
+    "fabric": "Polyester",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 35,
+    "match": "family:S3535"
+  },
+  "Y357P": {
+    "fabric": "Polyester",
+    "decoration": "Print",
+    "sheet": "✅SweatpantsShorts",
+    "row": 9,
+    "match": "exact"
+  },
+  "S357P": {
+    "fabric": "Polyester",
+    "decoration": "Print",
+    "sheet": "✅SweatpantsShorts",
+    "row": 9,
+    "match": "exact"
+  },
+  "S3526": {
+    "fabric": "Polyester",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 26,
+    "match": "exact"
+  },
+  "Y3526": {
+    "fabric": "Polyester",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 26,
+    "match": "family:S3526"
+  },
+  "L350LS": {
+    "fabric": "Polyester",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 16,
+    "match": "family:S350LS"
+  },
+  "S350LS": {
+    "fabric": "Polyester",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 16,
+    "match": "exact"
+  },
+  "Y350LS": {
+    "fabric": "Polyester",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 16,
+    "match": "family:S350LS"
+  },
+  "L350": {
+    "fabric": "Polyester",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 4,
+    "match": "family:S350"
+  },
+  "S350": {
+    "fabric": "Polyester",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 4,
+    "match": "exact"
+  },
+  "Y350": {
+    "fabric": "Polyester",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 4,
+    "match": "family:S350"
+  },
+  "L3527": {
+    "fabric": "Polyester",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 32,
+    "match": "family:S3527"
+  },
+  "S3527": {
+    "fabric": "Polyester",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 32,
+    "match": "exact"
+  },
+  "CH7690": {
+    "fabric": "Blend",
+    "decoration": "Embroidery",
+    "sheet": "Fleece & Jacket",
+    "row": 3,
+    "match": "exact"
+  },
+  "CH7690L": {
+    "fabric": "Blend",
+    "decoration": "Embroidery",
+    "sheet": "Fleece & Jacket",
+    "row": 3,
+    "match": "family:CH7690"
+  },
+  "CH7691L": {
+    "fabric": "Acrylic",
+    "decoration": "Embroidery",
+    "sheet": "Fleece & Jacket",
+    "row": 21,
+    "match": "family:CH7691"
+  },
+  "CH7691": {
+    "fabric": "Acrylic",
+    "decoration": "Embroidery",
+    "sheet": "Fleece & Jacket",
+    "row": 21,
+    "match": "exact"
+  },
+  "CH7690Y": {
+    "fabric": "Blend",
+    "decoration": "Embroidery",
+    "sheet": "Fleece & Jacket",
+    "row": 3,
+    "match": "family:CH7690"
+  },
+  "J7610": {
+    "fabric": "Blend",
+    "decoration": "Embroidery",
+    "sheet": "Fleece & Jacket",
+    "row": 9,
+    "match": "exact"
+  },
+  "L4046": {
+    "fabric": "Blend",
+    "decoration": "Both",
+    "sheet": "✅PoloGolf Shirts",
+    "row": 3,
+    "match": "exact"
+  },
+  "S4046": {
+    "fabric": "Blend",
+    "decoration": "Both",
+    "sheet": "✅PoloGolf Shirts",
+    "row": 3,
+    "match": "exact"
+  },
+  "L4007": {
+    "fabric": "Polyester",
+    "decoration": "Both",
+    "sheet": "✅PoloGolf Shirts",
+    "row": 4,
+    "match": "exact"
+  },
+  "S4007": {
+    "fabric": "Polyester",
+    "decoration": "Both",
+    "sheet": "✅PoloGolf Shirts",
+    "row": 4,
+    "match": "exact"
+  },
+  "S365LS": {
+    "fabric": "Polyester",
+    "decoration": "Both",
+    "sheet": "✅PoloGolf Shirts",
+    "row": 13,
+    "match": "exact"
+  },
+  "L445": {
+    "fabric": "Polyester",
+    "decoration": "Both",
+    "sheet": "✅PoloGolf Shirts",
+    "row": 6,
+    "match": "exact"
+  },
+  "S445": {
+    "fabric": "Polyester",
+    "decoration": "Both",
+    "sheet": "✅PoloGolf Shirts",
+    "row": 6,
+    "match": "exact"
+  },
+  "Y445": {
+    "fabric": "Polyester",
+    "decoration": "Both",
+    "sheet": "✅PoloGolf Shirts",
+    "row": 6,
+    "match": "exact"
+  },
+  "J0760": {
+    "fabric": "Polyester",
+    "decoration": "Both",
+    "sheet": "Fleece & Jacket",
+    "row": 10,
+    "match": "exact"
+  },
+  "L0760": {
+    "fabric": "Polyester",
+    "decoration": "Both",
+    "sheet": "Fleece & Jacket",
+    "row": 10,
+    "match": "exact"
+  },
+  "DF7655": {
+    "fabric": "Acrylic",
+    "decoration": "Embroidery",
+    "sheet": "Fleece & Jacket",
+    "row": 15,
+    "match": "exact"
+  },
+  "DF7655L": {
+    "fabric": "Acrylic",
+    "decoration": "Embroidery",
+    "sheet": "Fleece & Jacket",
+    "row": 15,
+    "match": "family:DF7655"
+  },
+  "DF7656L": {
+    "fabric": "Polyester",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 11,
+    "match": "family:DF7656"
+  },
+  "DF7656": {
+    "fabric": "Polyester",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 11,
+    "match": "exact"
+  },
+  "3001Y": {
+    "fabric": "Cotton",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 9,
+    "match": "family:3001"
+  },
+  "KOI2280": {
+    "fabric": "Blend",
+    "decoration": "Both",
+    "sheet": "✅SweatpantsShorts",
+    "row": 4,
+    "match": "exact"
+  },
+  "KOI2250": {
+    "fabric": "Blend",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 7,
+    "match": "exact"
+  },
+  "KOI2250L": {
+    "fabric": "Blend",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 7,
+    "match": "family:KOI2250"
+  },
+  "KOI2058": {
+    "fabric": "Blend",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 32,
+    "match": "exact"
+  },
+  "KOI2057": {
+    "fabric": "Blend",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 27,
+    "match": "exact"
+  },
+  "KOI2052": {
+    "fabric": "Blend",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 19,
+    "match": "exact"
+  },
+  "L00550": {
+    "fabric": "Blend",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 6,
+    "match": "exact"
+  },
+  "DG20L": {
+    "fabric": "Blend",
+    "decoration": "Both",
+    "sheet": "✅PoloGolf Shirts",
+    "row": 15,
+    "match": "exact"
+  },
+  "D110": {
+    "fabric": "Polyester",
+    "decoration": "Both",
+    "sheet": "✅PoloGolf Shirts",
+    "row": 16,
+    "match": "exact"
+  },
+  "M348L": {
+    "fabric": "Polyester",
+    "decoration": "Both",
+    "sheet": "✅PoloGolf Shirts",
+    "row": 14,
+    "match": "exact"
+  },
+  "TT51L": {
+    "fabric": "Polyester",
+    "decoration": "Both",
+    "sheet": "✅PoloGolf Shirts",
+    "row": 11,
+    "match": "exact"
+  },
+  "TT11M": {
+    "fabric": "Polyester",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 33,
+    "match": "exact"
+  },
+  "TT11SH": {
+    "fabric": "Polyester",
+    "decoration": "Print",
+    "sheet": "✅SweatpantsShorts",
+    "row": 8,
+    "match": "exact"
+  },
+  "NE406": {
+    "fabric": "Polyester",
+    "decoration": "Embroidery",
+    "sheet": "✅Hats & Toques",
+    "row": 7,
+    "match": "exact"
+  },
+  "NE900": {
+    "fabric": "Blend",
+    "decoration": "Embroidery",
+    "sheet": "✅Hats & Toques",
+    "row": 26,
+    "match": "exact"
+  },
+  "NKBQ5230": {
+    "fabric": "Blend",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 20,
+    "match": "exact"
+  },
+  "NKBQ5231": {
+    "fabric": "Blend",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 8,
+    "match": "exact"
+  },
+  "NKBQ5231L": {
+    "fabric": "Blend",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 8,
+    "match": "family:NKBQ5231"
+  },
+  "NKFB6447": {
+    "fabric": "Blend",
+    "decoration": "Embroidery",
+    "sheet": "✅Hats & Toques",
+    "row": 10,
+    "match": "exact"
+  },
+  "NKDC1991": {
+    "fabric": "Polyester",
+    "decoration": "Both",
+    "sheet": "✅PoloGolf Shirts",
+    "row": 8,
+    "match": "exact"
+  },
+  "NKDC1963": {
+    "fabric": "Polyester",
+    "decoration": "Both",
+    "sheet": "✅PoloGolf Shirts",
+    "row": 8,
+    "match": "exact"
+  },
+  "NKFD9890": {
+    "fabric": "Polyester",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 21,
+    "match": "exact"
+  },
+  "NKFB6539": {
+    "fabric": "Acrylic",
+    "decoration": "Embroidery",
+    "sheet": "✅Hats & Toques",
+    "row": 28,
+    "match": "exact"
+  },
+  "NKDC2104": {
+    "fabric": "Polyester",
+    "decoration": "Both",
+    "sheet": "✅PoloGolf Shirts",
+    "row": 17,
+    "match": "exact"
+  },
+  "6789M": {
+    "fabric": "Blend",
+    "decoration": "Embroidery",
+    "sheet": "✅Hats & Toques",
+    "row": 6,
+    "match": "exact"
+  },
+  "64000CVC": {
+    "fabric": "Blend",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 7,
+    "match": "exact"
+  },
+  "NF0A7V4F": {
+    "fabric": "Blend",
+    "decoration": "Embroidery",
+    "sheet": "Fleece & Jacket",
+    "row": 5,
+    "match": "exact"
+  },
+  "NF0A7V4G": {
+    "fabric": "Blend",
+    "decoration": "Embroidery",
+    "sheet": "Fleece & Jacket",
+    "row": 5,
+    "match": "exact"
+  },
+  "NF0A4VUB": {
+    "fabric": "Polyester",
+    "decoration": "Embroidery",
+    "sheet": "✅Hats & Toques",
+    "row": 27,
+    "match": "exact"
+  },
+  "NF0A4VUA": {
+    "fabric": "Blend",
+    "decoration": "Embroidery",
+    "sheet": "✅Hats & Toques",
+    "row": 9,
+    "match": "exact"
+  },
+  "5100P": {
+    "fabric": "Cotton",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 41,
+    "match": "exact"
+  },
+  "3001T": {
+    "fabric": "Cotton",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 42,
+    "match": "exact"
+  },
+  "2000L": {
+    "fabric": "Cotton",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 5,
+    "match": "family:2000"
+  },
+  "2000Y": {
+    "fabric": "Cotton",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 5,
+    "match": "family:2000"
+  },
+  "IND4000Z": {
+    "fabric": "Blend",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 22,
+    "match": "exact"
+  },
+  "IND4000": {
+    "fabric": "Blend",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 13,
+    "match": "exact"
+  },
+  "SS3000": {
+    "fabric": "Blend",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 28,
+    "match": "exact"
+  },
+  "64440CVC": {
+    "fabric": "Blend",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 18,
+    "match": "exact"
+  },
+  "SF500": {
+    "fabric": "Blend",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 10,
+    "match": "exact"
+  },
+  "SF100": {
+    "fabric": "Blend",
+    "decoration": "Both",
+    "sheet": "✅SweatpantsShorts",
+    "row": 5,
+    "match": "exact"
+  },
+  "DG20LW": {
+    "fabric": "Blend",
+    "decoration": "Both",
+    "sheet": "✅PoloGolf Shirts",
+    "row": 15,
+    "match": "family:DG20L"
+  },
+  "D110W": {
+    "fabric": "Polyester",
+    "decoration": "Both",
+    "sheet": "✅PoloGolf Shirts",
+    "row": 16,
+    "match": "exact"
+  },
+  "M348LW": {
+    "fabric": "Polyester",
+    "decoration": "Both",
+    "sheet": "✅PoloGolf Shirts",
+    "row": 14,
+    "match": "exact"
+  },
+  "64000L": {
+    "fabric": "Cotton",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 6,
+    "match": "family:64000"
+  },
+  "TT51LW": {
+    "fabric": "Polyester",
+    "decoration": "Both",
+    "sheet": "✅PoloGolf Shirts",
+    "row": 11,
+    "match": "exact"
+  },
+  "TT11SHW": {
+    "fabric": "Polyester",
+    "decoration": "Print",
+    "sheet": "✅SweatpantsShorts",
+    "row": 8,
+    "match": "family:TT11SH"
+  },
+  "18000B": {
+    "fabric": "Blend",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 26,
+    "match": "family:18000"
+  },
+  "18600B": {
+    "fabric": "Cotton",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 18,
+    "match": "family:18600"
+  },
+  "18500B": {
+    "fabric": "Cotton",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 5,
+    "match": "family:18500"
+  },
+  "3501Y": {
+    "fabric": "Cotton",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 21,
+    "match": "family:3501"
+  },
+  "88181Y": {
+    "fabric": "Polyester",
+    "decoration": "Both",
+    "sheet": "✅PoloGolf Shirts",
+    "row": 5,
+    "match": "exact"
+  },
+  "SF500B": {
+    "fabric": "Blend",
+    "decoration": "Both",
+    "sheet": "✅Sweatshirts",
+    "row": 10,
+    "match": "family:SF500"
+  },
+  "64000B": {
+    "fabric": "Cotton",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 6,
+    "match": "family:64000"
+  },
+  "S05937Y": {
+    "fabric": "Polyester",
+    "decoration": "Print",
+    "sheet": "✅T-Shirts",
+    "row": 19,
+    "match": "family:S05937"
+  }
+}

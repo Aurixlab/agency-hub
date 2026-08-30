@@ -1,4 +1,17 @@
 import type { DecorationType, ShopifyPayload } from './types';
+import sanmarSourceFactsRaw from './sanmar-source-facts.json';
+import workbookProductRulesRaw from './workbook-product-rules.json';
+
+type WorkbookProductRule = {
+  fabric: string;
+  decoration: string;
+  sheet: string;
+  row: number;
+  match: string;
+};
+
+const SANMAR_SOURCE_FACTS = sanmarSourceFactsRaw as Record<string, string[]>;
+const WORKBOOK_PRODUCT_RULES = workbookProductRulesRaw as Record<string, WorkbookProductRule>;
 
 export const ATC1000_PILOT_PRODUCT_ID = 'gid://shopify/Product/10113107591467';
 export const ATC1000_PILOT_HANDLE = 'atc-1000-short-sleeve';
@@ -113,7 +126,6 @@ const SKIPPED_LADDERS = [
 const EMBROIDERY_OVERRIDE_HANDLES = new Set([
   'strathmore-ivory-straw-hat',
   'ladies-freestyle-sublimated-cap-sleeve-volleyball-jersey-1',
-  'test-product-copy',
   'ladies-freestyle-sublimated-cap-sleeve-basketball-jersey',
   'ladies-freestyle-sublimated-cap-sleeve-hocket-jersey',
   'ladies-freestyle-sublimated-cap-sleeve-soccer-jersey',
@@ -240,7 +252,7 @@ function isPackageOrUtilityProduct(product: CatalogProductForEnrichment) {
   const handle = handleText(product);
   if (EMBROIDERY_OVERRIDE_HANDLES.has(handle)) return false;
   const searchable = `${normalize(product.title)} ${handle.replace(/-/g, ' ')}`;
-  return /\b(package|utility)\b/.test(searchable) || searchable.includes('demo test');
+  return /\b(test|package|utility)\b/.test(searchable) || searchable.includes('demo test');
 }
 
 export function assessCatalogProductForEnrichment(
@@ -317,6 +329,49 @@ function productCategory(product: CatalogProductForEnrichment) {
   return firstNonEmpty(categories) || product.title;
 }
 
+function productDisplayCategory(product: CatalogProductForEnrichment) {
+  const title = normalize(product.title);
+  const titleTypes: Array<[RegExp, string]> = [
+    [/\b(toque|beanie)\b/, 'toque'],
+    [/\b(cap|hat|snapback|trucker)\b/, 'cap'],
+    [/\b(backpack)\b/, 'backpack'],
+    [/\b(duffel|tote|bag)\b/, 'bag'],
+    [/\b(vest)\b/, 'vest'],
+    [/\b(jacket|shell|coat)\b/, 'jacket'],
+    [/\b(hoodie|hooded sweatshirt)\b/, 'hoodie'],
+    [/\b(crewneck sweatshirt|crewneck sweater)\b/, 'crewneck sweatshirt'],
+    [/\b(polo)\b/, 'polo'],
+    [/\b(tank)\b/, 'tank top'],
+    [/\b(bodysuit|onesie)\b/, 'bodysuit'],
+    [/\b(sweatpants?)\b/, 'sweatpants'],
+    [/\b(shorts?)\b/, 'shorts'],
+    [/\b(jersey)\b/, 'jersey'],
+    [/\b(tee|t-shirt|shirt)\b/, title.includes('long sleeve') ? 'long-sleeve shirt' : 'short-sleeve shirt'],
+  ];
+  const fromTitle = titleTypes.find(([pattern]) => pattern.test(title));
+  if (fromTitle) return fromTitle[1];
+
+  const category = productCategory(product).toLowerCase();
+  const categoryNames: Record<string, string> = {
+    'short sleeves': 'short-sleeve shirt',
+    'short sleeve': 'short-sleeve shirt',
+    'long sleeves': 'long-sleeve shirt',
+    'long sleeve': 'long-sleeve shirt',
+    toques: 'toque',
+    vests: 'vest',
+    'winter jackets': 'jacket',
+    softshells: 'softshell jacket',
+    fitted: 'fitted cap',
+    'adjustable/snapback': 'adjustable cap',
+    'tote bags': 'tote bag',
+    backpacks: 'backpack',
+    kids: 'youth apparel',
+    youth: 'youth apparel',
+    unisex: 'unisex apparel',
+  };
+  return categoryNames[category] || category;
+}
+
 function supplierName(product: CatalogProductForEnrichment) {
   const vendor = product.vendor?.trim() || '';
   const names: Record<string, string> = {
@@ -334,7 +389,7 @@ function sanmarPdfUrl(style: string, brand: string) {
   if (!style) return null;
   const exactOverrides: Record<string, string | null> = {
     WERK1207: 'WeRK1207.pdf',
-    ATCF6500: null,
+    ATCF6500: 'EW_ATCF6500.pdf',
     ATC0822Y: 'ATC0822Y.pdf',
     ATCF2500: 'ATCF2500.pdf',
     ATCY2500: 'ATCY2500.pdf',
@@ -365,6 +420,9 @@ function sanmarPdfUrl(style: string, brand: string) {
 
 function supplierProductUrl(product: CatalogProductForEnrichment, style: string, brand: string) {
   const vendor = normalize(product.vendor);
+  if (style === '228358' && handleText(product).includes('volleyball')) {
+    return 'https://www.momentecbrands.com/ladies-freestyle-sublimated-cap-sleeve-volleyball-jersey-cut-228358';
+  }
   if (vendor === 'sanmar') return sanmarPdfUrl(style, brand);
   if (vendor === 's&s' && style) {
     return `https://en-ca.ssactivewear.com/ps/?q=${encodeURIComponent(style)}`;
@@ -375,13 +433,10 @@ function supplierProductUrl(product: CatalogProductForEnrichment, style: string,
   if (vendor === 'csw' && style) {
     return `https://canadasportswear.com/search?q=${encodeURIComponent(style)}`;
   }
-  if (vendor === 'momentec brands' && style === '228358' && handleText(product).includes('volleyball')) {
-    return 'https://www.momentecbrands.com/ladies-freestyle-sublimated-cap-sleeve-volleyball-jersey-cut-228358';
-  }
   return null;
 }
 
-function productFacts(product: CatalogProductForEnrichment) {
+function importedProductFacts(product: CatalogProductForEnrichment) {
   const features = parseList(metafieldValue(product, 'custom', 'accordion1_texts'));
   const materialsAndCare = parseList(metafieldValue(product, 'custom', 'accordion3_texts'));
   const fitAndDecoration = parseList(metafieldValue(product, 'custom', 'accordion4_texts'));
@@ -398,18 +453,135 @@ function productFacts(product: CatalogProductForEnrichment) {
   return { features, materialsAndCare, fitAndDecoration, material, care, weight, fit };
 }
 
-function featureBullets(product: CatalogProductForEnrichment) {
-  const facts = productFacts(product);
+function productKind(product: CatalogProductForEnrichment) {
+  const value = `${product.title} ${productCategory(product)}`.toLowerCase();
+  if (/\b(cap|hat|toque|beanie|snapback|trucker)\b/.test(value)) return 'headwear';
+  if (/\b(backpack|duffel|bag)\b/.test(value)) return 'bag';
+  if (/\b(jacket|vest|shell|coat)\b/.test(value)) return 'outerwear';
+  if (/\b(shorts?|sweatpants?|pants?)\b/.test(value)) return 'bottom';
+  return 'top';
+}
+
+function technicalFact(value: string) {
+  return /(?:%|\boz\b|oz\/|gsm|panel|closure|visor|sweatband|stitch|seam|hood|pocket|zip|collar|cuff|waistband|wick|water|wind|insulat|rib knit|fleece|jersey|piqu[eé]|mesh|canvas|twill|interlock|tricot|rayon|spandex|nylon|polyester|cotton|acrylic|label|fit|stretch)/i.test(value);
+}
+
+function categoryConsistent(value: string, kind: ReturnType<typeof productKind>) {
+  const text = value.toLowerCase();
+  if (kind === 'headwear') {
+    return !/\b(?:tee|t-shirt|shirt|hoodie|sweatshirt|sleeve|bottom hem|neck and shoulders|collar and cuffs?)\b/.test(text);
+  }
+  if (kind === 'bag') {
+    return !/\b(?:tee|t-shirt|shirt|hoodie|sweatshirt|sleeve|collar|cuff|waistband|fit)\b/.test(text);
+  }
+  if (kind === 'bottom') {
+    return !/\b(?:tee|t-shirt|shirt|polo|collar|hood|sleeve)\b/.test(text);
+  }
+  if (kind === 'outerwear') {
+    return !/\b(?:tee|t-shirt|polo|tank|shorts|sweatpants)\b/.test(text);
+  }
+  return !/\b(?:snapback|trucker cap|toque|beanie|backpack|duffel)\b/.test(text);
+}
+
+function fabricConsistent(value: string, expectedFabric: string) {
+  const fact = value.toLowerCase();
+  const expected = expectedFabric.toLowerCase();
+  if (!expected) return true;
+  if (expected === 'cotton') {
+    return !/100%\s+(?:polyester|acrylic|nylon)/.test(fact) || /cotton/.test(fact);
+  }
+  if (expected === 'polyester') {
+    return !/100%\s+(?:cotton|acrylic|nylon)/.test(fact) || /polyester/.test(fact);
+  }
+  if (expected === 'acrylic') {
+    return !/100%\s+(?:cotton|nylon)/.test(fact) && (!/100%\s+polyester/.test(fact) || /acrylic/.test(fact));
+  }
+  return true;
+}
+
+type VerifiedProductFacts = {
+  sourceFacts: string[];
+  fabric: string;
+  source: 'official_supplier_pdf' | 'workbook_and_imported_product' | 'imported_product';
+};
+
+function verifiedProductFacts(product: CatalogProductForEnrichment, sourceUrl: string | null): VerifiedProductFacts {
+  const style = productStyle(product).toUpperCase();
+  const workbookRule = WORKBOOK_PRODUCT_RULES[style];
+  const fabric = workbookRule?.fabric || '';
+  const officialFacts = sourceUrl ? (SANMAR_SOURCE_FACTS[sourceUrl] || []) : [];
+  if (officialFacts.length) {
+    return {
+      sourceFacts: distinct(officialFacts.map(sentence)).slice(0, 7),
+      fabric,
+      source: 'official_supplier_pdf',
+    };
+  }
+
+  // Several copied sport-product records reuse the volleyball style number
+  // while their titles identify different sports. Without an exact supplier
+  // page, do not carry the volleyball construction claims into those records.
+  if (normalize(product.vendor) === 'momentec brands' && !sourceUrl) {
+    return {
+      sourceFacts: [],
+      fabric,
+      source: workbookRule ? 'workbook_and_imported_product' : 'imported_product',
+    };
+  }
+
+  const imported = importedProductFacts(product);
+  const kind = productKind(product);
+  const safeImportedFacts = distinct([
+    ...imported.features,
+    ...imported.materialsAndCare.filter(value => !imported.care.includes(value)),
+    ...imported.fitAndDecoration,
+  ])
+    .filter(technicalFact)
+    .filter(value => categoryConsistent(value, kind))
+    .filter(value => fabricConsistent(value, fabric))
+    .map(sentence)
+    .slice(0, 7);
+
+  return {
+    sourceFacts: safeImportedFacts,
+    fabric,
+    source: workbookRule ? 'workbook_and_imported_product' : 'imported_product',
+  };
+}
+
+function methodsLabel(decoration: DecorationType, supportsBoth: boolean) {
+  if (supportsBoth) return 'Print and Embroidery';
+  return decoration === 'print' ? 'Print' : 'Embroidery';
+}
+
+function featureBullets(
+  product: CatalogProductForEnrichment,
+  sourceUrl: string | null,
+  decoration: DecorationType,
+  supportsBoth: boolean,
+  industryNames: string[],
+  bulkRanges: string[]
+) {
+  const facts = verifiedProductFacts(product, sourceUrl);
   const sizes = optionValues(product, 'Size').length
     ? optionValues(product, 'Size')
     : optionValues(product, 'Accessory size');
   const colours = optionValues(product, 'Color');
+  const brand = metafieldValue(product, 'custom', 'brand').trim() || supplierName(product);
+  const style = productStyle(product);
+  const category = productDisplayCategory(product);
   const candidates = [
-    ...facts.features,
-    ...facts.materialsAndCare.filter(value => !facts.care.includes(value)),
-    ...facts.fitAndDecoration,
+    ...facts.sourceFacts.slice(0, 5),
+    facts.sourceFacts.length < 2
+      ? `${supplierName(product)} is the supplier recorded for this product in Shopify.`
+      : '',
+    `${brand}${style ? ` style ${style}` : ''} identifies this exact ${category} for quoting and order review.`,
     sizes.length ? `Available in ${sizes.join(', ')} to support mixed-size group orders.` : '',
-    colours.length ? `Choose from ${colours.length} current colour options shown in the product selector.` : '',
+    colours.length ? `Choose from ${colours.length} current colour option${colours.length === 1 ? '' : 's'} in the product selector; availability can vary by inventory.` : '',
+    `${methodsLabel(decoration, supportsBoth)} ${supportsBoth ? 'are' : 'is'} the approved decoration ${supportsBoth ? 'methods' : 'method'} for this product.`,
+    industryNames.length ? `Assigned to the ${industryNames.join(', ')} Shopify industry collection${industryNames.length === 1 ? '' : 's'}.` : '',
+    bulkRanges.length ? `Current quantity tiers are ${bulkRanges.join(', ')}; the applicable rate depends on the selected order quantity.` : '',
+    sourceUrl ? 'A supplier reference is linked for final material and production verification.' : 'Final material and production details should be confirmed during quote approval.',
   ].map(sentence);
 
   const seen = new Set<string>();
@@ -428,65 +600,73 @@ function genericSpecifications(product: CatalogProductForEnrichment) {
     ? optionValues(product, 'Size')
     : optionValues(product, 'Accessory size');
   const colours = optionValues(product, 'Color');
-  const facts = productFacts(product);
-  const specs = [
+  return [
     { label: 'Brand', value: brand || supplierName(product) },
     { label: 'Style / SKU', value: style },
-    { label: 'Sizes', value: sizes.join(', ') },
-    { label: 'Colours', value: colours.join(', ') },
-    { label: 'Care', value: facts.care.join('; ') },
+    { label: 'Sizes', value: sizes.join(', ') || 'See the product selector for current options' },
+    { label: 'Colours', value: colours.join(', ') || 'See the product selector for current options' },
+    { label: 'Care', value: 'Follow the sewn-in care label and the care instructions supplied with the approved decoration' },
   ];
-  return specs.filter(spec => spec.value.trim());
 }
 
 function genericOverview(
   product: CatalogProductForEnrichment,
   decoration: DecorationType,
   supportsBoth: boolean,
-  industryNames: string[]
+  industryNames: string[],
+  sourceUrl: string | null
 ) {
   const brand = metafieldValue(product, 'custom', 'brand').trim();
   const style = productStyle(product);
-  const category = productCategory(product);
-  const facts = productFacts(product);
+  const category = productDisplayCategory(product);
+  const facts = verifiedProductFacts(product, sourceUrl);
   const sizes = optionValues(product, 'Size').length
     ? optionValues(product, 'Size')
     : optionValues(product, 'Accessory size');
   const colours = optionValues(product, 'Color');
-  const identity = [brand, style ? `style ${style}` : ''].filter(Boolean).join(' ');
-  const audience = industryNames.length
-    ? industryNames.slice(0, 3).join(', ')
-    : 'teams and organizations';
+  const identity = [brand, style ? `style ${style}` : ''].filter(Boolean).join(' ')
+    || product.title;
+  const audienceItems = industryNames.length
+    ? industryNames.slice(0, 3).map(value => value.toLowerCase())
+    : ['teams', 'organizations'];
+  const audience = audienceItems.length > 1
+    ? `${audienceItems.slice(0, -1).join(', ')} and ${audienceItems.at(-1)}`
+    : audienceItems[0];
   const method = supportsBoth
     ? 'printing and embroidery'
     : decoration === 'print' ? 'printing' : 'embroidery';
-  const parts = [sentence(
-    `${product.title} is a ${identity ? `${identity} ` : ''}${category.toLowerCase()} selected for ${audience.toLowerCase()} and custom ${method}`
-  )];
-  const wordCount = (values: string[]) => values.join(' ').trim().split(/\s+/).filter(Boolean).length;
-  const addIfItFits = (value: string) => {
-    const clean = sentence(value);
-    if (!clean || parts.includes(clean)) return;
-    if (wordCount([...parts, clean]) <= 70) parts.push(clean);
-  };
-  for (const fact of [...facts.features.slice(0, 2), facts.material, facts.fit]) {
-    if (wordCount(parts) >= 38) break;
-    addIfItFits(fact);
+  const verifiedDetails = facts.sourceFacts
+    .slice(0, 2)
+    .map(value => value.replace(/[.!?]$/, ''));
+  const sourceSentence = verifiedDetails.length
+    ? facts.source === 'official_supplier_pdf'
+      ? `Source-checked details include ${verifiedDetails.join(' and ')}.`
+      : `Recorded product details include ${verifiedDetails.join(' and ')}.`
+    : facts.fabric
+      ? `The product workbook classifies this style as ${facts.fabric.toLowerCase()}, with final construction confirmed during quote approval.`
+      : 'The available product data confirms the style, supplier, category, and approved decoration method used for quoting.';
+  const availability = [
+    sizes.length ? `${sizes.length} current size option${sizes.length === 1 ? '' : 's'}` : '',
+    colours.length ? `${colours.length} current colour option${colours.length === 1 ? '' : 's'}` : '',
+  ].filter(Boolean).join(' and ') || 'the current product options';
+  const parts = [
+    `This product is listed in the ${category.toLowerCase()} category as ${identity}, selected for custom ${method} across ${audience}.`,
+    sourceSentence,
+    `Shopify currently lists ${availability}; availability can vary, so confirm the selected size, colour, decoration method, and inventory before artwork approval and production.`,
+  ];
+  const wordCount = (value: string) => value.trim().split(/\s+/).filter(Boolean).length;
+  let overview = parts.join(' ');
+  if (wordCount(overview) > 70 && verifiedDetails.length > 1) {
+    parts[1] = `Source-checked details include ${verifiedDetails[0]}.`;
+    overview = parts.join(' ');
   }
-  if (sizes.length || colours.length) {
-    const availability = [
-      sizes.length ? `${sizes.length} current size option${sizes.length === 1 ? '' : 's'}` : '',
-      colours.length ? `${colours.length} current colour option${colours.length === 1 ? '' : 's'}` : '',
-    ].filter(Boolean).join(' and ');
-    addIfItFits(`Shopify currently lists ${availability}; availability can vary by inventory`);
+  if (wordCount(overview) > 70) {
+    parts[1] = facts.fabric
+      ? `The product workbook classifies this style as ${facts.fabric.toLowerCase()}, with construction confirmed during quote approval.`
+      : 'Supplier-linked product data is used to confirm construction during quote approval.';
+    overview = parts.join(' ');
   }
-  if (wordCount(parts) < 50) {
-    addIfItFits('Its verified product details help buyers compare construction, fit, and decoration suitability before requesting a quote');
-  }
-  if (wordCount(parts) < 50) {
-    addIfItFits('Review the selected size, colour, decoration method, and live inventory before confirming the final branded order');
-  }
-  return distinct(parts).join(' ');
+  return overview;
 }
 
 function genericTagline(
@@ -496,19 +676,21 @@ function genericTagline(
   industryNames: string[]
 ) {
   const quality = metafieldValue(product, 'custom', 'quality').trim().toLowerCase();
-  const categoryValue = productCategory(product);
+  const categoryValue = productDisplayCategory(product);
   const category = normalize(categoryValue) === normalize(product.title) ? 'product' : categoryValue.toLowerCase();
   const audience = industryNames.length ? industryNames[0].toLowerCase() : 'team';
   const method = supportsBoth
-    ? 'printing and embroidery'
+    ? 'custom printing and embroidery'
     : decoration === 'print' ? 'custom printing' : 'custom embroidery';
-  return `A ${quality ? `${quality} ` : ''}${category} built for ${audience} programs and ${method}.`;
+  const lead = quality ? `${quality.charAt(0).toUpperCase()}${quality.slice(1)} ` : '';
+  return `${lead}${category} for ${audience} programs with ${method}.`;
 }
 
 function genericFaqs(
   product: CatalogProductForEnrichment,
   decoration: DecorationType,
-  supportsBoth: boolean
+  supportsBoth: boolean,
+  sourceUrl: string | null
 ) {
   const style = productStyle(product);
   const reference = style || product.title;
@@ -516,14 +698,19 @@ function genericFaqs(
     ? optionValues(product, 'Size')
     : optionValues(product, 'Accessory size');
   const colours = optionValues(product, 'Color');
-  const facts = productFacts(product);
+  const facts = verifiedProductFacts(product, sourceUrl);
+  const colourCount = colours.length
+    ? `${colours.length} colour option${colours.length === 1 ? '' : 's'}`
+    : '';
   const optionAnswer = sizes.length
-    ? `${reference} is currently offered in ${sizes.join(', ')}. ${colours.length ? `${colours.length} colour options are listed in Shopify.` : ''} Availability can vary by inventory.`
-    : `${colours.length ? `${colours.length} colour options are currently listed in Shopify.` : 'Available options are shown in the product selector.'} Availability can vary by inventory.`;
-  const materialAnswer = [
-    sentence(facts.material || firstNonEmpty(facts.features)),
-    facts.care.length ? sentence(`Care guidance: ${facts.care.join('; ')}`) : '',
-  ].filter(Boolean).join(' ');
+    ? `${reference} is currently offered in ${sizes.join(', ')}.${colourCount ? ` ${colourCount} ${colours.length === 1 ? 'is' : 'are'} listed in Shopify.` : ''} Availability can vary by inventory.`
+    : `${colourCount ? `${colourCount} ${colours.length === 1 ? 'is' : 'are'} currently listed in Shopify.` : 'Available options are shown in the product selector.'} Availability can vary by inventory.`;
+  const materialFact = facts.sourceFacts.find(technicalFact);
+  const materialAnswer = materialFact
+    ? `${sentence(materialFact)} Follow the sewn-in care label and the care instructions supplied with the approved decoration.`
+    : facts.fabric
+      ? `The product workbook classifies this style as ${facts.fabric.toLowerCase()}. Follow the sewn-in care label and the care instructions supplied with the approved decoration.`
+      : 'Confirm the supplier material reference during quote approval, then follow the sewn-in care label and the care instructions supplied with the approved decoration.';
 
   return [
     {
@@ -538,7 +725,7 @@ function genericFaqs(
     },
     {
       question: `What is ${reference} made from and how should it be cared for?`,
-      answer: materialAnswer || 'Refer to the product material and care specifications shown above before laundering or decorating.',
+      answer: materialAnswer,
     },
   ];
 }
@@ -563,7 +750,7 @@ export function buildCatalogEnrichmentDraft(
     : [decorationName];
   const brand = metafieldValue(product, 'custom', 'brand').trim();
   const style = productStyle(product);
-  const category = productCategory(product);
+  const category = productDisplayCategory(product);
   const supplier = supplierName(product);
   const sourceUrl = supplierProductUrl(product, style, brand);
   const industryContexts = recognizedIndustries(product.tags).map(([handle, name]) => ({
@@ -572,25 +759,41 @@ export function buildCatalogEnrichmentDraft(
       || `A versatile branded ${category.toLowerCase()} option for ${name.toLowerCase()} programs and teams.`,
   }));
   const industryNames = industryContexts.map(item => item.industry);
-  const facts = productFacts(product);
-  const materialDetail = firstNonEmpty([facts.material, facts.weight, facts.fit]);
+  const facts = verifiedProductFacts(product, sourceUrl);
+  const materialDetail = facts.sourceFacts.find(technicalFact)
+    || (facts.fabric ? `${facts.fabric} fabric classification` : 'verified product construction');
   const decorationGuide = supportsBoth
-    ? `Both Print and Embroidery are available for this product${materialDetail ? `, based on its ${materialDetail.replace(/[.!?]$/, '')}` : ''}. Print works well for detailed logos, text, and campaign artwork, while embroidery provides a durable stitched finish. The current bulk tiers use ${decorationName} pricing.`
+    ? `Both Print and Embroidery are available for this product. Production planning uses this construction detail: ${materialDetail.replace(/[.!?]$/, '')}. Print works for detailed artwork, while embroidery provides a durable stitched finish; the current bulk tiers use ${decorationName} pricing.`
     : assessment.decoration === 'print'
-      ? `This product uses Print pricing${materialDetail ? ` and is presented with its verified ${materialDetail.replace(/[.!?]$/, '')} construction` : ''}. Print is suited to logos, text, campaign artwork, and event graphics. The quantity tiers shown on the product determine the applicable bulk rate.`
-      : `This product uses Embroidery pricing${materialDetail ? ` and is presented with its verified ${materialDetail.replace(/[.!?]$/, '')} construction` : ''}. Embroidery gives logos and text a durable stitched finish. The quantity tiers shown on the product determine the applicable bulk rate.`;
+      ? `This product uses Print pricing. Production planning uses this construction detail: ${materialDetail.replace(/[.!?]$/, '')}. Print is suited to logos, text, campaign artwork, and event graphics; the quantity tiers shown determine the applicable bulk rate.`
+      : `This product uses Embroidery pricing. Production planning uses this construction detail: ${materialDetail.replace(/[.!?]$/, '')}. Embroidery gives logos and text a durable stitched finish; the quantity tiers shown determine the applicable bulk rate.`;
   const metafields: ShopifyPayload['metafields'] = [
-    textMetafield('accordion1_texts', JSON.stringify(featureBullets(product)), 'list.single_line_text_field'),
+    textMetafield(
+      'accordion1_texts',
+      JSON.stringify(featureBullets(
+        product,
+        sourceUrl,
+        assessment.decoration,
+        supportsBoth,
+        industryNames,
+        assessment.bulkRanges
+      )),
+      'list.single_line_text_field'
+    ),
     textMetafield('quick_spec_tagline', genericTagline(product, assessment.decoration, supportsBoth, industryNames)),
-    textMetafield('quick_spec_overview', genericOverview(product, assessment.decoration, supportsBoth, industryNames), 'multi_line_text_field'),
+    textMetafield(
+      'quick_spec_overview',
+      genericOverview(product, assessment.decoration, supportsBoth, industryNames, sourceUrl),
+      'multi_line_text_field'
+    ),
     jsonMetafield('specifications', genericSpecifications(product)),
     jsonMetafield('who_its_great_for', industryContexts),
     textMetafield('supplier_name', supplier),
     textMetafield('pricing_decoration_method', decorationName),
     textMetafield('available_decoration_methods', JSON.stringify(availableDecorationMethods), 'list.single_line_text_field'),
     textMetafield('decoration_guide', decorationGuide, 'multi_line_text_field'),
-    jsonMetafield('product_faqs', genericFaqs(product, assessment.decoration, supportsBoth)),
-    textMetafield('enrichment_version', '3', 'number_integer'),
+    jsonMetafield('product_faqs', genericFaqs(product, assessment.decoration, supportsBoth, sourceUrl)),
+    textMetafield('enrichment_version', '4', 'number_integer'),
     textMetafield('last_enriched_at', enrichedAt.toISOString(), 'date_time'),
   ];
   if (sourceUrl) {
@@ -657,7 +860,7 @@ export function buildAtc1000PilotDraft(
     { label: 'Style / SKU', value: ATC1000_PILOT_STYLE },
     { label: 'Sizes', value: sizes.join(', ') },
     { label: 'Colours', value: colours.join(', ') },
-    { label: 'Care', value: 'Machine wash cold and tumble dry low; follow the garment care label.' },
+    { label: 'Care', value: 'Follow the sewn-in care label and the care instructions supplied with the approved decoration.' },
   ];
 
   const faqs = [
@@ -702,7 +905,7 @@ export function buildAtc1000PilotDraft(
         'multi_line_text_field'
       ),
       jsonMetafield('product_faqs', faqs),
-      textMetafield('enrichment_version', '3', 'number_integer'),
+      textMetafield('enrichment_version', '4', 'number_integer'),
       textMetafield('last_enriched_at', enrichedAt.toISOString(), 'date_time'),
     ],
   };

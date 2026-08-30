@@ -198,7 +198,7 @@ test('builds an additive ATC1000-only enrichment draft without a size chart', ()
   assert.equal(specifications.length, 5);
   assert.equal(productFaqs.length, 3);
   assert.equal(overviewWords >= 50 && overviewWords <= 70, true);
-  assert.equal(draft.metafields.find(item => item.key === 'enrichment_version')?.value, '3');
+  assert.equal(draft.metafields.find(item => item.key === 'enrichment_version')?.value, '4');
   assert.equal(finalDraft.metafields.find(item => item.key === 'last_enriched_at')?.value, '2026-08-20T00:00:00.000Z');
 });
 
@@ -245,11 +245,11 @@ test('applies all approved catalog skip guards before batch enrichment', () => {
   })).status, 'skip');
 });
 
-test('keeps the six approved jersey overrides eligible as embroidery', () => {
-  const assessment = assessCatalogProductForEnrichment({
+test('keeps approved jersey overrides eligible while skipping copied test products', () => {
+  const baseProduct = {
     shopifyProductId: 'gid://shopify/Product/jersey',
     title: 'Ladies Freestyle Sublimated Volleyball Jersey',
-    handle: 'test-product-copy',
+    handle: 'ladies-freestyle-sublimated-cap-sleeve-basketball-jersey',
     vendor: 'Momentec Brands',
     tags: ['sports', 'women'],
     snapshot: {
@@ -259,10 +259,21 @@ test('keeps the six approved jersey overrides eligible as embroidery', () => {
         ],
       },
     },
-  });
+  };
+  const assessment = assessCatalogProductForEnrichment(baseProduct);
 
   assert.equal(assessment.status, 'eligible');
   assert.equal(assessment.status === 'eligible' ? assessment.decoration : null, 'embroidery');
+  assert.deepEqual(assessCatalogProductForEnrichment({
+    ...baseProduct,
+    title: 'Second Product',
+    handle: 'test-product-copy',
+  }), {
+    status: 'skip',
+    reason: 'package_or_utility',
+    bulkRanges: ['12-47', '48-71', '72-149', '150+'],
+    industryHandles: ['sports'],
+  });
 });
 
 test('builds a factual additive draft from existing Shopify product facts', () => {
@@ -305,7 +316,7 @@ test('builds a factual additive draft from existing Shopify product facts', () =
   assert.deepEqual(availableDecorationMethods, ['Print', 'Embroidery']);
   assert.match(decorationGuide, /Both Print and Embroidery are available/);
   assert.match(productFaqs[1]?.answer || '', /supports both Print and Embroidery/);
-  assert.equal(draft.metafields.find(item => item.key === 'enrichment_version')?.value, '3');
+  assert.equal(draft.metafields.find(item => item.key === 'enrichment_version')?.value, '4');
   assert.deepEqual(draft.industryHandles, ['schools', 'sports']);
   assert.equal(draft.sourceUrl, 'https://en-ca.ssactivewear.com/ps/?q=Y2005');
   assert.equal(specifications.find((item: { label: string }) => item.label === 'Style / SKU')?.value, 'Y2005');
@@ -320,7 +331,7 @@ test('builds a factual additive draft from existing Shopify product facts', () =
   assert.equal(draft.metafields.find(item => item.key === 'last_enriched_at')?.value, '2026-08-20T00:00:00.000Z');
 });
 
-test('uses verified SanMar PDF exceptions and omits an unverified new-style PDF', () => {
+test('uses verified SanMar PDF exceptions including the Earth Wash source', () => {
   const product = (style: string) => ({
     shopifyProductId: `gid://shopify/Product/${style}`,
     title: `ATC Product. ${style}`,
@@ -349,5 +360,54 @@ test('uses verified SanMar PDF exceptions and omits an unverified new-style PDF'
     buildCatalogEnrichmentDraft(product('ATCF2500')).sourceUrl,
     'https://media.sanmarcanada.com/pdfs/ATCF2500.pdf'
   );
-  assert.equal(buildCatalogEnrichmentDraft(product('ATCF6500')).sourceUrl, null);
+  assert.equal(
+    buildCatalogEnrichmentDraft(product('ATCF6500')).sourceUrl,
+    'https://media.sanmarcanada.com/pdfs/EW_ATCF6500.pdf'
+  );
+});
+
+test('replaces copied garment claims with official source facts for headwear and outerwear', () => {
+  const product = (args: { style: string; title: string; category: string; brand?: string }) => ({
+    shopifyProductId: `gid://shopify/Product/${args.style}`,
+    title: args.title,
+    handle: args.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+    vendor: 'Sanmar',
+    tags: ['events'],
+    snapshot: {
+      options: [
+        { name: 'Color', optionValues: [{ name: 'Black' }] },
+        { name: 'Size', optionValues: [{ name: 'M' }] },
+      ],
+      metafields: {
+        nodes: [
+          { namespace: 'custom', key: 'brand', value: args.brand || 'ATC' },
+          { namespace: 'custom', key: 'product_style_number', value: args.style },
+          { namespace: 'custom', key: 'sub_category', value: JSON.stringify([args.category]) },
+          { namespace: 'custom', key: 'bulk_ranges', value: '["12-23","24-47","48-99","100+"]' },
+          { namespace: 'custom', key: 'accordion1_texts', value: '["6.1 oz cotton jersey.","Rib-knit collar and sleeves."]' },
+          { namespace: 'custom', key: 'accordion3_texts', value: '["100% cotton","Machine wash cold"]' },
+          { namespace: 'custom', key: 'accordion4_texts', value: '["Classic T-shirt fit."]' },
+        ],
+      },
+    },
+  });
+
+  const toque = buildCatalogEnrichmentDraft(product({
+    style: 'C100',
+    title: 'ATC™ EVERYDAY KNIT CUFF TOQUE. C100',
+    category: 'Toques',
+  }));
+  const toqueFeatures = JSON.parse(toque.metafields.find(item => item.key === 'accordion1_texts')?.value || '[]');
+  assert.equal(toqueFeatures.some((item: string) => /100% acrylic/i.test(item)), true);
+  assert.equal(toqueFeatures.some((item: string) => /cotton jersey|t-shirt fit|shirt fit/i.test(item)), false);
+
+  const jacket = buildCatalogEnrichmentDraft(product({
+    style: 'CH7690',
+    title: 'CH ESSENTIAL® GO TO PUFFY JACKET. CH7690',
+    category: 'Winter Jacket',
+    brand: 'CH Essential',
+  }));
+  const jacketFeatures = JSON.parse(jacket.metafields.find(item => item.key === 'accordion1_texts')?.value || '[]');
+  assert.equal(jacketFeatures.some((item: string) => /100% nylon/i.test(item)), true);
+  assert.equal(jacketFeatures.some((item: string) => /cotton jersey|rib-knit collar and sleeves/i.test(item)), false);
 });

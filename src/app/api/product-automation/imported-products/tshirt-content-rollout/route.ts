@@ -242,7 +242,7 @@ async function updateProduct(product: CatalogProduct, booleanKey: string, isTarg
         descriptionHtml: string;
         visibility: { value: string } | null;
       } | null;
-      userErrors: Array<{ field?: string[]; message: string; code?: string }>;
+      userErrors: Array<{ field?: string[]; message: string }>;
     };
   }>(`
     mutation UpdateTshirtContent($input: ProductInput!, $namespace: String!, $key: String!) {
@@ -252,7 +252,7 @@ async function updateProduct(product: CatalogProduct, booleanKey: string, isTarg
           descriptionHtml
           visibility: metafield(namespace: $namespace, key: $key) { value }
         }
-        userErrors { field message code }
+        userErrors { field message }
       }
     }
   `, { input, namespace: 'custom', key: booleanKey });

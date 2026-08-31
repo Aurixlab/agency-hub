@@ -70,7 +70,7 @@ function removeExistingKeywordParagraph(descriptionHtml: string) {
 
 function buildKeywordParagraph(title: string) {
   const link = (label: string) => `<a href="${COLLECTION_URL}">${label}</a>`;
-  return `<p class="${KEYWORD_PARAGRAPH_CLASS}">The ${escapeHtml(title)} supports branded programs ranging from a ${link(KEYWORDS[0])} and coordinated ${link(KEYWORDS[1])} to versatile ${link(KEYWORDS[2])} and event-ready ${link(KEYWORDS[3])}.</p>`;
+  return `<p class="${KEYWORD_PARAGRAPH_CLASS}">${link(KEYWORDS[3])} starts with the ${escapeHtml(title)}, a versatile ${link(KEYWORDS[0])} choice for coordinated ${link(KEYWORDS[1])} and branded ${link(KEYWORDS[2])} programs.</p>`;
 }
 
 function buildDescription(descriptionHtml: string, title: string) {

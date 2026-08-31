@@ -9,11 +9,25 @@ export function middleware(request: NextRequest) {
   const enrichmentBatchPath = '/api/product-automation/imported-products/enrichment-batch';
   const enrichmentBatchToken = process.env.PRODUCT_ENRICHMENT_BATCH_TOKEN;
   const suppliedEnrichmentBatchToken = request.headers.get('x-enrichment-batch-token');
+  const tshirtRolloutToken = process.env.PRODUCT_TSHIRT_ROLLOUT_TOKEN;
+  const suppliedTshirtRolloutToken = request.headers.get('x-tshirt-rollout-token');
+  const tshirtRolloutPaths = [
+    '/api/product-automation/imported-products/sync',
+    '/api/product-automation/imported-products/tshirt-content-rollout',
+  ];
 
   if (
     pathname === enrichmentBatchPath
     && enrichmentBatchToken
     && suppliedEnrichmentBatchToken === enrichmentBatchToken
+  ) {
+    return NextResponse.next();
+  }
+
+  if (
+    tshirtRolloutPaths.includes(pathname)
+    && tshirtRolloutToken
+    && suppliedTshirtRolloutToken === tshirtRolloutToken
   ) {
     return NextResponse.next();
   }

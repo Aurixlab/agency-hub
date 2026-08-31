@@ -1,12 +1,22 @@
 import { NextResponse } from 'next/server';
+import { timingSafeEqual } from 'node:crypto';
 import { getSessionFromRequestFull } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { fetchShopifyCatalogPage } from '@/lib/product-automation/shopify-catalog';
 
 export async function POST(request: Request) {
-  const session = await getSessionFromRequestFull(request);
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (session.role !== 'ADMIN') {
+  const expected = process.env.PRODUCT_TSHIRT_ROLLOUT_TOKEN || '';
+  const supplied = request.headers.get('x-tshirt-rollout-token') || '';
+  const expectedBuffer = Buffer.from(expected);
+  const suppliedBuffer = Buffer.from(supplied);
+  const matchesRolloutToken = Boolean(expected && supplied)
+    && expectedBuffer.length === suppliedBuffer.length
+    && timingSafeEqual(expectedBuffer, suppliedBuffer);
+  const session = matchesRolloutToken ? null : await getSessionFromRequestFull(request);
+  if (!matchesRolloutToken && !session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  if (!matchesRolloutToken && session?.role !== 'ADMIN') {
     return NextResponse.json({ error: 'Only admins can sync the Shopify catalog' }, { status: 403 });
   }
 
@@ -24,7 +34,7 @@ export async function POST(request: Request) {
           tags: product.tags as any,
           snapshot: product.snapshot as any,
           lastSyncedAt: syncedAt,
-          lastSyncedBy: session.id,
+          lastSyncedBy: session?.id || null,
         },
         update: {
           legacyResourceId: product.legacyResourceId,
@@ -47,7 +57,7 @@ export async function POST(request: Request) {
           sourceHash: product.sourceHash,
           shopifyUpdatedAt: product.shopifyUpdatedAt,
           lastSyncedAt: syncedAt,
-          lastSyncedBy: session.id,
+          lastSyncedBy: session?.id || null,
         },
       })
     ));

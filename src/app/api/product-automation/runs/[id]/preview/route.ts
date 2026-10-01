@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getSessionFromRequestFull } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { assertAiCopyReady, validateAiCopy } from '@/lib/product-automation/gemini-copy';
 import { composeShopifyPayload } from '@/lib/product-automation/payload';
+import { resolveShopifyCollectionIds } from '@/lib/product-automation/shopify';
 import type { AiProductCopy, DecorationType, ScrapedProductData } from '@/lib/product-automation/types';
 
 const colorsFrom = (value: unknown) =>
@@ -17,19 +19,32 @@ export async function POST(request: Request, { params }: { params: { id: string 
   try {
     const body = await request.json().catch(() => ({}));
     const scrapedData = (body.scrapedData || run.scrapedData) as ScrapedProductData | null;
-    const aiCopy = (body.aiCopy || run.aiCopy) as AiProductCopy | null;
+    const rawAiCopy = (body.aiCopy || run.aiCopy) as AiProductCopy | null;
     const colors = colorsFrom(body.colors || run.colors);
 
     if (!scrapedData) return NextResponse.json({ error: 'Scraped data is required before preview' }, { status: 400 });
-    if (!aiCopy) return NextResponse.json({ error: 'AI copy is required before preview' }, { status: 400 });
+    if (!rawAiCopy) return NextResponse.json({ error: 'AI copy is required before preview' }, { status: 400 });
     if (!colors.length) return NextResponse.json({ error: 'At least one color is required before preview' }, { status: 400 });
+
+    const decorationType = run.decorationType as DecorationType;
+    const aiCopy = validateAiCopy(rawAiCopy, scrapedData, {
+      pricingDecoration: decorationType,
+      availableDecorationMethods: rawAiCopy.available_decoration_methods,
+      preferredIndustryHandles: rawAiCopy.industry_handles,
+      colors,
+    });
+    assertAiCopyReady(aiCopy);
+    const collectionIdsByHandle = await resolveShopifyCollectionIds(aiCopy.industry_handles);
+    const industryCollectionIds = aiCopy.industry_handles.map(handle => collectionIdsByHandle[handle]);
 
     const { pricing, payload } = composeShopifyPayload({
       scrapedData,
       aiCopy,
       basePrice: Number(run.basePrice),
-      decorationType: run.decorationType as DecorationType,
+      decorationType,
       colors,
+      productLink: run.productLink,
+      industryCollectionIds,
     });
 
     const updated = await prisma.productAutomationRun.update({

@@ -1,5 +1,32 @@
 export type DecorationType = 'print' | 'embroidery';
 export type Confidence = 'high' | 'medium' | 'low' | 'missing';
+export type DecorationMethod = 'Print' | 'Embroidery';
+
+export type ProductContentCategory =
+  | 't-shirt'
+  | 'polo'
+  | 'hoodie'
+  | 'sweatshirt'
+  | 'outerwear'
+  | 'headwear'
+  | 'bottoms'
+  | 'bags'
+  | 'other';
+
+export interface ProductSpecification {
+  label: string;
+  value: string;
+}
+
+export interface ProductIndustryContext {
+  industry: string;
+  context: string;
+}
+
+export interface ProductFaq {
+  question: string;
+  answer: string;
+}
 
 export interface ProductAutomationInput {
   product_link: string;
@@ -25,6 +52,19 @@ export interface AiProductCopy {
   material_care: string[];
   customization_fit: string[];
   seo_description: string;
+  product_category: ProductContentCategory;
+  quick_spec_tagline: string;
+  quick_spec_overview: string;
+  specifications: ProductSpecification[];
+  industry_handles: string[];
+  who_its_great_for: ProductIndustryContext[];
+  available_decoration_methods: DecorationMethod[];
+  decoration_guide: string;
+  product_faqs: ProductFaq[];
+  overview_linked_copy: string;
+  audience_linked_copy: string;
+  customization_linked_copy: string;
+  collection_linked_copy: string;
 }
 
 export interface PricingTier {

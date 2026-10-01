@@ -19,10 +19,12 @@ import {
 } from 'lucide-react';
 import type {
   AiProductCopy,
+  DecorationMethod,
   PricingTable,
   ScrapedProductData,
   ShopifyPayload,
 } from '@/lib/product-automation/types';
+import { INDUSTRY_OPTIONS, PRODUCT_CONTENT_CATEGORIES } from '@/lib/product-automation/content-config';
 import { ImportedProductsSection } from '@/components/product-automation/ImportedProductsSection';
 
 interface ProductAutomationRun {
@@ -67,6 +69,19 @@ const emptyAi: AiProductCopy = {
   material_care: [],
   customization_fit: [],
   seo_description: '',
+  product_category: 'other',
+  quick_spec_tagline: '',
+  quick_spec_overview: '',
+  specifications: [],
+  industry_handles: [],
+  who_its_great_for: [],
+  available_decoration_methods: [],
+  decoration_guide: '',
+  product_faqs: [],
+  overview_linked_copy: '',
+  audience_linked_copy: '',
+  customization_linked_copy: '',
+  collection_linked_copy: '',
 };
 
 const initialForm = {
@@ -75,10 +90,34 @@ const initialForm = {
   decoration_type: 'print' as 'print' | 'embroidery',
   colors: 'Black, White, Navy',
   images_ready: false,
+  supports_both: false,
+  industry_handles: [] as string[],
 };
 
 const listToText = (items: string[]) => items.join('\n');
 const textToList = (value: string) => value.split('\n').map(item => item.trim()).filter(Boolean);
+const pairListToText = (items: Array<Record<string, string>>, first: string, second: string) =>
+  items.map(item => `${item[first] || ''} | ${item[second] || ''}`).join('\n');
+const textToPairs = (value: string, first: string, second: string) =>
+  value.split('\n').map(line => {
+    const separator = line.indexOf('|');
+    return separator < 0
+      ? { [first]: line.trim(), [second]: '' }
+      : { [first]: line.slice(0, separator).trim(), [second]: line.slice(separator + 1).trim() };
+  }).filter(item => item[first] && item[second]);
+const normalizedAiCopy = (copy: AiProductCopy | null | undefined): AiProductCopy => ({
+  ...emptyAi,
+  ...(copy || {}),
+  key_features: copy?.key_features || [],
+  best_use: copy?.best_use || [],
+  material_care: copy?.material_care || [],
+  customization_fit: copy?.customization_fit || [],
+  specifications: copy?.specifications || [],
+  industry_handles: copy?.industry_handles || [],
+  who_its_great_for: copy?.who_its_great_for || [],
+  available_decoration_methods: copy?.available_decoration_methods || [],
+  product_faqs: copy?.product_faqs || [],
+});
 const drafted = (run: ProductAutomationRun) => run.status === 'created' && Boolean(run.shopifyProductUrl);
 const money = (value: string | number) => `$${Number(value || 0).toFixed(2)}`;
 const hasAiCopyContent = (copy: AiProductCopy | null | undefined) =>
@@ -86,7 +125,8 @@ const hasAiCopyContent = (copy: AiProductCopy | null | undefined) =>
   || Boolean(copy?.key_features?.length)
   || Boolean(copy?.best_use?.length)
   || Boolean(copy?.material_care?.length)
-  || Boolean(copy?.customization_fit?.length);
+  || Boolean(copy?.customization_fit?.length)
+  || Boolean(copy?.quick_spec_overview?.trim());
 
 export default function ProductAutomationPage() {
   const [mode, setMode] = useState<'table' | 'workspace' | 'imports'>('table');
@@ -117,13 +157,17 @@ export default function ProductAutomationPage() {
   const syncRun = (nextRun: ProductAutomationRun, openWorkspace = true) => {
     setRun(nextRun);
     setScraped(nextRun.scrapedData || emptyScraped);
-    setAiCopy(nextRun.aiCopy || emptyAi);
+    const nextAiCopy = normalizedAiCopy(nextRun.aiCopy);
+    setAiCopy(nextAiCopy);
     setForm({
       product_link: nextRun.productLink,
       base_price: String(nextRun.basePrice),
       decoration_type: nextRun.decorationType,
       colors: Array.isArray(nextRun.colors) ? nextRun.colors.join(', ') : '',
       images_ready: nextRun.imagesReady,
+      supports_both: nextAiCopy.available_decoration_methods.includes('Print')
+        && nextAiCopy.available_decoration_methods.includes('Embroidery'),
+      industry_handles: nextAiCopy.industry_handles,
     });
     if (openWorkspace) setMode('workspace');
   };
@@ -476,6 +520,18 @@ function ProductWorkspace(props: {
                   </select>
                 </label>
               </div>
+              <label className="flex items-start gap-2 rounded-lg border border-surface-200 p-3 text-sm dark:border-surface-800">
+                <input
+                  type="checkbox"
+                  checked={form.supports_both}
+                  onChange={e => setForm({ ...form, supports_both: e.target.checked })}
+                  className="mt-0.5 h-4 w-4 rounded border-surface-300"
+                />
+                <span>
+                  <span className="block font-medium text-surface-700 dark:text-surface-300">Supports both decoration methods</span>
+                  <span className="mt-0.5 block text-xs text-surface-500">The selected method above remains the pricing ladder.</span>
+                </span>
+              </label>
               <label className="block">
                 <span className="label">Colors</span>
                 <input
@@ -485,6 +541,31 @@ function ProductWorkspace(props: {
                   placeholder="Black, White, Navy"
                 />
               </label>
+              <fieldset>
+                <legend className="label">Industry collections <span className="font-normal text-surface-400">(optional)</span></legend>
+                <p className="mb-2 text-xs text-surface-500">Choose known industries, or leave blank and let Gemini suggest them for review.</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {INDUSTRY_OPTIONS.map(option => {
+                    const checked = form.industry_handles.includes(option.handle);
+                    return (
+                      <label key={option.handle} className="flex items-center gap-2 rounded-md border border-surface-200 px-2.5 py-2 text-xs dark:border-surface-800">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => setForm({
+                            ...form,
+                            industry_handles: checked
+                              ? form.industry_handles.filter(handle => handle !== option.handle)
+                              : [...form.industry_handles, option.handle],
+                          })}
+                          className="h-4 w-4 rounded border-surface-300"
+                        />
+                        {option.name}
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
               <label className="flex items-center gap-2 text-sm font-medium text-surface-700 dark:text-surface-300">
                 <input
                   type="checkbox"
@@ -508,7 +589,7 @@ function ProductWorkspace(props: {
                 {loading === 'scrape' ? <Loader2 className="h-4 w-4 animate-spin" /> : <PackageSearch className="h-4 w-4" />} Scrape supplier
               </button>
               <button onClick={generate} disabled={!run || actionDisabled} className="btn-secondary justify-start">
-                {loading === 'generate' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} Generate copy
+                {loading === 'generate' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} Generate all content
               </button>
               <button onClick={preview} disabled={!run || actionDisabled} className="btn-secondary justify-start">
                 {loading === 'preview' ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Preview payload
@@ -566,13 +647,51 @@ function EditableAiCopy({ aiCopy, setAiCopy }: {
   aiCopy: AiProductCopy;
   setAiCopy: (value: AiProductCopy) => void;
 }) {
-  const setList = (field: keyof Omit<AiProductCopy, 'seo_description'>, value: string) =>
+  type CopyListField = 'key_features' | 'best_use' | 'material_care' | 'customization_fit';
+  const setList = (field: CopyListField, value: string) =>
     setAiCopy({ ...aiCopy, [field]: textToList(value) });
+  const setMethod = (method: DecorationMethod) => {
+    const selected = aiCopy.available_decoration_methods.includes(method);
+    setAiCopy({
+      ...aiCopy,
+      available_decoration_methods: selected
+        ? aiCopy.available_decoration_methods.filter(item => item !== method)
+        : [...aiCopy.available_decoration_methods, method],
+    });
+  };
+  const setIndustry = (handle: string) => {
+    const selected = aiCopy.industry_handles.includes(handle);
+    const option = INDUSTRY_OPTIONS.find(item => item.handle === handle);
+    const industryHandles = selected
+      ? aiCopy.industry_handles.filter(item => item !== handle)
+      : [...aiCopy.industry_handles, handle];
+    const contexts = selected
+      ? aiCopy.who_its_great_for.filter(context => context.industry !== option?.name)
+      : option && !aiCopy.who_its_great_for.some(context => context.industry === option.name)
+        ? [...aiCopy.who_its_great_for, {
+          industry: option.name,
+          context: `A practical branded product for ${option.name.toLowerCase()} teams, programs, and group orders.`,
+        }]
+        : aiCopy.who_its_great_for;
+    setAiCopy({ ...aiCopy, industry_handles: industryHandles, who_its_great_for: contexts });
+  };
 
   return (
     <div className="card p-5">
       <h2 className="text-lg font-semibold text-surface-900 dark:text-white">AI Copy</h2>
       <div className="mt-4 space-y-3">
+        <label className="block">
+          <span className="label">Product category</span>
+          <select
+            className="select"
+            value={aiCopy.product_category}
+            onChange={e => setAiCopy({ ...aiCopy, product_category: e.target.value as AiProductCopy['product_category'] })}
+          >
+            {PRODUCT_CONTENT_CATEGORIES.map(category => (
+              <option key={category} value={category}>{category}</option>
+            ))}
+          </select>
+        </label>
         <ListField label="Key features" value={listToText(aiCopy.key_features)} onChange={value => setList('key_features', value)} />
         <ListField label="Best use" value={listToText(aiCopy.best_use)} onChange={value => setList('best_use', value)} />
         <ListField label="Material care" value={listToText(aiCopy.material_care)} onChange={value => setList('material_care', value)} />
@@ -585,6 +704,68 @@ function EditableAiCopy({ aiCopy, setAiCopy }: {
             onChange={e => setAiCopy({ ...aiCopy, seo_description: e.target.value })}
           />
         </label>
+        <div className="border-t border-surface-200 pt-4 dark:border-surface-800">
+          <p className="text-sm font-semibold text-surface-900 dark:text-white">Enriched product details</p>
+          <p className="mt-1 text-xs text-surface-500">These fields power the content section after the quote form.</p>
+        </div>
+        <label className="block">
+          <span className="label">Quick-spec tagline</span>
+          <textarea className="input min-h-20 resize-y" value={aiCopy.quick_spec_tagline} onChange={e => setAiCopy({ ...aiCopy, quick_spec_tagline: e.target.value })} />
+        </label>
+        <label className="block">
+          <span className="label">Overview</span>
+          <textarea className="input min-h-32 resize-y" value={aiCopy.quick_spec_overview} onChange={e => setAiCopy({ ...aiCopy, quick_spec_overview: e.target.value })} />
+        </label>
+        <ListField
+          label="Specifications (Label | Value)"
+          value={pairListToText(aiCopy.specifications as unknown as Array<Record<string, string>>, 'label', 'value')}
+          onChange={value => setAiCopy({ ...aiCopy, specifications: textToPairs(value, 'label', 'value') as unknown as AiProductCopy['specifications'] })}
+        />
+        <fieldset>
+          <legend className="label">Industry collections</legend>
+          <div className="grid grid-cols-2 gap-2">
+            {INDUSTRY_OPTIONS.map(option => (
+              <label key={option.handle} className="flex items-center gap-2 text-xs text-surface-700 dark:text-surface-300">
+                <input type="checkbox" checked={aiCopy.industry_handles.includes(option.handle)} onChange={() => setIndustry(option.handle)} className="h-4 w-4 rounded border-surface-300" />
+                {option.name}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <ListField
+          label="Who it’s great for (Industry | Context)"
+          value={pairListToText(aiCopy.who_its_great_for as unknown as Array<Record<string, string>>, 'industry', 'context')}
+          onChange={value => setAiCopy({ ...aiCopy, who_its_great_for: textToPairs(value, 'industry', 'context') as unknown as AiProductCopy['who_its_great_for'] })}
+        />
+        <fieldset>
+          <legend className="label">Available decoration methods</legend>
+          <div className="flex gap-4">
+            {(['Print', 'Embroidery'] as DecorationMethod[]).map(method => (
+              <label key={method} className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={aiCopy.available_decoration_methods.includes(method)} onChange={() => setMethod(method)} className="h-4 w-4 rounded border-surface-300" />
+                {method}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <label className="block">
+          <span className="label">Decoration guide</span>
+          <textarea className="input min-h-28 resize-y" value={aiCopy.decoration_guide} onChange={e => setAiCopy({ ...aiCopy, decoration_guide: e.target.value })} />
+        </label>
+        <ListField
+          label="Product FAQs (Question | Answer)"
+          value={pairListToText(aiCopy.product_faqs as unknown as Array<Record<string, string>>, 'question', 'answer')}
+          onChange={value => setAiCopy({ ...aiCopy, product_faqs: textToPairs(value, 'question', 'answer') as unknown as AiProductCopy['product_faqs'] })}
+        />
+        {aiCopy.product_category === 't-shirt' && (
+          <div className="space-y-3 rounded-lg border border-brand-200 bg-brand-50/50 p-3 dark:border-brand-900 dark:bg-brand-950/20">
+            <p className="text-xs font-semibold uppercase tracking-wide text-brand-700 dark:text-brand-300">T-shirt internal-link copy</p>
+            <ListField label="Overview linked copy" value={aiCopy.overview_linked_copy} onChange={value => setAiCopy({ ...aiCopy, overview_linked_copy: value })} />
+            <ListField label="Audience linked copy" value={aiCopy.audience_linked_copy} onChange={value => setAiCopy({ ...aiCopy, audience_linked_copy: value })} />
+            <ListField label="Customization linked copy" value={aiCopy.customization_linked_copy} onChange={value => setAiCopy({ ...aiCopy, customization_linked_copy: value })} />
+            <ListField label="Collection linked copy" value={aiCopy.collection_linked_copy} onChange={value => setAiCopy({ ...aiCopy, collection_linked_copy: value })} />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -636,6 +817,23 @@ function PreviewPanel({ run }: { run: ProductAutomationRun | null }) {
               ))}
               {variants.length === 0 && <p className="text-sm text-surface-400">No variants yet.</p>}
             </div>
+          </div>
+          <div className="rounded-lg border border-surface-200 p-4 dark:border-surface-800 lg:col-span-3">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold text-surface-900 dark:text-white">Metafield coverage</h3>
+              <span className="text-xs text-surface-500">{payload?.metafields?.length || 0} generated fields + reusable icons</span>
+            </div>
+            {payload?.metafields?.length ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {payload.metafields.map(field => (
+                  <span key={`${field.namespace}.${field.key}`} className="rounded-md bg-surface-100 px-2 py-1 font-mono text-[11px] text-surface-600 dark:bg-surface-800 dark:text-surface-300">
+                    {field.key}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-3 text-sm text-surface-400">Generate and preview the product to audit every Shopify field before publishing.</p>
+            )}
           </div>
         </div>
       )}

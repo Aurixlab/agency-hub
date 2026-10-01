@@ -189,7 +189,7 @@ async function setProductMetafields(
   token: string,
   productId: string,
   metafields: ShopifyPayload['metafields'],
-  descriptionHtml?: string
+  productFields?: Partial<Pick<ShopifyPayload, 'title' | 'bodyHtml' | 'vendor' | 'productType' | 'tags' | 'templateSuffix'>>
 ) {
   if (!metafields.length) return [];
 
@@ -220,7 +220,12 @@ async function setProductMetafields(
     input: {
       id: productId,
       metafields,
-      ...(descriptionHtml !== undefined ? { descriptionHtml } : {}),
+      ...(productFields?.title !== undefined ? { title: productFields.title } : {}),
+      ...(productFields?.bodyHtml !== undefined ? { descriptionHtml: productFields.bodyHtml } : {}),
+      ...(productFields?.vendor !== undefined ? { vendor: productFields.vendor } : {}),
+      ...(productFields?.productType !== undefined ? { productType: productFields.productType } : {}),
+      ...(productFields?.tags !== undefined ? { tags: productFields.tags } : {}),
+      ...(productFields?.templateSuffix !== undefined ? { templateSuffix: productFields.templateSuffix } : {}),
     },
   });
   const userErrors = result.productUpdate?.userErrors || [];
@@ -476,8 +481,22 @@ async function resolvedMetafields(
 
 export async function updateShopifyProductMetafields(productId: string, payload: ShopifyPayload) {
   const { cleanDomain, endpoint, token } = shopifyConfig();
+  const current = await shopifyGraphql<{ product: { tags: string[] } | null }>(endpoint, token, `
+    query CurrentProductTags($id: ID!) {
+      product(id: $id) { tags }
+    }
+  `, { id: productId });
+  if (!current.product) throw new Error('Product does not exist in Shopify');
+  const mergedTags = Array.from(new Set([...current.product.tags, ...payload.tags]));
   const metafields = await resolvedMetafields(endpoint, token, payload);
-  await setProductMetafields(endpoint, token, productId, metafields, payload.bodyHtml);
+  await setProductMetafields(endpoint, token, productId, metafields, {
+    title: payload.title,
+    bodyHtml: payload.bodyHtml,
+    vendor: payload.vendor,
+    productType: payload.productType,
+    tags: mergedTags,
+    templateSuffix: payload.templateSuffix,
+  });
   await verifyProductMetafields(endpoint, token, productId, metafields);
 
   return {

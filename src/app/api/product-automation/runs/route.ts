@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getSessionFromRequest, getSessionFromRequestFull } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { decorationLabel, normalizeIndustryHandles } from '@/lib/product-automation/content-config';
+import { emptyAiProductCopy } from '@/lib/product-automation/gemini-copy';
 import type { DecorationType } from '@/lib/product-automation/types';
 
 const validDecoration = (value: unknown): value is DecorationType =>
@@ -35,12 +37,19 @@ export async function POST(request: Request) {
     const basePrice = Number(body.base_price);
     const decorationType = body.decoration_type;
     const colors = normalizeColors(body.colors);
+    const industryHandles = normalizeIndustryHandles(body.industry_handles);
 
     if (!productLink) return NextResponse.json({ error: 'Product link is required' }, { status: 400 });
     try { new URL(productLink); } catch { return NextResponse.json({ error: 'Product link must be a valid URL' }, { status: 400 }); }
     if (!Number.isFinite(basePrice) || basePrice <= 0) return NextResponse.json({ error: 'Base price must be greater than 0' }, { status: 400 });
     if (!validDecoration(decorationType)) return NextResponse.json({ error: 'Decoration type must be print or embroidery' }, { status: 400 });
     if (!colors.length) return NextResponse.json({ error: 'At least one color is required' }, { status: 400 });
+
+    const seedCopy = emptyAiProductCopy();
+    seedCopy.industry_handles = industryHandles;
+    seedCopy.available_decoration_methods = body.supports_both
+      ? ['Print', 'Embroidery']
+      : [decorationLabel(decorationType)];
 
     const run = await prisma.productAutomationRun.create({
       data: {
@@ -50,6 +59,7 @@ export async function POST(request: Request) {
         decorationType,
         colors: colors as any,
         imagesReady: Boolean(body.images_ready),
+        aiCopy: seedCopy as any,
         status: 'draft',
       },
     });

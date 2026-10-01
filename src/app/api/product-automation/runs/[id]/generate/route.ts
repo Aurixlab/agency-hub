@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { getSessionFromRequestFull } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { generateProductCopy } from '@/lib/product-automation/gemini-copy';
-import type { ScrapedProductData } from '@/lib/product-automation/types';
+import { FIXED_SIZES } from '@/lib/product-automation/variants';
+import type { AiProductCopy, DecorationType, ScrapedProductData } from '@/lib/product-automation/types';
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const session = await getSessionFromRequestFull(request);
@@ -16,7 +17,14 @@ export async function POST(request: Request, { params }: { params: { id: string 
     const scrapedData = (body.scrapedData || run.scrapedData) as ScrapedProductData | null;
     if (!scrapedData) return NextResponse.json({ error: 'Scraped data is required before generating copy' }, { status: 400 });
 
-    const aiCopy = await generateProductCopy(scrapedData);
+    const seed = (run.aiCopy || {}) as Partial<AiProductCopy>;
+    const aiCopy = await generateProductCopy(scrapedData, {
+      pricingDecoration: run.decorationType as DecorationType,
+      availableDecorationMethods: seed.available_decoration_methods,
+      preferredIndustryHandles: seed.industry_handles,
+      colors: Array.isArray(run.colors) ? run.colors.filter((item: unknown): item is string => typeof item === 'string') : [],
+      sizes: [...FIXED_SIZES],
+    });
     const updated = await prisma.productAutomationRun.update({
       where: { id: run.id },
       data: {

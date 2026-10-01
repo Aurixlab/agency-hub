@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { REUSABLE_ICON_GROUPS } from './icon-metafields';
+import { emptyAiProductCopy, validateAiCopy } from './gemini-copy';
 import {
   ATC1000_PILOT_PRODUCT_ID,
   addIndustryCollectionReferences,
@@ -13,6 +14,37 @@ import { composeShopifyPayload } from './payload';
 import { calculatePricing } from './pricing';
 import { buildShopifyVariantInput, matchIndustryCollectionIds } from './shopify';
 import { generateVariants } from './variants';
+
+const completeAiCopy = () => ({
+  ...emptyAiProductCopy(),
+  key_features: ['Feature one', 'Feature two', 'Feature three', 'Feature four'],
+  best_use: ['Workwear', 'Events', 'Schools', 'Teams'],
+  material_care: ['Cotton', 'Follow the sewn-in care label', 'Dry as directed'],
+  customization_fit: ['Classic fit', 'Made for print', 'Standard label'],
+  seo_description: 'A dependable test product for branded group orders.',
+  product_category: 't-shirt' as const,
+  quick_spec_tagline: 'A dependable blank. Ready for group orders.',
+  quick_spec_overview: 'This dependable cotton product is prepared for coordinated teams and bulk orders. Its supplier-recorded construction supports consistent quoting, while current size and colour options help buyers plan mixed group requirements before artwork approval and production.',
+  specifications: [
+    { label: 'Fabric', value: 'Cotton' },
+    { label: 'Weight', value: '8 oz' },
+    { label: 'Fit', value: 'Classic' },
+    { label: 'Sizes', value: 'S–3XL' },
+  ],
+  industry_handles: ['events'],
+  who_its_great_for: [{ industry: 'Events', context: 'Staff apparel and attendee merchandise.' }],
+  available_decoration_methods: ['Print' as const],
+  decoration_guide: 'This product uses Print pricing. Confirm the selected colour before artwork approval and production.',
+  product_faqs: [
+    { question: 'What sizes are available?', answer: 'Current sizes are shown in the selector.' },
+    { question: 'How is decoration priced?', answer: 'The Print ladder determines the applicable tier.' },
+    { question: 'How should it be cared for?', answer: 'Follow the sewn-in care label.' },
+  ],
+  overview_linked_copy: 'This custom t-shirt is prepared for coordinated team and event orders.',
+  audience_linked_copy: 'A practical custom apparel choice for event teams.',
+  customization_linked_copy: 'Use custom t shirt merchandise for consistent branded group orders.',
+  collection_linked_copy: 'Compare more Custom merchandise in the T-shirt collection.',
+});
 
 test('calculates print and embroidery pricing tiers', () => {
   assert.deepEqual(calculatePricing(20, 'print').tiers, [
@@ -49,16 +81,13 @@ test('composes Shopify draft fields and list metafields', () => {
         title: 'high', brand: 'high', sku: 'high', fabric: 'high', weight: 'high', raw_description: 'high',
       },
     },
-    aiCopy: {
-      key_features: ['Feature one', 'Feature two'],
-      best_use: ['Workwear'],
-      material_care: ['Machine wash'],
-      customization_fit: ['Classic fit'],
-      seo_description: 'Test SEO description',
-    },
+    aiCopy: completeAiCopy(),
     basePrice: 20,
     decorationType: 'print',
     colors: ['Black'],
+    productLink: 'https://supplier.example/products/test-1',
+    industryCollectionIds: ['gid://shopify/Collection/1'],
+    enrichedAt: new Date('2026-10-02T00:00:00.000Z'),
   });
 
   assert.equal(payload.status, 'DRAFT');
@@ -68,7 +97,37 @@ test('composes Shopify draft fields and list metafields', () => {
   assert.equal(payload.bodyHtml.includes('Key Features'), false);
   const features = payload.metafields.find(item => item.key === 'accordion1_texts');
   assert.equal(features?.type, 'list.single_line_text_field');
-  assert.deepEqual(JSON.parse(features?.value || '[]'), ['Feature one', 'Feature two']);
+  assert.deepEqual(JSON.parse(features?.value || '[]'), ['Feature one', 'Feature two', 'Feature three', 'Feature four']);
+  assert.equal(payload.metafields.find(item => item.key === 'show_content_description')?.value, 'true');
+  assert.equal(payload.metafields.find(item => item.key === 'industries')?.type, 'list.collection_reference');
+  assert.equal(payload.metafields.find(item => item.key === 'product_faqs')?.type, 'json');
+  assert.equal(payload.metafields.find(item => item.key === 'overview_linked_copy')?.type, 'rich_text_field');
+  const linkedOverview = JSON.parse(payload.metafields.find(item => item.key === 'overview_linked_copy')?.value || '{}');
+  assert.equal(linkedOverview.children[0].children.some((item: { type: string }) => item.type === 'link'), true);
+  const generatedKeys = new Set(payload.metafields.map(item => item.key));
+  for (const key of [
+    'quick_spec_tagline',
+    'quick_spec_overview',
+    'specifications',
+    'who_its_great_for',
+    'industries',
+    'supplier_name',
+    'supplier_product_url',
+    'source_product_url',
+    'pricing_decoration_method',
+    'available_decoration_methods',
+    'decoration_guide',
+    'product_faqs',
+    'show_content_description',
+    'overview_linked_copy',
+    'audience_linked_copy',
+    'customization_linked_copy',
+    'collection_linked_copy',
+    'enrichment_version',
+    'last_enriched_at',
+  ]) {
+    assert.equal(generatedKeys.has(key), true, `expected ${key}`);
+  }
 });
 
 test('calculates and maps bulk savings to the exact Shopify metafield', () => {
@@ -79,17 +138,47 @@ test('calculates and maps bulk savings to the exact Shopify metafield', () => {
         title: 'high', brand: 'high', sku: 'high', fabric: 'missing', weight: 'missing', raw_description: 'missing',
       },
     },
-    aiCopy: {
-      key_features: [], best_use: [], material_care: [], customization_fit: [], seo_description: '',
-    },
+    aiCopy: { ...completeAiCopy(), product_category: 'outerwear', overview_linked_copy: '', audience_linked_copy: '', customization_linked_copy: '', collection_linked_copy: '' },
     basePrice: 39,
     decorationType: 'embroidery',
     colors: ['Black'],
+    productLink: 'https://supplier.example/products/test-1',
+    industryCollectionIds: ['gid://shopify/Collection/1'],
   });
 
   const savings = payload.metafields.find(item => item.key === 'bulk_savings');
   assert.equal(savings?.type, 'list.single_line_text_field');
   assert.deepEqual(JSON.parse(savings?.value || '[]'), ['Save 0%', 'Save 2%', 'Save 10%', 'Save 15%']);
+});
+
+test('normalizes generated enrichment and scopes T-shirt links to T-shirt products', () => {
+  const raw = completeAiCopy();
+  const tshirt = validateAiCopy(raw, {
+    title: 'Classic Cotton Tee',
+    brand: 'Supplier',
+    sku: 'TEE-1',
+    fabric: 'Cotton',
+    weight: '8 oz',
+    raw_description: 'A classic T-shirt.',
+    confidence: {
+      title: 'high', brand: 'high', sku: 'high', fabric: 'high', weight: 'high', raw_description: 'high',
+    },
+  }, {
+    pricingDecoration: 'print',
+    preferredIndustryHandles: ['schools', 'events'],
+    availableDecorationMethods: ['Print', 'Embroidery'],
+  });
+
+  assert.deepEqual(tshirt.industry_handles, ['schools', 'events']);
+  assert.deepEqual(tshirt.available_decoration_methods, ['Print', 'Embroidery']);
+  assert.equal(tshirt.overview_linked_copy.includes('custom t-shirt'), true);
+
+  const jacket = validateAiCopy({ ...raw, product_category: 'outerwear' }, undefined, {
+    pricingDecoration: 'embroidery',
+  });
+  assert.equal(jacket.overview_linked_copy, '');
+  assert.equal(jacket.collection_linked_copy, '');
+  assert.deepEqual(jacket.available_decoration_methods, ['Embroidery', 'Print']);
 });
 
 test('uses the exact Shopify accordion and icon metafield keys', () => {

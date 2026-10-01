@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getSessionFromRequestFull } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { assertAiCopyReady, validateAiCopy } from '@/lib/product-automation/gemini-copy';
 import { composeShopifyPayload } from '@/lib/product-automation/payload';
-import { createShopifyDraftProduct, updateShopifyProductMetafields } from '@/lib/product-automation/shopify';
+import { createShopifyDraftProduct, resolveShopifyCollectionIds, updateShopifyProductMetafields } from '@/lib/product-automation/shopify';
 import type { AiProductCopy, DecorationType, ScrapedProductData } from '@/lib/product-automation/types';
 
 const colorsFrom = (value: unknown) =>
@@ -22,12 +23,27 @@ export async function POST(request: Request, { params }: { params: { id: string 
     if (!run.scrapedData || !run.aiCopy) {
       return NextResponse.json({ error: 'Scraped data and AI copy are required before creating a Shopify draft' }, { status: 400 });
     }
-    const composed = composeShopifyPayload({
-      scrapedData: run.scrapedData as ScrapedProductData,
-      aiCopy: run.aiCopy as AiProductCopy,
-      basePrice: Number(run.basePrice),
-      decorationType: run.decorationType as DecorationType,
+    const scrapedData = run.scrapedData as ScrapedProductData;
+    const rawAiCopy = run.aiCopy as AiProductCopy;
+    const decorationType = run.decorationType as DecorationType;
+    const aiCopy = validateAiCopy(rawAiCopy, scrapedData, {
+      pricingDecoration: decorationType,
+      availableDecorationMethods: rawAiCopy.available_decoration_methods,
+      preferredIndustryHandles: rawAiCopy.industry_handles,
       colors: colorsFrom(run.colors),
+    });
+    assertAiCopyReady(aiCopy);
+    const collectionIdsByHandle = await resolveShopifyCollectionIds(aiCopy.industry_handles);
+    const industryCollectionIds = aiCopy.industry_handles.map(handle => collectionIdsByHandle[handle]);
+
+    const composed = composeShopifyPayload({
+      scrapedData,
+      aiCopy,
+      basePrice: Number(run.basePrice),
+      decorationType,
+      colors: colorsFrom(run.colors),
+      productLink: run.productLink,
+      industryCollectionIds,
     });
     const payload = composed.payload;
 

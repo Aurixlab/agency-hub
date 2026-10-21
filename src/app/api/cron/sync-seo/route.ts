@@ -14,7 +14,11 @@ function syncFailure(error: unknown) {
   const googleError = e.response?.data?.error;
   if (googleError === 'invalid_grant') return 'The Google connection has expired or was revoked. An admin must click Connect Google again.';
   if (googleError === 'invalid_client') return 'Google rejected the OAuth client credentials. Check GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.';
-  if (status === 403) return 'The connected Google account has no access to this Search Console property. Add it as a user in Search Console or reconnect with an account that has access.';
+  if (status === 403) {
+    // Google uses 403 for missing site access, a disabled API and missing scopes; show which one it was.
+    const detail = typeof googleError === 'object' && googleError ? (googleError as { message?: string }).message : undefined;
+    return `Google refused access (403)${detail ? `: ${detail}` : ''}. Admins can open /api/seo/connection to see which properties the connected account can read.`;
+  }
   if (status === 401) return 'Google rejected the stored credentials. An admin must click Connect Google again.';
   if (status === 429) return 'Google Search Console quota exceeded. Try again later.';
   if (/not configured|Connect Google/.test(e.message || '')) return e.message!;

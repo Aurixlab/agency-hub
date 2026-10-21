@@ -1,11 +1,24 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { jwtVerify } from 'jose';
 
-const publicPaths = ['/login', '/api/auth/login', '/api/auth/google', '/api/seo'];
+const publicPaths = ['/login', '/api/auth/login', '/api/auth/google'];
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  // MCP routes validate bearer tokens or OAuth consent themselves; cookies are not MCP credentials.
+  if (pathname === '/api/mcp' || pathname.startsWith('/api/mcp/oauth/') || pathname.startsWith('/.well-known/')) {
+    return NextResponse.next();
+  }
   const sessionToken = request.cookies.get('agency-hub-session')?.value;
+  if (pathname === '/api/seo' || pathname.startsWith('/api/seo/')) {
+    try {
+      if (!sessionToken || !process.env.AUTH_SECRET) throw new Error('No session');
+      const { payload } = await jwtVerify(sessionToken, new TextEncoder().encode(process.env.AUTH_SECRET), { algorithms: ['HS256'] });
+      if (!payload.userId || !['ADMIN', 'MEMBER'].includes(String(payload.role))) throw new Error('No access');
+      return NextResponse.next();
+    } catch { return NextResponse.json({ error: 'Unauthorized' }, { status: 401 }); }
+  }
   const enrichmentBatchPath = '/api/product-automation/imported-products/enrichment-batch';
   const enrichmentBatchToken = process.env.PRODUCT_ENRICHMENT_BATCH_TOKEN;
   const suppliedEnrichmentBatchToken = request.headers.get('x-enrichment-batch-token');

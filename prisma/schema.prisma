@@ -179,6 +179,16 @@ model Notification {
   @@map("notifications")
 }
 
+model GscConnection {
+  id         String   @id @default("agency")
+  ciphertext String
+  iv         String
+  tag        String
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("gsc_connections")
+}
+
 model Session {
   id        String   @id @default(cuid())
   userId    String   @map("user_id")

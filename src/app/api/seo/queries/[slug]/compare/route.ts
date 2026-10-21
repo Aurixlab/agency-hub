@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireSeoSession } from '@/lib/gsc-access';
 import { createClient } from '@supabase/supabase-js';
 import { getQueryTimeSeries } from '@/lib/gsc';
 
@@ -26,6 +27,8 @@ export async function GET(
   { params }: { params: { slug: string } }
 ) {
   const { slug } = params;
+  const denied = await requireSeoSession(req);
+  if (denied) return denied;
   const { searchParams } = new URL(req.url);
   const period = parseInt(searchParams.get('period') || '28');
   const query1 = searchParams.get('query1') || '';

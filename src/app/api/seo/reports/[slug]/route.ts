@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireSeoSession } from '@/lib/gsc-access';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -11,6 +12,8 @@ export async function GET(
   { params }: { params: { slug: string } }
 ) {
   const { slug } = params;
+  const denied = await requireSeoSession(req);
+  if (denied) return denied;
 
   try {
     const { data: client, error: clientError } = await supabase

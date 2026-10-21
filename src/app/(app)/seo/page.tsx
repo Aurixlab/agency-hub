@@ -57,7 +57,7 @@ export default function SEODashboard() {
     setSyncError(null);
     try {
       // Pass days=30 to backfill history so the chart and 7/30-day views populate immediately
-      const res = await fetch('/api/cron/sync-seo?days=30');
+      const res = await fetch(`/api/cron/sync-seo?days=${period.value}&client=${activeClient.slug}`);
       const json = await res.json();
       if (json.success) {
         fetchData();
@@ -90,10 +90,11 @@ export default function SEODashboard() {
             <BarChart3 className="w-6 h-6 text-brand-500" />
             SEO Rankings
           </h1>
-          <p className="text-surface-500 dark:text-surface-400 text-sm mt-1">Real-time Google Search Console performance tracking.</p>
+          <p className="text-surface-500 dark:text-surface-400 text-sm mt-1">Google Search Console performance. Synced daily; recent data may be delayed.</p>
         </div>
         
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <a href="/api/auth/google" className="px-4 py-2 text-sm font-medium rounded-xl border border-surface-200 dark:border-surface-800 text-center">Connect Google</a>
           <button 
             onClick={handleSync}
             disabled={syncing}

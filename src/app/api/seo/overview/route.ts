@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireSeoSession } from '@/lib/gsc-access';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -7,6 +8,8 @@ const supabase = createClient(
 );
 
 export async function GET(req: NextRequest) {
+  const denied = await requireSeoSession(req);
+  if (denied) return denied;
   const { searchParams } = new URL(req.url);
   const days = parseInt(searchParams.get('period') || '30');
   

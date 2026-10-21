@@ -1,31 +1,28 @@
-import { google } from 'googleapis';
+import { jwtVerify } from 'jose';
 import { NextRequest, NextResponse } from 'next/server';
-
-const oauth2Client = new google.auth.OAuth2(
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
-  process.env.GOOGLE_REDIRECT_URI
-);
-
+import { getSessionFromRequestFull } from '@/lib/auth';
+import { googleOAuth } from '@/lib/gsc-oauth';
+import { hash } from '@/lib/mcp-auth';
+import { encryptToken } from '@/lib/posting/crypto';
+import { prisma } from '@/lib/prisma';
+export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const code = searchParams.get('code');
-
-  if (!code) {
-    return NextResponse.json({ error: 'No code provided' }, { status: 400 });
-  }
-
+  const headers = { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' };
   try {
-    const { tokens } = await oauth2Client.getToken(code);
-    
-    // This is what you need! Save it to your .env later.
-    return NextResponse.json({
-      message: "SUCCESS! Copy the refresh_token below into your .env file.",
-      refresh_token: tokens.refresh_token,
-      tokens: tokens // Optional: shows everything
-    });
-  } catch (error) {
-    console.error('Error exchanging code for tokens:', error);
-    return NextResponse.json({ error: 'Failed to exchange code' }, { status: 500 });
-  }
+    const auth = googleOAuth();
+    const session = await getSessionFromRequestFull(req);
+    if (!session || session.role !== 'ADMIN' || session.mustChangePassword) return NextResponse.json({ error: 'Admin sign-in required' }, { status: 401, headers });
+    const state = req.nextUrl.searchParams.get('state');
+    const code = req.nextUrl.searchParams.get('code');
+    if (!state || !code || state !== req.cookies.get('gsc-oauth-state')?.value) throw new Error('Invalid state');
+    const { payload } = await jwtVerify(state, new TextEncoder().encode(process.env.AUTH_SECRET!), { algorithms: ['HS256'], audience: 'gsc-connect' });
+    if (payload.sub !== session.id || payload.binding !== hash(req.cookies.get('agency-hub-session')?.value || '')) throw new Error('Wrong session');
+    const { tokens } = await auth.getToken(code);
+    if (!tokens.refresh_token) throw new Error('No refresh token');
+    const encrypted = encryptToken(tokens.refresh_token);
+    await prisma.gscConnection.upsert({ where: { id: 'agency' }, create: { id: 'agency', ...encrypted }, update: encrypted });
+    const res = NextResponse.json({ success: true, message: 'Google Search Console connected. You can return to SEO Rankings.' }, { headers });
+    res.cookies.set('gsc-oauth-state', '', { maxAge: 0, path: '/api/auth/google' });
+    return res;
+  } catch { return NextResponse.json({ error: 'Google connection failed. Restart authorization and check server configuration.' }, { status: 400, headers }); }
 }

@@ -1,4 +1,5 @@
 import React from 'react';
+import { summarizeMetrics } from '@/lib/gsc-query';
 import { ArrowUpRight, ArrowDownRight, MousePointer2, Eye, Percent, Hash } from 'lucide-react';
 
 export default function MetricCards({ data, latestMetrics }: { data: any, latestMetrics?: any[] }) {
@@ -9,14 +10,15 @@ export default function MetricCards({ data, latestMetrics }: { data: any, latest
   
   const totalClicks = metrics.reduce((acc: number, m: any) => acc + (m.clicks || 0), 0);
   const totalImpressions = metrics.reduce((acc: number, m: any) => acc + (m.impressions || 0), 0);
-  const avgCtr = metrics.length ? (metrics.reduce((acc: number, m: any) => acc + (m.ctr || 0), 0) / metrics.length) * 100 : 0;
-  const avgPos = metrics.length ? (metrics.reduce((acc: number, m: any) => acc + (Number(m.avg_position) || 0), 0) / metrics.length) : 0;
+  const summary = summarizeMetrics(metrics);
+  const avgCtr = summary.ctr * 100;
+  const avgPos = summary.position;
 
   const cards = [
     { label: 'Total Clicks', value: totalClicks.toLocaleString(), icon: MousePointer2, color: 'text-blue-600', bg: 'bg-blue-50' },
     { label: 'Total Impressions', value: totalImpressions.toLocaleString(), icon: Eye, color: 'text-purple-600', bg: 'bg-purple-50' },
     { label: 'Avg. CTR', value: `${avgCtr.toFixed(2)}%`, icon: Percent, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { label: 'Avg. Position', value: `#${avgPos.toFixed(1)}`, icon: Hash, color: 'text-amber-600', bg: 'bg-amber-50' },
+    { label: 'Avg. Position', value: avgPos === null ? '—' : `#${avgPos.toFixed(1)}`, icon: Hash, color: 'text-amber-600', bg: 'bg-amber-50' },
   ];
 
   return (

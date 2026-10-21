@@ -31,6 +31,13 @@ export default function IndexingStatus({ slug }: { slug: string }) {
   if (slug === 'overview') return null;
   if (loading) return <div className="h-64 bg-gray-50 animate-pulse rounded-2xl" />;
 
+  if (!data || data.coverage_issues?.source === 'Sitemaps API') return (
+    <div className="bg-white dark:bg-surface-900 rounded-2xl border border-surface-100 dark:border-surface-800 p-6">
+      <h3 className="font-bold mb-2">Indexing Coverage</h3>
+      <p className="text-sm text-surface-500">Full indexing coverage is unavailable through this connection. Check Search Console’s Page indexing report, or inspect individual URLs through Claude.</p>
+    </div>
+  );
+
   const chartData = [
     { name: 'Indexed', value: data?.indexed_pages || 0, color: '#10b981' },
     { name: 'Not Indexed', value: data?.not_indexed_pages || 0, color: '#ef4444' },

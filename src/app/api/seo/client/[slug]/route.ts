@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireSeoSession } from '@/lib/gsc-access';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -11,6 +12,8 @@ export async function GET(
   { params }: { params: { slug: string } }
 ) {
   const { slug } = params;
+  const denied = await requireSeoSession(req);
+  if (denied) return denied;
   const { searchParams } = new URL(req.url);
   const days = parseInt(searchParams.get('period') || '30');
   
@@ -60,14 +63,14 @@ export async function GET(
       if (existing) {
         existing.clicks += row.clicks || 0;
         existing.impressions += row.impressions || 0;
-        existing.posSum += row.position || 0;
+        existing.posSum += (row.position || 0) * (row.impressions || 0);
         existing.ctrSum += row.ctr || 0;
         existing.count += 1;
       } else {
         kwMap.set(row.keyword, {
           clicks: row.clicks || 0,
           impressions: row.impressions || 0,
-          posSum: row.position || 0,
+          posSum: (row.position || 0) * (row.impressions || 0),
           ctrSum: row.ctr || 0,
           count: 1,
         });
@@ -79,8 +82,8 @@ export async function GET(
         keyword,
         clicks: v.clicks,
         impressions: v.impressions,
-        position: v.posSum / v.count,
-        ctr: v.ctrSum / v.count,
+        position: v.impressions ? v.posSum / v.impressions : null,
+        ctr: v.impressions ? v.clicks / v.impressions : 0,
       }))
       .sort((a, b) => b.clicks - a.clicks)
       .slice(0, 100);

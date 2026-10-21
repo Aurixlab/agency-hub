@@ -6,6 +6,7 @@
     "node": "24.x"
   },
   "scripts": {
+    "test:gsc": "tsx --test src/lib/gsc.test.ts",
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
@@ -24,6 +25,7 @@
     "@anthropic-ai/sdk": "^0.98.0",
     "@google/generative-ai": "^0.24.1",
     "@hello-pangea/dnd": "^16.6.0",
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "@prisma/client": "^5.22.0",
     "@prisma/extension-accelerate": "^1.2.1",
     "@supabase/supabase-js": "^2.105.3",

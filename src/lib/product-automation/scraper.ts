@@ -1,3 +1,4 @@
+import { fetchSsActivewearProduct, isSsActivewearUrl, ssActivewearCredentials } from './ss-activewear';
 import type { Confidence, ScrapedProductData } from './types';
 
 const decodeEntities = (value: string) =>
@@ -71,6 +72,10 @@ export async function scrapeProductPage(productLink: string): Promise<ScrapedPro
   } catch {
     throw new Error('Product link must be a valid URL');
   }
+
+  // S&S pages sit behind Cloudflare, so use their official API when credentials are configured.
+  const ssCredentials = ssActivewearCredentials();
+  if (ssCredentials && isSsActivewearUrl(url)) return fetchSsActivewearProduct(url, ssCredentials);
 
   const response = await fetch(url.toString(), {
     headers: {

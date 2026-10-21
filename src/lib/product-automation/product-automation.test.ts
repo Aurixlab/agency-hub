@@ -14,6 +14,7 @@ import { composeShopifyPayload } from './payload';
 import { calculatePricing } from './pricing';
 import { buildShopifyVariantInput, matchIndustryCollectionIds } from './shopify';
 import { generateVariants } from './variants';
+import { extractFabricAndWeight, isSsActivewearUrl, parseSsActivewearUrl, pickSsStyle, ssStyleToScrapedData } from './ss-activewear';
 
 const completeAiCopy = () => ({
   ...emptyAiProductCopy(),
@@ -499,4 +500,37 @@ test('replaces copied garment claims with official source facts for headwear and
   const jacketFeatures = JSON.parse(jacket.metafields.find(item => item.key === 'accordion1_texts')?.value || '[]');
   assert.equal(jacketFeatures.some((item: string) => /100% nylon/i.test(item)), true);
   assert.equal(jacketFeatures.some((item: string) => /cotton jersey|rib-knit collar and sleeves/i.test(item)), false);
+});
+
+test('S&S Activewear links parse and map API styles into scraped data', () => {
+  assert.equal(isSsActivewearUrl(new URL('https://www.ssactivewear.com/p/gildan/5000')), true);
+  assert.equal(isSsActivewearUrl(new URL('https://www.sanmar.com/p/123')), false);
+  assert.deepEqual(parseSsActivewearUrl(new URL('https://www.ssactivewear.com/p/bella/3001cvc?colorCode=01')), {
+    brandSlug: 'bella',
+    style: '3001cvc',
+  });
+
+  const picked = pickSsStyle([
+    { brandName: 'Other Brand', styleName: '3001CVC' },
+    { brandName: 'BELLA + CANVAS', styleName: '3001CVC', title: 'Unisex CVC Jersey Tee' },
+  ], '3001cvc', 'bella');
+  assert.equal(picked?.brandName, 'BELLA + CANVAS');
+
+  const scraped = ssStyleToScrapedData({
+    brandName: 'Gildan',
+    styleName: '5000',
+    title: 'Heavy Cotton™ T-Shirt',
+    description: '<ul><li>5.3 oz./yd² (US) 8.8 oz/L yd (CA), 100% cotton</li><li>Sport Grey is 90% cotton, 10% polyester</li><li>Taped neck and shoulders</li></ul>',
+  });
+  assert.equal(scraped.title, 'Gildan 5000 Heavy Cotton™ T-Shirt');
+  assert.equal(scraped.sku, '5000');
+  assert.equal(scraped.weight, '5.3 oz./yd²');
+  assert.equal(scraped.fabric, '100% cotton');
+  assert.match(scraped.raw_description, /Taped neck and shoulders/);
+  assert.equal(scraped.confidence.brand, 'high');
+
+  assert.deepEqual(extractFabricAndWeight('<li>4.2 oz, 52% Airlume combed and ring-spun cotton, 48% poly</li>'), {
+    fabric: '52% Airlume combed and ring-spun cotton, 48% poly',
+    weight: '4.2 oz',
+  });
 });

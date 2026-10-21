@@ -14,7 +14,10 @@ import { composeShopifyPayload } from './payload';
 import { calculatePricing } from './pricing';
 import { buildShopifyVariantInput, matchIndustryCollectionIds } from './shopify';
 import { generateVariants } from './variants';
-import { extractFabricAndWeight, isSsActivewearUrl, parseSsActivewearUrl, pickSsStyle, ssStyleToScrapedData } from './ss-activewear';
+import { parseSanmarCanadaProduct, isSanmarCanadaUrl } from './sanmar-canada';
+import { parseSanmarSportsProduct, isSanmarSportsUrl } from './sanmar-sports';
+import { scrapeProductPage } from './scraper';
+import { extractFabricAndWeight, fetchSsActivewearProduct, isSsActivewearUrl, parseSsActivewearUrl, pickSsStyle, ssStyleToScrapedData } from './ss-activewear';
 
 const completeAiCopy = () => ({
   ...emptyAiProductCopy(),
@@ -502,6 +505,139 @@ test('replaces copied garment claims with official source facts for headwear and
   assert.equal(jacketFeatures.some((item: string) => /cotton jersey|rib-knit collar and sleeves/i.test(item)), false);
 });
 
+test('SanMar Sports reads public Shopify product data and keeps style codes distinct from variant stock IDs', async t => {
+  const requested: string[] = [];
+  t.mock.method(globalThis, 'fetch', async (input: string | URL | Request, init?: RequestInit) => {
+    requested.push(String(input));
+    assert.equal(new Headers(init?.headers).get('Accept'), 'application/json');
+    return Response.json({
+      title: 'BELLA+CANVAS® Women\'s Pullover BC4540', vendor: 'Bella + Canvas', handle: 'bc4540',
+      description: '<ul><li>Structured fit</li><li>10-ounce, 65/35 cotton/polyester fleece</li></ul>',
+      variants: [{ id: 100, sku: '3610631', weight: 999 }],
+    });
+  });
+  const data = await scrapeProductPage('https://www.sanmarsports.com/products/bc4540?variant=100&utm_source=test');
+  assert.deepEqual(requested, ['https://sanmarsports.com/products/bc4540.js']);
+  assert.equal(data.brand, 'Bella + Canvas');
+  assert.equal(data.sku, 'BC4540');
+  assert.equal(data.fabric, '65/35 cotton/polyester fleece');
+  assert.equal(data.weight, '10-ounce');
+  assert.match(data.raw_description, /Structured fit; 10-ounce/);
+});
+
+test('SanMar Sports rejects catalogue links, missing products and incomplete responses', async t => {
+  assert.equal(isSanmarSportsUrl(new URL('https://sanmarsports.com/products/1468l')), true);
+  assert.equal(isSanmarSportsUrl(new URL('https://sanmarsports.com.evil.test/products/1468l')), false);
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async () => { calls++; return Response.json({}, { status: 404 }); });
+  await assert.rejects(scrapeProductPage('https://sanmarsports.com/products/'), /direct SanMar Sports product link/);
+  await assert.rejects(scrapeProductPage('https://sanmarsports.com/collections/all'), /direct SanMar Sports product link/);
+  assert.equal(calls, 0);
+  await assert.rejects(scrapeProductPage('https://sanmarsports.com/products/missing'), /product was not found/);
+  assert.throws(() => parseSanmarSportsProduct({ title: 'Product', handle: 'product' }), /incomplete product details/);
+  const data = parseSanmarSportsProduct({ title: 'Travel bag', handle: 'travel-bag', vendor: 'Brand', description: '<p>Durable bag.</p>', variants: [{ id: 1, sku: 'A' }, { id: 2, sku: 'B' }] }, '2');
+  assert.equal(data.sku, 'B');
+  assert.equal(data.fabric, '');
+  assert.equal(data.weight, '');
+  assert.equal(data.confidence.fabric, 'missing');
+  const backpack = parseSanmarSportsProduct({ title: 'Backpack CK2668', handle: 'ck2668', vendor: 'Nike', description: '<ul><li>100% polyester</li><li>Mesh pockets fit 32-ounce bottles</li></ul>' });
+  assert.equal(backpack.fabric, '100% polyester');
+  assert.equal(backpack.weight, '');
+});
+
+test('Helly Hansen blocking produces a useful access error', async t => {
+  t.mock.method(globalThis, 'fetch', async () => new Response('Blocked', { status: 403 }));
+  await assert.rejects(scrapeProductPage('https://www.hellyhansen.com/en_ca/jacket-34443'), /Helly Hansen blocked automated access.*approved product feed/);
+});
+
+test('SanMar Canada scrape uses product fields instead of navigation and preserves nested description content', async t => {
+  t.mock.method(globalThis, 'fetch', async () => new Response(`
+    <meta name="description" content="Generic supplier description">
+    <nav>Brands Allmade ATC SKU wrong Material wrong Weight wrong</nav>
+    <meta content="Everyday" itemprop="brand">
+    <h1><span>ATC&#153; COTTON TEE. ATC1000</span></h1>
+    <form data-product-sku="ATC1000"></form>
+    <div id="tab1" class="tab-content active"><p>Cotton tee.</p>
+      <div><ul><li>9.1 oz/ly (CA), 5.5 oz/sq yd (US), 185 gsm (EU)</li>
+      <li>100% cotton</li><li>Comfort &amp; durability</li></ul></div><p>Final detail.</p>
+    </div><div id="tab2">Converter Tool Value To Convert</div>`));
+  const data = await scrapeProductPage('https://www.sanmarcanada.com/atc1000.html');
+  assert.equal(data.title, 'ATC™ COTTON TEE. ATC1000');
+  assert.equal(data.brand, 'ATC');
+  assert.equal(data.sku, 'ATC1000');
+  assert.equal(data.fabric, '100% cotton');
+  assert.equal(data.weight, '9.1 oz/ly (CA), 5.5 oz/sq yd (US), 185 gsm (EU)');
+  assert.match(data.raw_description, /Comfort & durability; Final detail/);
+  assert.doesNotMatch(data.raw_description, /Converter|Generic supplier|Brands Allmade/);
+});
+
+test('SanMar Canada rejects non-product pages and keeps missing fabric and weight empty', () => {
+  assert.equal(isSanmarCanadaUrl(new URL('https://www.sanmarcanada.com/atc1000.html')), true);
+  assert.equal(isSanmarCanadaUrl(new URL('https://sanmarcanada.com/atc1000.html')), true);
+  assert.equal(isSanmarCanadaUrl(new URL('https://sanmarcanada.com.example.com/atc1000.html')), false);
+  assert.throws(() => parseSanmarCanadaProduct('<h1>Shop Catalogue</h1><nav>Brand Nike SKU XYZ</nav>'), /product details are missing/);
+  const data = parseSanmarCanadaProduct(`<meta itemprop='brand' content='Coal Harbour'>
+    <h1>COAL HARBOUR&reg; JACKET. CH7690</h1><form data-product-sku='CH7690'></form>
+    <div id='tab1'><p>Lightweight jacket.</p></div>`);
+  assert.equal(data.brand, 'Coal Harbour');
+  assert.equal(data.fabric, '');
+  assert.equal(data.weight, '');
+  assert.equal(data.confidence.fabric, 'missing');
+  const essential = parseSanmarCanadaProduct(`<meta itemprop="brand" content="CoalHarbour_CH">
+    <h1>CH ESSENTIAL&reg; JACKET. CH7690</h1><form data-product-sku="CH7690"></form>
+    <div id="tab1"><ul><li>11.3-oz, 100% nylon</li></ul></div>`);
+  assert.equal(essential.brand, 'CH Essential');
+  assert.equal(essential.fabric, '100% nylon');
+  assert.equal(essential.weight, '11.3-oz');
+});
+
+test('S&S routes Canadian links directly and retries cross-region account authentication', async t => {
+  const credentials = { accountNumber: 'test-account', apiKey: 'test-key' };
+  const product = [{ brandName: 'Gildan', styleName: '5000', title: 'Heavy Cotton T-Shirt', description: '100% cotton' }];
+  for (const scenario of [
+    { site: 'en-ca', statuses: [200], hosts: ['api-ca.ssactivewear.com'] },
+    { site: 'fr-ca', statuses: [200], hosts: ['api-ca.ssactivewear.com'] },
+    { site: 'www', statuses: [200], hosts: ['api.ssactivewear.com'] },
+    { site: 'www', statuses: [401, 200], hosts: ['api.ssactivewear.com', 'api-ca.ssactivewear.com'] },
+    { site: 'en-ca', statuses: [403, 200], hosts: ['api-ca.ssactivewear.com', 'api.ssactivewear.com'] },
+  ]) {
+    await t.test(`${scenario.site}: ${scenario.statuses.join(' then ')}`, async sub => {
+      const hosts: string[] = [];
+      sub.mock.method(globalThis, 'fetch', async (input: string | URL | Request, init?: RequestInit) => {
+        const url = new URL(String(input));
+        assert.equal(url.searchParams.get('search'), '5000');
+        assert.equal(new Headers(init?.headers).get('Authorization'), `Basic ${Buffer.from('test-account:test-key').toString('base64')}`);
+        assert.equal(init?.redirect, 'error');
+        hosts.push(url.hostname);
+        const status = scenario.statuses[hosts.length - 1];
+        assert.ok(status, 'must not retry indefinitely');
+        return Response.json(status === 200 ? product : {}, { status });
+      });
+      const data = await fetchSsActivewearProduct(new URL(`https://${scenario.site}.ssactivewear.com/p/gildan/5000`), credentials);
+      assert.equal(data.sku, '5000');
+      assert.equal(data.brand, 'Gildan');
+      assert.deepEqual(hosts, scenario.hosts);
+    });
+  }
+});
+
+test('S&S stops after both regions reject credentials and does not retry other failures', async t => {
+  for (const status of [401, 429, 500]) {
+    await t.test(`HTTP ${status}`, async sub => {
+      let requests = 0;
+      sub.mock.method(globalThis, 'fetch', async () => {
+        requests++;
+        return Response.json({}, { status });
+      });
+      await assert.rejects(
+        fetchSsActivewearProduct(new URL('https://en-ca.ssactivewear.com/p/gildan/5000'), { accountNumber: 'test', apiKey: 'test' }),
+        status === 401 ? /rejected the account number or API key \(401\)/ : new RegExp(`returned ${status}`),
+      );
+      assert.equal(requests, status === 401 ? 2 : 1);
+    });
+  }
+});
+
 test('S&S Activewear links parse and map API styles into scraped data', () => {
   assert.equal(isSsActivewearUrl(new URL('https://www.ssactivewear.com/p/gildan/5000')), true);
   assert.equal(isSsActivewearUrl(new URL('https://www.sanmar.com/p/123')), false);
@@ -533,4 +669,5 @@ test('S&S Activewear links parse and map API styles into scraped data', () => {
     fabric: '52% Airlume combed and ring-spun cotton, 48% poly',
     weight: '4.2 oz',
   });
+  assert.equal(extractFabricAndWeight('<li>5.3 oz./yd², 100% U.S. cotton</li>').fabric, '100% US cotton');
 });

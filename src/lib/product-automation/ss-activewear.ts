@@ -1,6 +1,7 @@
 import type { ScrapedProductData } from './types';
 
 const SS_API_BASE = 'https://api.ssactivewear.com/v2';
+const SS_CANADA_API_BASE = 'https://api-ca.ssactivewear.com/v2';
 
 interface SsStyle {
   styleID?: number;
@@ -59,7 +60,8 @@ const descriptionText = (html: string) =>
 export function extractFabricAndWeight(description: string) {
   const text = descriptionText(description);
   const weight = text.match(/\d+(?:\.\d+)?\s*oz\.?(?:\s*\/\s*(?:yd²|yd2|sq\.?\s*yd\.?|linear\s*yd\.?|l\s*yd\.?))?/i)?.[0]?.trim() || '';
-  const fabric = text.match(/\d{1,3}%\s*[a-z][^;.,%]*?(?:,\s*\d{1,3}%\s*[a-z][^;.,%]*?)*(?=[;.]|$|,\s*(?!\d{1,3}%))/i)?.[0]?.trim() || '';
+  const fabricText = text.replace(/\bU\.S\./gi, 'US');
+  const fabric = fabricText.match(/\d{1,3}%\s*[a-z][^;.,%]*?(?:,\s*\d{1,3}%\s*[a-z][^;.,%]*?)*(?=[;.]|$|,\s*(?!\d{1,3}%))/i)?.[0]?.trim() || '';
   return { fabric, weight };
 }
 
@@ -93,12 +95,23 @@ export async function fetchSsActivewearProduct(
   credentials: { accountNumber: string; apiKey: string }
 ): Promise<ScrapedProductData> {
   const { brandSlug, style } = parseSsActivewearUrl(url);
-  const response = await fetch(`${SS_API_BASE}/styles?search=${encodeURIComponent(style)}&mediatype=json`, {
+  const canadian = /^(?:en-ca|fr-ca|api-ca)\.ssactivewear\.com$/i.test(url.hostname);
+  const primaryBase = canadian ? SS_CANADA_API_BASE : SS_API_BASE;
+  const alternateBase = canadian ? SS_API_BASE : SS_CANADA_API_BASE;
+  const request = (base: string) => fetch(`${base}/styles?search=${encodeURIComponent(style)}&mediatype=json`, {
     headers: {
       Authorization: `Basic ${Buffer.from(`${credentials.accountNumber}:${credentials.apiKey}`).toString('base64')}`,
       Accept: 'application/json',
     },
+    redirect: 'error',
+    signal: AbortSignal.timeout(10000),
   });
+  let response = await request(primaryBase);
+  // Accounts authenticate in their own region, even when the pasted link is from the other site.
+  if (response.status === 401 || response.status === 403) {
+    await response.body?.cancel();
+    response = await request(alternateBase);
+  }
 
   if (response.status === 401 || response.status === 403) {
     throw new Error(`S&S API rejected the account number or API key (${response.status})`);

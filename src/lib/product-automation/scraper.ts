@@ -1,4 +1,6 @@
 import { fetchSsActivewearProduct, isSsActivewearUrl, ssActivewearCredentials } from './ss-activewear';
+import { isSanmarCanadaUrl, parseSanmarCanadaProduct } from './sanmar-canada';
+import { fetchSanmarSportsProduct, isSanmarSportsUrl } from './sanmar-sports';
 import type { Confidence, ScrapedProductData } from './types';
 
 const decodeEntities = (value: string) =>
@@ -76,6 +78,7 @@ export async function scrapeProductPage(productLink: string): Promise<ScrapedPro
   // S&S pages sit behind Cloudflare, so use their official API when credentials are configured.
   const ssCredentials = ssActivewearCredentials();
   if (ssCredentials && isSsActivewearUrl(url)) return fetchSsActivewearProduct(url, ssCredentials);
+  if (isSanmarSportsUrl(url)) return fetchSanmarSportsProduct(url);
 
   const response = await fetch(url.toString(), {
     headers: {
@@ -83,9 +86,15 @@ export async function scrapeProductPage(productLink: string): Promise<ScrapedPro
       Accept: 'text/html,application/xhtml+xml',
     },
   });
-  if (!response.ok) throw new Error(`Supplier page returned ${response.status}`);
+  if (!response.ok) {
+    if (/(^|\.)hellyhansen\.com$/i.test(url.hostname) && response.status === 403) {
+      throw new Error('Helly Hansen blocked automated access (403). An approved product feed or dealer integration is required.');
+    }
+    throw new Error(`Supplier page returned ${response.status}`);
+  }
 
   const html = await response.text();
+  if (isSanmarCanadaUrl(url)) return parseSanmarCanadaProduct(html);
   const pageText = stripTags(html);
   const jsonLd = jsonLdValues(html);
 

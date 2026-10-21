@@ -34,7 +34,10 @@ export async function GET(req: NextRequest) {
     const session = await getSessionFromRequestFull(req);
     if (!session || session.role !== 'ADMIN' || session.mustChangePassword) return accountAccessPage(req, session);
     const ticket = await sign({ sub: session.id, sessionBinding: hash(req.cookies.get('agency-hub-session')?.value || ''), redirect, state: q.get('state') || '', challenge: q.get('code_challenge'), nonce: randomBytes(24).toString('hex') }, 'consent', '10m');
-    return new NextResponse(`<!doctype html><html><head><title>Connect GSC to Claude</title></head><body><h1>Allow read-only Search Console access?</h1><p>This connection can read only the client properties approved by your administrator. It cannot change your sites or sitemaps.</p><p>Return address: ${escape(redirect)}</p><form method="post"><input type="hidden" name="ticket" value="${escape(ticket)}"><button name="decision" value="allow">Allow access</button><button name="decision" value="deny">Cancel</button></form></body></html>`, { headers: { ...headers, 'Content-Type': 'text/html; charset=utf-8' } });
+    // Chrome applies form-action to the post's redirect, so the OAuth callback origins must be allowed too.
+    const formAction = ["'self'", ...Array.from(new Set(config.redirects.map(r => new URL(r).origin)))].join(' ');
+    const csp = headers['Content-Security-Policy'].replace("form-action 'self'", `form-action ${formAction}`);
+    return new NextResponse(`<!doctype html><html><head><title>Connect GSC to Claude</title></head><body><h1>Allow read-only Search Console access?</h1><p>This connection can read only the client properties approved by your administrator. It cannot change your sites or sitemaps.</p><p>Return address: ${escape(redirect)}</p><form method="post"><input type="hidden" name="ticket" value="${escape(ticket)}"><button name="decision" value="allow">Allow access</button><button name="decision" value="deny">Cancel</button></form></body></html>`, { headers: { ...headers, 'Content-Security-Policy': csp, 'Content-Type': 'text/html; charset=utf-8' } });
   } catch { return NextResponse.json({ error: 'OAuth unavailable; check server configuration' }, { status: 503, headers }); }
 }
 

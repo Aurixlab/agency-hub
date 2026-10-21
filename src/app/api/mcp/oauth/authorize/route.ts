@@ -6,7 +6,7 @@ import { hash, oauthConfig, sign, verify, storeGrant } from '@/lib/mcp-auth';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 const escape = (s: string) => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
-const headers = { 'Cache-Control': 'no-store', 'Content-Security-Policy': "default-src 'none'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'", 'Referrer-Policy': 'no-referrer' };
+const headers = { 'Cache-Control': 'no-store', 'Content-Security-Policy': "default-src 'none'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'", 'Referrer-Policy': 'same-origin' };
 
 function accountAccessPage(req: NextRequest, session: SessionUser | null) {
   const pendingPassword = session?.role === 'ADMIN' && session.mustChangePassword;
@@ -41,7 +41,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const config = oauthConfig();
-    if (req.headers.get('origin') !== config.origin) return NextResponse.json({ error: 'Invalid origin' }, { status: 403, headers });
+    // Browsers may send `Origin: null` on form posts; Sec-Fetch-Site still proves the post came from this site.
+    const origin = req.headers.get('origin');
+    const sameSite = origin === config.origin || ((!origin || origin === 'null') && req.headers.get('sec-fetch-site') === 'same-origin');
+    if (!sameSite) return NextResponse.json({ error: 'Invalid origin' }, { status: 403, headers });
     const session = await getSessionFromRequestFull(req);
     if (!session) return NextResponse.json({ error: 'Sign in to Agency Hub and restart Connect in Claude.', code: 'agency_hub_sign_in_required' }, { status: 401, headers });
     if (session.role !== 'ADMIN') return NextResponse.json({ error: 'The signed-in Agency Hub account must be an ADMIN to approve client data access.', code: 'agency_hub_admin_required' }, { status: 403, headers });

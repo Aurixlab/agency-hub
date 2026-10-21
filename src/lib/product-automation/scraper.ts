@@ -87,6 +87,9 @@ export async function scrapeProductPage(productLink: string): Promise<ScrapedPro
     },
   });
   if (!response.ok) {
+    if (isSanmarCanadaUrl(url) && response.status === 403) {
+      throw new Error('SanMar Canada blocked requests from the app server (403). Enter product details in Scraped Data, then select Generate all content to continue. Automatic scraping requires approved SanMar integration access.');
+    }
     if (/(^|\.)hellyhansen\.com$/i.test(url.hostname) && response.status === 403) {
       throw new Error('Helly Hansen blocked automated access (403). An approved product feed or dealer integration is required.');
     }

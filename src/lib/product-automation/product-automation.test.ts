@@ -550,6 +550,11 @@ test('Helly Hansen blocking produces a useful access error', async t => {
   await assert.rejects(scrapeProductPage('https://www.hellyhansen.com/en_ca/jacket-34443'), /Helly Hansen blocked automated access.*approved product feed/);
 });
 
+test('SanMar Canada blocking explains the existing manual entry path instead of reporting only a status code', async t => {
+  t.mock.method(globalThis, 'fetch', async () => new Response('Blocked', { status: 403 }));
+  await assert.rejects(scrapeProductPage('http://sanmarcanada.com/nf0a88d5.html?colour=Dark%20Grey%20Heather'), /SanMar Canada blocked requests from the app server.*Scraped Data.*Generate all content/);
+});
+
 test('SanMar Canada scrape uses product fields instead of navigation and preserves nested description content', async t => {
   t.mock.method(globalThis, 'fetch', async () => new Response(`
     <meta name="description" content="Generic supplier description">
@@ -589,6 +594,13 @@ test('SanMar Canada rejects non-product pages and keeps missing fabric and weigh
   assert.equal(essential.brand, 'CH Essential');
   assert.equal(essential.fabric, '100% nylon');
   assert.equal(essential.weight, '11.3-oz');
+  const northFace = parseSanmarCanadaProduct(`<h1>THE NORTH FACE&reg; SHELL JACKET. NF0A88D5</h1>
+    <form data-product-sku="NF0A88D5"></form><div id="tab1"><ul>
+    <li>306 g/m<sup>2</sup>/15 oz lyd WindWall, 100% recycled polyester (solid)</li>
+    </ul></div>`);
+  assert.equal(northFace.brand, 'The North Face');
+  assert.equal(northFace.fabric, '100% recycled polyester (solid)');
+  assert.equal(northFace.weight, '306 g/m², 15 oz lyd');
 });
 
 test('S&S routes Canadian links directly and retries cross-region account authentication', async t => {

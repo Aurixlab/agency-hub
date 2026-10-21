@@ -296,7 +296,7 @@ export default function ProductAutomationPage() {
         <div role="alert" className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
           <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0" />
           <div>
-            <p className="font-semibold">Product automation stopped</p>
+            <p className="font-semibold">This step needs attention</p>
             <p>{error}</p>
           </div>
         </div>

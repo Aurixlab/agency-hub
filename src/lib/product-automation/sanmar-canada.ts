@@ -5,6 +5,7 @@ export const isSanmarCanadaUrl = (url: URL) => /^(?:www\.)?sanmarcanada\.com$/i.
 const text = (html: string) => {
   let value = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<sup\b[^>]*>\s*2\s*<\/sup>/gi, '²')
     .replace(/<[^>]+>/g, ' ');
   // Some Magento attributes contain nested encodings. Titles also use Windows-1252's trademark entity.
   const named: Record<string, string> = { amp: '&', quot: '"', apos: "'", lt: '<', gt: '>', nbsp: ' ', reg: '®', trade: '™', ndash: '–', mdash: '—', rsquo: '’' };
@@ -49,10 +50,13 @@ export function parseSanmarCanadaProduct(html: string): ScrapedProductData {
   const metaBrand = text(attribute(brandMeta, 'content'));
   const brand = /^ATC(?:\b|™)/i.test(title) ? 'ATC'
     : /^(?:DISCONTINUED\s+)?CH ESSENTIAL\b/i.test(title) ? 'CH Essential'
+    : !metaBrand && /^(?:DISCONTINUED\s+)?THE NORTH FACE\b/i.test(title) ? 'The North Face'
     : metaBrand === 'CoalHarbour_CH' ? 'Coal Harbour' : metaBrand;
   const fabricLine = lines.find(line => /\d+\s*%|\d+\s*\/\s*\d+\s+[a-z]/i.test(line)) || '';
-  const fabric = fabricLine.replace(/^.*?((?:\d+\s*%|\d+\s*\/\s*\d+)\s*[a-z])/i, '$1');
-  const weight = (lines.join('; ').match(/\d+(?:\.\d+)?[-\s]*(?:oz\.?(?:\s*\/\s*(?:ly|l\s*yd|sq\.?\s*yd|yd[²2]?))?|g\/m[²2]|gsm)(?:\s*\((?:CA|US|EU)\))?/gi) || []).join(', ');
+  // Prefer a percentage over a nearby g/m²-to-ounces conversion, which can look like a fabric ratio.
+  const fabric = fabricLine.match(/\d{1,3}\s*%\s*[a-z][\s\S]*/i)?.[0]
+    || fabricLine.match(/\d{1,3}\s*\/\s*\d{1,3}\s+[a-z][\s\S]*/i)?.[0] || '';
+  const weight = (lines.join('; ').match(/\d+(?:\.\d+)?[-\s]*(?:oz\.?(?:\s*(?:\/\s*)?(?:lyd|l\s*yd|ly|sq\.?\s*yd|yd[²2]?))?|g\/m[²2]|gsm)(?:\s*\((?:CA|US|EU)\))?/gi) || []).join(', ');
   return {
     title, brand, sku, fabric, weight, raw_description: rawDescription,
     confidence: {

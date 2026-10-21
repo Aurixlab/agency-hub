@@ -6,8 +6,11 @@ required. This implementation uses the official MCP TypeScript SDK.
 
 ## 1. Prepare the database and Vercel settings
 
-Run `scripts/sql/gsc-connection.sql` once in the existing Supabase/PostgreSQL SQL
-editor. It creates an encrypted credential store and enables RLS without browser
+The authenticated Connect Google preflight creates the credential table if it is
+missing and the Prisma database role permits schema creation. If that role cannot
+create tables, run `scripts/sql/gsc-connection.sql` once in the PostgreSQL SQL
+editor for the database used by Prisma's `DIRECT_URL` (which may differ from the
+SEO Supabase database). It creates an encrypted credential store and enables RLS without browser
 policies. The existing Prisma database role must be able to read/write it. This is
 an additive change; do not reset the existing database. `npm run build` regenerates
 the Prisma client. OAuth grants use the existing `sessions` table; they store only
@@ -144,6 +147,11 @@ Run `npm run test:gsc`, `npx tsc --noEmit`, and `npm run build`. The tests cover
 metric aggregation, input validation, PKCE and redirect binding, code replay,
 refresh rotation, expired/tampered tokens, anonymous MCP rejection and discovery
 of the seven read-only tools. Tests use a fake grant store, not production data.
+
+The Google connection checks encryption and storage before redirecting to Google.
+Failures return a safe `code` and `stage`, and log those identifiers without
+tokens, OAuth codes, raw Google error objects, or connection strings. If a callback
+fails, start a new connection rather than reloading the consumed callback URL.
 
 This repository alone cannot verify live Google permissions, deployment secrets,
 database access, or the Claude browser consent flow. After deploying, complete

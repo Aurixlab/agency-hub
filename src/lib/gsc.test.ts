@@ -11,6 +11,7 @@ import { GET as authorize, POST as consent } from '../app/api/mcp/oauth/authoriz
 import { middleware } from '../middleware';
 import { SignJWT } from 'jose';
 import { readMcpBody } from './mcp-request';
+import { ensureGscStorage, connectionFailure } from './gsc-connection';
 
 process.env.MCP_ORIGIN = 'https://agency.example';
 process.env.MCP_CLIENT_ID = 'test-client';
@@ -45,6 +46,23 @@ test('protocol input rejects oversized and deeply nested JSON before validation'
   await assert.rejects(readMcpBody(request(JSON.stringify({ value: 'x'.repeat(65536) }))));
   await assert.rejects(readMcpBody(request('['.repeat(25) + '0' + ']'.repeat(25))));
   assert.deepEqual(await readMcpBody(request('{"jsonrpc":"2.0","id":1}')), { jsonrpc: '2.0', id: 1 });
+});
+test('Google connection provisions only a missing storage table and preserves other DB errors', async () => {
+  const statements: string[] = [];
+  const missing = { code: 'P2021' };
+  await ensureGscStorage({
+    gscConnection: { findUnique: async () => { throw missing; } },
+    $transaction: async (work: (tx: unknown) => Promise<void>) => work({ $executeRaw: async (strings: TemplateStringsArray) => { statements.push(strings.join('')); } }),
+  });
+  assert.equal(statements.length, 2);
+  assert.match(statements[0], /CREATE TABLE IF NOT EXISTS public.gsc_connections/);
+  assert.match(statements[1], /ENABLE ROW LEVEL SECURITY/);
+  await ensureGscStorage({ gscConnection: { findUnique: async () => ({ id: 'agency' }) }, $executeRaw: async () => { throw new Error('Unexpected schema change'); } });
+  const denied = { code: 'P1010', message: 'sensitive database details' };
+  await assert.rejects(ensureGscStorage({ gscConnection: { findUnique: async () => { throw denied; } } }), error => error === denied);
+  assert.equal(connectionFailure('storage', missing).code, 'gsc_storage_missing');
+  assert.equal(connectionFailure('exchange', { response: { data: { error: 'invalid_grant', secret: 'do-not-expose' } } }).code, 'google_authorization_expired');
+  assert.equal(JSON.stringify(connectionFailure('storage', denied)).includes('sensitive database details'), false);
 });
 test('OAuth enforces purpose, signature, PKCE, redirect binding, code replay and refresh rotation', async () => {
   const verifier = randomBytes(32).toString('base64url');

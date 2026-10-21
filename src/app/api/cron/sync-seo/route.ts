@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
   const cron = secret && matches(req.headers.get('authorization') || '', `Bearer ${secret}`);
   const session = cron ? null : await getSessionFromRequestFull(req);
-  if (!cron && (!session || session.role !== 'ADMIN' || session.mustChangePassword)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!cron && (!session || !['ADMIN', 'MEMBER'].includes(session.role) || session.mustChangePassword)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   await prisma.session.deleteMany({ where: { token: { startsWith: 'mcp:' }, expiresAt: { lt: new Date() } } });
   const days = Number(req.nextUrl.searchParams.get('days') || 5);
   if (!Number.isInteger(days) || days < 1 || days > 90) return NextResponse.json({ error: 'days must be 1–90' }, { status: 400 });

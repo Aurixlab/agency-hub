@@ -8,6 +8,7 @@ import RankingComparison from '@/components/seo/RankingComparison';
 import ReportsTab from '@/components/seo/ReportsTab';
 import QueriesSection from '@/components/seo/QueriesSection';
 import { Calendar, ChevronDown, BarChart3, RefreshCw, FileText, TrendingUp, Key } from 'lucide-react';
+import { useFetch } from '@/hooks/useFetch';
 
 const CLIENTS = [
   { name: 'Aurix Lab', slug: 'aurixlab' },
@@ -36,6 +37,7 @@ export default function SEODashboard() {
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [periodOpen, setPeriodOpen] = useState(false);
+  const { data: me } = useFetch<any>('/api/me', { pollInterval: false });
 
   async function fetchData() {
     setLoading(true);
@@ -94,7 +96,9 @@ export default function SEODashboard() {
         </div>
         
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <a href="/api/auth/google" className="px-4 py-2 text-sm font-medium rounded-xl border border-surface-200 dark:border-surface-800 text-center">Connect Google</a>
+          {me?.role === 'ADMIN' && (
+            <a href="/api/auth/google" className="px-4 py-2 text-sm font-medium rounded-xl border border-surface-200 dark:border-surface-800 text-center">Connect Google</a>
+          )}
           <button 
             onClick={handleSync}
             disabled={syncing}

@@ -69,7 +69,8 @@ export default function SEODashboard() {
           setSyncError(`Partial sync: ${failed.map((r: any) => `${r.client} — ${r.error}`).join('; ')}`);
         }
       } else {
-        setSyncError(json.error || 'Sync failed. Check server logs.');
+        const reasons = (json.results || []).filter((r: any) => r.error).map((r: any) => r.error);
+        setSyncError(json.error || reasons.join('; ') || 'Sync failed. Check server logs.');
       }
     } catch (error) {
       setSyncError('Network error — could not reach sync endpoint.');

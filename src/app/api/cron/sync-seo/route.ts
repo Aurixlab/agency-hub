@@ -7,6 +7,22 @@ import { prisma } from '@/lib/prisma';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
+// Explain failures without exposing tokens or raw Google responses.
+function syncFailure(error: unknown) {
+  const e = error as { message?: string; code?: unknown; response?: { status?: number; data?: { error?: unknown } } };
+  const status = e.response?.status;
+  const googleError = e.response?.data?.error;
+  if (googleError === 'invalid_grant') return 'The Google connection has expired or was revoked. An admin must click Connect Google again.';
+  if (googleError === 'invalid_client') return 'Google rejected the OAuth client credentials. Check GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.';
+  if (status === 403) return 'The connected Google account has no access to this Search Console property. Add it as a user in Search Console or reconnect with an account that has access.';
+  if (status === 401) return 'Google rejected the stored credentials. An admin must click Connect Google again.';
+  if (status === 429) return 'Google Search Console quota exceeded. Try again later.';
+  if (/not configured|Connect Google/.test(e.message || '')) return e.message!;
+  if (typeof e.code === 'string' && /^(P\d{4}|\d{5}|PGRST)/.test(e.code)) return 'Could not save the synced data to the database.';
+  if (/timeout|ETIMEDOUT|aborted/i.test(e.message || '')) return 'Google Search Console took too long to respond. Try a shorter date range.';
+  return 'Sync failed; check Google access, credentials, quotas and database configuration.';
+}
+
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
   const cron = secret && matches(req.headers.get('authorization') || '', `Bearer ${secret}`);
@@ -46,7 +62,11 @@ export async function GET(req: NextRequest) {
         if (error) throw error;
       }
       return { client: client.name, status: 'ok', metricsCount: metrics.length, keywordsCount: keywords.length, latestDataDate: metrics.map(r => r.keys?.[0] || '').sort().at(-1) || null };
-    } catch { return { client: client.name, status: 'error', error: 'Sync failed; check Google access, credentials, quotas and database configuration.' }; }
+    } catch (error) {
+      const e = error as { message?: string; code?: unknown; response?: { status?: number } };
+      console.error('SEO sync failed', { client: client.slug, status: e.response?.status, code: e.code, message: e.message });
+      return { client: client.name, status: 'error', error: syncFailure(error) };
+    }
   }));
   return NextResponse.json({ success: results.some(r => r.status === 'ok'), startDate: startStr, endDate: endStr, results });
 }

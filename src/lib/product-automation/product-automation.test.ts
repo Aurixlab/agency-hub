@@ -16,7 +16,9 @@ import { buildShopifyVariantInput, matchIndustryCollectionIds } from './shopify'
 import { generateVariants } from './variants';
 import { parseSanmarCanadaProduct, isSanmarCanadaUrl } from './sanmar-canada';
 import { parseSanmarSportsProduct, isSanmarSportsUrl } from './sanmar-sports';
-import { scrapeProductPage } from './scraper';
+import { parseProductHtml, scrapeProductPage } from './scraper';
+import { MAX_CAPTURE_HTML_LENGTH, parseCapturedPage } from './browser-capture';
+import { captureBookmarklet } from './capture-bookmarklet';
 import { extractFabricAndWeight, fetchSsActivewearProduct, isSsActivewearUrl, parseSsActivewearUrl, pickSsStyle, ssStyleToScrapedData } from './ss-activewear';
 
 const completeAiCopy = () => ({
@@ -547,12 +549,56 @@ test('SanMar Sports rejects catalogue links, missing products and incomplete res
 
 test('Helly Hansen blocking produces a useful access error', async t => {
   t.mock.method(globalThis, 'fetch', async () => new Response('Blocked', { status: 403 }));
-  await assert.rejects(scrapeProductPage('https://www.hellyhansen.com/en_ca/jacket-34443'), /Helly Hansen blocked automated access.*approved product feed/);
+  await assert.rejects(scrapeProductPage('https://www.hellyhansen.com/en_ca/jacket-34443'), /Helly Hansen blocked automated access.*Send to Aurix.*Paste page source/);
 });
 
-test('SanMar Canada blocking explains the existing manual entry path instead of reporting only a status code', async t => {
+test('SanMar Canada blocking explains the browser capture path instead of reporting only a status code', async t => {
   t.mock.method(globalThis, 'fetch', async () => new Response('Blocked', { status: 403 }));
-  await assert.rejects(scrapeProductPage('http://sanmarcanada.com/nf0a88d5.html?colour=Dark%20Grey%20Heather'), /SanMar Canada blocked requests from the app server.*Scraped Data.*Generate all content/);
+  await assert.rejects(scrapeProductPage('http://sanmarcanada.com/nf0a88d5.html?colour=Dark%20Grey%20Heather'), /SanMar Canada blocked requests from the app server.*Send to Aurix.*Paste page source/);
+});
+
+test('other blocked suppliers point to browser capture while other failures keep the status code', async t => {
+  t.mock.method(globalThis, 'fetch', async () => new Response('Blocked', { status: 403 }));
+  await assert.rejects(scrapeProductPage('https://supplier.example/product'), /Supplier page returned 403.*Send to Aurix/);
+  t.mock.method(globalThis, 'fetch', async () => new Response('Error', { status: 500 }));
+  await assert.rejects(scrapeProductPage('https://supplier.example/product'), /^Error: Supplier page returned 500$/);
+});
+
+test('captured pages go through the same parsers as server scrapes', () => {
+  const sanmar = `<meta content="Everyday" itemprop="brand"><h1>ATC&#153; COTTON TEE. ATC1000</h1>
+    <form data-product-sku="ATC1000"></form><div id="tab1"><p>Cotton tee.</p><ul><li>100% cotton</li></ul></div>`;
+  const pasted = parseCapturedPage('https://www.sanmarcanada.com/atc1000.html', undefined, sanmar);
+  assert.equal(pasted.sku, 'ATC1000');
+  assert.equal(pasted.fabric, '100% cotton');
+  // The bookmarklet may report the bare domain while the run uses www, and a different product path.
+  assert.equal(parseCapturedPage('https://www.sanmarcanada.com/atc1000.html', 'https://sanmarcanada.com/atc1000.html?colour=Black', sanmar).brand, 'ATC');
+
+  const helly = `<script type="application/ld+json">{"@type":"Product","name":"Kensington Jacket","brand":{"name":"Helly Hansen"},"sku":"71241","description":"Insulated work jacket."}</script>`;
+  const jacket = parseCapturedPage('https://www.hellyhansen.com/en_ca/jacket-34443', 'https://www.hellyhansen.com/en_ca/jacket-34443?colour=black', helly);
+  assert.equal(jacket.title, 'Kensington Jacket');
+  assert.equal(jacket.brand, 'Helly Hansen');
+  assert.equal(jacket.sku, '71241');
+  assert.deepEqual(jacket, parseProductHtml(new URL('https://www.hellyhansen.com/en_ca/jacket-34443'), helly));
+});
+
+test('captured pages must come from the run supplier and fit the request limit', () => {
+  const link = 'https://www.hellyhansen.com/en_ca/jacket-34443';
+  assert.throws(() => parseCapturedPage(link, 'https://evil.example/jacket', '<h1>Jacket</h1>'), /from evil\.example.*www\.hellyhansen\.com/);
+  assert.throws(() => parseCapturedPage(link, 'https://hellyhansen.com.evil.example/jacket', '<h1>Jacket</h1>'), /from hellyhansen\.com\.evil\.example/);
+  assert.throws(() => parseCapturedPage(link, 'javascript:alert(1)', '<h1>Jacket</h1>'), /Captured page URL must be a valid URL/);
+  assert.throws(() => parseCapturedPage(link, link, '   '), /Captured page is empty/);
+  assert.throws(() => parseCapturedPage(link, link, 42), /Captured page is empty/);
+  assert.throws(() => parseCapturedPage(link, link, 'x'.repeat(MAX_CAPTURE_HTML_LENGTH + 1)), /too large/);
+});
+
+test('Send to Aurix bookmarklet is valid script that posts only to the app origin', () => {
+  const href = captureBookmarklet('https://hub.aurixlab.com');
+  assert.match(href, /^javascript:/);
+  const code = decodeURIComponent(href.slice('javascript:'.length));
+  assert.doesNotThrow(() => new Function(code));
+  assert.match(code, /var app="https:\/\/hub\.aurixlab\.com"/);
+  assert.match(code, /tab\.postMessage\(data,app\)/);
+  assert.match(code, /window\.open\(app\+"\/product-automation\/capture"/);
 });
 
 test('SanMar Canada scrape uses product fields instead of navigation and preserves nested description content', async t => {

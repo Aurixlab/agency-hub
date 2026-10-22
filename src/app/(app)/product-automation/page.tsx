@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   ArrowLeft,
+  BookmarkPlus,
   Check,
   CheckCircle2,
+  ClipboardPaste,
   Database,
   ExternalLink,
   FileSpreadsheet,
@@ -26,6 +28,7 @@ import type {
 } from '@/lib/product-automation/types';
 import { INDUSTRY_OPTIONS, PRODUCT_CONTENT_CATEGORIES } from '@/lib/product-automation/content-config';
 import { ImportedProductsSection } from '@/components/product-automation/ImportedProductsSection';
+import { captureBookmarklet } from '@/lib/product-automation/capture-bookmarklet';
 
 interface ProductAutomationRun {
   id: string;
@@ -152,6 +155,13 @@ export default function ProductAutomationPage() {
 
   useEffect(() => {
     fetchRuns();
+    // The Send to Aurix capture tab links back here with ?run=<id>.
+    const runId = new URLSearchParams(window.location.search).get('run');
+    if (!runId) return;
+    fetch(`/api/product-automation/runs/${encodeURIComponent(runId)}`)
+      .then(res => (res.ok ? res.json() : null))
+      .then(payload => { if (payload?.run) syncRun(payload.run); })
+      .catch(() => {});
   }, []);
 
   const syncRun = (nextRun: ProductAutomationRun, openWorkspace = true) => {
@@ -220,6 +230,16 @@ export default function ProductAutomationPage() {
   const scrape = async () => {
     if (!run) return;
     await callStep('scrape', () => fetch(`/api/product-automation/runs/${run.id}/scrape`, { method: 'POST' }));
+  };
+
+  const capturePageSource = async (html: string) => {
+    if (!run) return false;
+    const payload = await callStep('capture', () => fetch(`/api/product-automation/runs/${run.id}/capture`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ html }),
+    }));
+    return Boolean(payload);
   };
 
   const generate = async () => {
@@ -320,6 +340,7 @@ export default function ProductAutomationPage() {
           actionDisabled={actionDisabled}
           createRun={createRun}
           scrape={scrape}
+          capturePageSource={capturePageSource}
           generate={generate}
           preview={preview}
           createShopifyDraft={createShopifyDraft}
@@ -443,6 +464,7 @@ function ProductWorkspace(props: {
   actionDisabled: boolean;
   createRun: () => void;
   scrape: () => void;
+  capturePageSource: (html: string) => Promise<boolean>;
   generate: () => void;
   preview: () => void;
   createShopifyDraft: () => void;
@@ -459,6 +481,7 @@ function ProductWorkspace(props: {
     actionDisabled,
     createRun,
     scrape,
+    capturePageSource,
     generate,
     preview,
     createShopifyDraft,
@@ -598,12 +621,19 @@ function ProductWorkspace(props: {
                 {loading === 'shopify' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Create Shopify Draft
               </button>
             </div>
+            <SendToAurixBookmarklet />
           </div>
         </section>
 
         <section className="space-y-4">
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <EditableScrapedData scraped={scraped} setScraped={setScraped} />
+            <EditableScrapedData
+              scraped={scraped}
+              setScraped={setScraped}
+              canCapture={Boolean(run) && !actionDisabled}
+              capturing={loading === 'capture'}
+              capturePageSource={capturePageSource}
+            />
             <EditableAiCopy aiCopy={aiCopy} setAiCopy={setAiCopy} />
           </div>
           <PreviewPanel run={run} />
@@ -613,12 +643,42 @@ function ProductWorkspace(props: {
   );
 }
 
-function EditableScrapedData({ scraped, setScraped }: {
+function SendToAurixBookmarklet() {
+  const link = useRef<HTMLAnchorElement>(null);
+  // Set after mount: the bookmarklet needs this app's origin, and React warns on javascript: hrefs.
+  useEffect(() => {
+    link.current?.setAttribute('href', captureBookmarklet(window.location.origin));
+  }, []);
+
+  return (
+    <div className="mt-4 rounded-lg border border-dashed border-surface-300 p-3 text-xs text-surface-500 dark:border-surface-700">
+      <p className="font-semibold text-surface-700 dark:text-surface-300">Supplier blocks Scrape supplier?</p>
+      <p className="mt-1">Drag this button to your bookmarks bar. Open the product page in your browser and click the bookmark.</p>
+      <a
+        ref={link}
+        onClick={e => e.preventDefault()}
+        className="btn-secondary btn-sm mt-2 cursor-grab"
+        title="Drag to your bookmarks bar"
+      >
+        <BookmarkPlus className="h-4 w-4" /> Send to Aurix
+      </a>
+    </div>
+  );
+}
+
+function EditableScrapedData({ scraped, setScraped, canCapture, capturing, capturePageSource }: {
   scraped: ScrapedProductData;
   setScraped: (value: ScrapedProductData) => void;
+  canCapture: boolean;
+  capturing: boolean;
+  capturePageSource: (html: string) => Promise<boolean>;
 }) {
+  const [pageSource, setPageSource] = useState('');
   const setField = (field: keyof Omit<ScrapedProductData, 'confidence'>, value: string) =>
     setScraped({ ...scraped, [field]: value });
+  const readPageSource = async () => {
+    if (await capturePageSource(pageSource)) setPageSource('');
+  };
 
   return (
     <div className="card p-5">
@@ -638,6 +698,21 @@ function EditableScrapedData({ scraped, setScraped }: {
             onChange={e => setField('raw_description', e.target.value)}
           />
         </label>
+        <details className="rounded-lg border border-surface-200 p-3 dark:border-surface-800">
+          <summary className="cursor-pointer text-sm font-medium text-surface-700 dark:text-surface-300">Paste page source</summary>
+          <p className="mt-2 text-xs text-surface-500">
+            On the supplier product page, press Ctrl+U, select all, copy, and paste it here. This replaces the fields above.
+          </p>
+          <textarea
+            className="input mt-2 min-h-24 resize-y font-mono text-xs"
+            value={pageSource}
+            onChange={e => setPageSource(e.target.value)}
+            placeholder="<!doctype html>…"
+          />
+          <button onClick={readPageSource} disabled={!canCapture || !pageSource.trim()} className="btn-secondary btn-sm mt-2">
+            {capturing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardPaste className="h-4 w-4" />} Read page source
+          </button>
+        </details>
       </div>
     </div>
   );

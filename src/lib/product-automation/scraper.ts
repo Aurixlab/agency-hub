@@ -88,15 +88,22 @@ export async function scrapeProductPage(productLink: string): Promise<ScrapedPro
   });
   if (!response.ok) {
     if (isSanmarCanadaUrl(url) && response.status === 403) {
-      throw new Error('SanMar Canada blocked requests from the app server (403). Enter product details in Scraped Data, then select Generate all content to continue. Automatic scraping requires approved SanMar integration access.');
+      throw new Error('SanMar Canada blocked requests from the app server (403). Open the product page in your browser and click Send to Aurix, or use Paste page source in Scraped Data.');
     }
     if (/(^|\.)hellyhansen\.com$/i.test(url.hostname) && response.status === 403) {
-      throw new Error('Helly Hansen blocked automated access (403). An approved product feed or dealer integration is required.');
+      throw new Error('Helly Hansen blocked automated access (403). Open the product page in your browser and click Send to Aurix, or use Paste page source in Scraped Data.');
+    }
+    if (response.status === 403) {
+      throw new Error('Supplier page returned 403. Open the product page in your browser and click Send to Aurix, or use Paste page source in Scraped Data.');
     }
     throw new Error(`Supplier page returned ${response.status}`);
   }
 
-  const html = await response.text();
+  return parseProductHtml(url, await response.text());
+}
+
+// Parses supplier HTML fetched by the server or captured from the user's browser.
+export function parseProductHtml(url: URL, html: string): ScrapedProductData {
   if (isSanmarCanadaUrl(url)) return parseSanmarCanadaProduct(html);
   const pageText = stripTags(html);
   const jsonLd = jsonLdValues(html);

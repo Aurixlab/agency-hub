@@ -18,13 +18,18 @@ export async function GET(request: Request) {
   const session = await getSessionFromRequest(request);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const runs = await prisma.productAutomationRun.findMany({
-    orderBy: { createdAt: 'desc' },
-    take: 25,
+  const cursor = new URL(request.url).searchParams.get('cursor');
+  const pageSize = 40;
+  const results = await prisma.productAutomationRun.findMany({
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: pageSize + 1,
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     include: { creator: { select: { id: true, name: true, username: true } } },
   });
 
-  return NextResponse.json({ runs });
+  const runs = results.slice(0, pageSize);
+  const nextCursor = results.length > pageSize ? runs[runs.length - 1].id : null;
+  return NextResponse.json({ runs, nextCursor });
 }
 
 export async function POST(request: Request) {

@@ -135,6 +135,8 @@ export default function ProductAutomationPage() {
   const [mode, setMode] = useState<'table' | 'workspace' | 'imports'>('table');
   const [form, setForm] = useState(initialForm);
   const [runs, setRuns] = useState<ProductAutomationRun[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [fetchingRuns, setFetchingRuns] = useState(false);
   const [run, setRun] = useState<ProductAutomationRun | null>(null);
   const [scraped, setScraped] = useState<ScrapedProductData>(emptyScraped);
   const [aiCopy, setAiCopy] = useState<AiProductCopy>(emptyAi);
@@ -146,11 +148,20 @@ export default function ProductAutomationPage() {
     [form.colors]
   );
 
-  const fetchRuns = async () => {
-    const res = await fetch('/api/product-automation/runs');
-    if (!res.ok) return;
-    const payload = await res.json();
-    setRuns(payload.runs || []);
+  const fetchRuns = async (cursor?: string) => {
+    setFetchingRuns(true);
+    try {
+      const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+      const res = await fetch(`/api/product-automation/runs${query}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error('Failed to load products. Please try again.');
+      const payload = await res.json();
+      setRuns(previous => cursor ? [...previous, ...(payload.runs || [])] : payload.runs || []);
+      setNextCursor(payload.nextCursor || null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load products. Please try again.');
+    } finally {
+      setFetchingRuns(false);
+    }
   };
 
   useEffect(() => {
@@ -302,7 +313,7 @@ export default function ProductAutomationPage() {
             <button onClick={() => setMode('imports')} className="btn-secondary">
               <Database className="w-4 h-4" /> Imported Products
             </button>
-            <button onClick={fetchRuns} className="btn-secondary">
+            <button onClick={() => fetchRuns()} disabled={fetchingRuns} className="btn-secondary">
               <RefreshCw className="w-4 h-4" /> Refresh
             </button>
             <button onClick={startNewProduct} className="btn-primary">
@@ -323,7 +334,14 @@ export default function ProductAutomationPage() {
       )}
 
       {mode === 'table' ? (
-        <ProductsSpreadsheet runs={runs} onOpen={syncRun} onCreate={startNewProduct} />
+        <ProductsSpreadsheet
+          runs={runs}
+          onOpen={syncRun}
+          onCreate={startNewProduct}
+          hasMore={Boolean(nextCursor)}
+          loading={fetchingRuns}
+          onLoadMore={() => { if (nextCursor) fetchRuns(nextCursor); }}
+        />
       ) : mode === 'imports' ? (
         <ImportedProductsSection />
       ) : (
@@ -350,10 +368,13 @@ export default function ProductAutomationPage() {
   );
 }
 
-function ProductsSpreadsheet({ runs, onOpen, onCreate }: {
+function ProductsSpreadsheet({ runs, onOpen, onCreate, hasMore, loading, onLoadMore }: {
   runs: ProductAutomationRun[];
   onOpen: (run: ProductAutomationRun) => void;
   onCreate: () => void;
+  hasMore: boolean;
+  loading: boolean;
+  onLoadMore: () => void;
 }) {
   const createdCount = runs.filter(drafted).length;
 
@@ -374,9 +395,9 @@ function ProductsSpreadsheet({ runs, onOpen, onCreate }: {
         </button>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="max-h-[70vh] overflow-auto" role="region" aria-label="Generated products" tabIndex={0}>
         <table className="min-w-[1120px] w-full border-collapse text-sm">
-          <thead>
+          <thead className="sticky top-0 z-10">
             <tr className="bg-surface-100 text-left text-xs font-bold uppercase tracking-wide text-surface-500 dark:bg-surface-800 dark:text-surface-400">
               <Th className="w-16 text-center">Draft</Th>
               <Th>Product</Th>
@@ -397,7 +418,7 @@ function ProductsSpreadsheet({ runs, onOpen, onCreate }: {
                 <td colSpan={11} className="border-t border-surface-200 px-4 py-12 text-center dark:border-surface-800">
                   <div className="mx-auto flex max-w-sm flex-col items-center gap-3">
                     <FileSpreadsheet className="h-8 w-8 text-surface-300" />
-                    <p className="font-semibold text-surface-700 dark:text-surface-200">No product rows yet</p>
+                    <p className="font-semibold text-surface-700 dark:text-surface-200">{loading ? 'Loading products...' : 'No product rows yet'}</p>
                     <button onClick={onCreate} className="btn-primary">
                       <Plus className="h-4 w-4" /> Create Product
                     </button>
@@ -447,6 +468,14 @@ function ProductsSpreadsheet({ runs, onOpen, onCreate }: {
           </tbody>
         </table>
       </div>
+      {hasMore && (
+        <div className="flex justify-center border-t border-surface-200 px-4 py-3 dark:border-surface-800">
+          <button onClick={onLoadMore} disabled={loading} className="btn-secondary">
+            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+            {loading ? 'Loading products...' : 'Load 40 more products'}
+          </button>
+        </div>
+      )}
     </section>
   );
 }

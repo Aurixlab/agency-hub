@@ -249,7 +249,8 @@ create table seo_reports (
   period_start date not null,
   period_end date not null,
   summary jsonb not null,
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  unique(client_id, report_type, period_start)
 );
 ```
 
@@ -309,7 +310,8 @@ create table seo_reports (
   period_start date not null,
   period_end date not null,
   summary jsonb not null,
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  unique(client_id, report_type, period_start)
 );
 
 insert into seo_clients (name, gsc_property_url, slug) values
@@ -1022,7 +1024,8 @@ create table seo_reports (
   period_start date not null,
   period_end date not null,
   summary jsonb not null,
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  unique(client_id, report_type, period_start)
 );
 ```
 

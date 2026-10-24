@@ -22,7 +22,8 @@ function syncFailure(error: unknown) {
   if (status === 401) return 'Google rejected the stored credentials. An admin must click Connect Google again.';
   if (status === 429) return 'Google Search Console quota exceeded. Try again later.';
   if (/not configured|Connect Google/.test(e.message || '')) return e.message!;
-  if (typeof e.code === 'string' && /^(P\d{4}|\d{5}|PGRST)/.test(e.code)) return 'Could not save the synced data to the database.';
+  // Postgres SQLSTATEs are five alphanumerics (e.g. 42P10); the code is safe to show.
+  if (typeof e.code === 'string' && /^(P\d{4}|[0-9A-Z]{5}|PGRST\w*)$/.test(e.code)) return `Could not save the synced data to the database (${e.code}).`;
   if (/timeout|ETIMEDOUT|aborted/i.test(e.message || '')) return 'Google Search Console took too long to respond. Try a shorter date range.';
   return 'Sync failed; check Google access, credentials, quotas and database configuration.';
 }

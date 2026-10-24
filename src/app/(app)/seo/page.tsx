@@ -14,6 +14,7 @@ const CLIENTS = [
   { name: 'Aurix Lab', slug: 'aurixlab' },
   { name: 'Budget Promotion', slug: 'budget-promotion' },
   { name: 'CPC Clinics', slug: 'cpc-clinics' },
+  { name: 'Merch Express', slug: 'merch-express' },
 ];
 
 const PERIODS = [

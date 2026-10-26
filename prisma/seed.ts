@@ -1,38 +1,29 @@
 import { PrismaClient, Role, Priority } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { randomBytes } from 'node:crypto';
 
 const prisma = new PrismaClient();
 
 // ============================================
 // TEAM MEMBERS & INITIAL PASSWORDS
 // ============================================
-// Everyone must change their password on first login.
-//
-// Username       | Initial Password
-// ─────────────────────────────────────
-// admin          | Admin@Hub2024
-// aaryan         | Aaryan@Hub2024
-// ahnaf          | Ahnaf@Hub2024
-// mimo           | Mimo@Hub2024
-// fahim          | Fahim@Hub2024
-// ridwan         | Ridwan@Hub2024
-// abir           | Abir@Hub2024
-// quraishi       | Quraishi@Hub2024
-// furqan         | Furqan@Hub2024
-// guest          | Guest@Hub2024
-// ============================================
+// Each account gets a random one-time password, printed once at the end of the run.
+// Set SEED_INITIAL_PASSWORD to use one shared value instead (it must meet the password rules).
+// Everyone must change their password on first login. Never commit real passwords here.
+
+const initialPassword = () => process.env.SEED_INITIAL_PASSWORD || `${randomBytes(12).toString('base64url')}aA1`;
 
 const users = [
-  { username: 'admin', name: 'Admin', role: Role.ADMIN, password: 'Admin@Hub2024' },
-  { username: 'aaryan', name: 'Aaryan', role: Role.MEMBER, password: 'Aaryan@Hub2024' },
-  { username: 'ahnaf', name: 'Ahnaf', role: Role.MEMBER, password: 'Ahnaf@Hub2024' },
-  { username: 'mimo', name: 'Mimo', role: Role.MEMBER, password: 'Mimo@Hub2024' },
-  { username: 'fahim', name: 'Fahim', role: Role.MEMBER, password: 'Fahim@Hub2024' },
-  { username: 'ridwan', name: 'Ridwan', role: Role.MEMBER, password: 'Ridwan@Hub2024' },
-  { username: 'abir', name: 'Abir', role: Role.MEMBER, password: 'Abir@Hub2024' },
-  { username: 'quraishi', name: 'Quraishi', role: Role.MEMBER, password: 'Quraishi@Hub2024' },
-  { username: 'furqan', name: 'Furqan', role: Role.MEMBER, password: 'Furqan@Hub2024' },
-  { username: 'guest', name: 'Guest', role: Role.GUEST, password: 'Guest@Hub2024' },
+  { username: 'admin', name: 'Admin', role: Role.ADMIN, password: initialPassword() },
+  { username: 'aaryan', name: 'Aaryan', role: Role.MEMBER, password: initialPassword() },
+  { username: 'ahnaf', name: 'Ahnaf', role: Role.MEMBER, password: initialPassword() },
+  { username: 'mimo', name: 'Mimo', role: Role.MEMBER, password: initialPassword() },
+  { username: 'fahim', name: 'Fahim', role: Role.MEMBER, password: initialPassword() },
+  { username: 'ridwan', name: 'Ridwan', role: Role.MEMBER, password: initialPassword() },
+  { username: 'abir', name: 'Abir', role: Role.MEMBER, password: initialPassword() },
+  { username: 'quraishi', name: 'Quraishi', role: Role.MEMBER, password: initialPassword() },
+  { username: 'furqan', name: 'Furqan', role: Role.MEMBER, password: initialPassword() },
+  { username: 'guest', name: 'Guest', role: Role.GUEST, password: initialPassword() },
 ];
 
 const templates = [

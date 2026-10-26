@@ -1,3 +1,5 @@
+import { lookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
 import { fetchSsActivewearProduct, isSsActivewearUrl, ssActivewearCredentials } from './ss-activewear';
 import { isSanmarCanadaUrl, parseSanmarCanadaProduct } from './sanmar-canada';
 import { fetchSanmarSportsProduct, isSanmarSportsUrl } from './sanmar-sports';
@@ -67,6 +69,40 @@ const confidence = (value: string, highWhen = false): Confidence => {
   return highWhen ? 'high' : 'medium';
 };
 
+const privateIPv4 = (ip: string) => {
+  const [a, b] = ip.split('.').map(Number);
+  return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31)
+    || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || (a === 198 && (b === 18 || b === 19)) || a >= 224;
+};
+
+const privateAddress = (address: string) => {
+  const ip = address.toLowerCase();
+  if (isIP(ip) === 4) return privateIPv4(ip);
+  if (ip === '::' || ip === '::1') return true;
+  const mapped = ip.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  if (mapped) return privateIPv4(mapped[1]);
+  return ip.startsWith('::ffff:') || /^(fc|fd|fe[89ab])/.test(ip);
+};
+
+// The server fetches user-supplied links, so refuse loopback, private, link-local and metadata targets (SSRF).
+async function assertPublicHttpUrl(url: URL) {
+  const blocked = new Error('Product link must point to a public website');
+  if (!['http:', 'https:'].includes(url.protocol)) throw blocked;
+  const host = url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  if (host === 'localhost' || /\.(localhost|local|internal|localdomain)$/.test(host)) throw blocked;
+  if (isIP(host)) {
+    if (privateAddress(host)) throw blocked;
+    return;
+  }
+  let addresses: { address: string }[];
+  try {
+    addresses = await lookup(host, { all: true });
+  } catch {
+    return; // Unresolvable hosts fail in fetch with the usual error.
+  }
+  if (addresses.some(entry => privateAddress(entry.address))) throw blocked;
+}
+
 export async function scrapeProductPage(productLink: string): Promise<ScrapedProductData> {
   let url: URL;
   try {
@@ -80,12 +116,23 @@ export async function scrapeProductPage(productLink: string): Promise<ScrapedPro
   if (ssCredentials && isSsActivewearUrl(url)) return fetchSsActivewearProduct(url, ssCredentials);
   if (isSanmarSportsUrl(url)) return fetchSanmarSportsProduct(url);
 
-  const response = await fetch(url.toString(), {
-    headers: {
-      'User-Agent': 'AgencyHub-SPAE/1.0 (+https://aurixlab.com)',
-      Accept: 'text/html,application/xhtml+xml',
-    },
-  });
+  // Follow redirects manually so every hop is checked against the same public-host rule.
+  let target = url;
+  let response: Response;
+  for (let hops = 0; ; hops++) {
+    await assertPublicHttpUrl(target);
+    response = await fetch(target.toString(), {
+      headers: {
+        'User-Agent': 'AgencyHub-SPAE/1.0 (+https://aurixlab.com)',
+        Accept: 'text/html,application/xhtml+xml',
+      },
+      redirect: 'manual',
+    });
+    const location = response.status >= 300 && response.status < 400 ? response.headers.get('location') : null;
+    if (!location) break;
+    if (hops >= 5) throw new Error('Supplier page redirected too many times');
+    target = new URL(location, target);
+  }
   if (!response.ok) {
     if (isSanmarCanadaUrl(url) && response.status === 403) {
       throw new Error('SanMar Canada blocked requests from the app server (403). Open the product page in your browser and click Send to Aurix, or use Paste page source in Scraped Data.');

@@ -4,6 +4,24 @@ import { jwtVerify } from 'jose';
 
 const publicPaths = ['/login', '/api/auth/login', '/api/auth/google'];
 
+// Constant-time string comparison (Edge runtime has no node:crypto timingSafeEqual).
+function safeEqual(a: string, b: string) {
+  const x = new TextEncoder().encode(a);
+  const y = new TextEncoder().encode(b);
+  let diff = x.length ^ y.length;
+  for (let i = 0; i < Math.max(x.length, y.length); i++) diff |= (x[i] ?? 0) ^ (y[i] ?? 0);
+  return diff === 0;
+}
+
+// Cookie presence is not authentication: require a validly signed, unexpired session JWT.
+async function hasValidSession(token: string | undefined) {
+  if (!token || !process.env.AUTH_SECRET) return false;
+  try {
+    const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.AUTH_SECRET), { algorithms: ['HS256'] });
+    return Boolean(payload.userId);
+  } catch { return false; }
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   // MCP routes validate bearer tokens or OAuth consent themselves; cookies are not MCP credentials.
@@ -11,7 +29,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
   const sessionToken = request.cookies.get('agency-hub-session')?.value;
-  if (pathname === '/api/seo' || pathname.startsWith('/api/seo/')) {
+  if (pathname === '/api/seo' || pathname.startsWith('/api/seo/') || pathname.startsWith('/api/reports/')) {
     try {
       if (!sessionToken || !process.env.AUTH_SECRET) throw new Error('No session');
       const { payload } = await jwtVerify(sessionToken, new TextEncoder().encode(process.env.AUTH_SECRET), { algorithms: ['HS256'] });
@@ -32,7 +50,7 @@ export async function middleware(request: NextRequest) {
   if (
     pathname === enrichmentBatchPath
     && enrichmentBatchToken
-    && suppliedEnrichmentBatchToken === enrichmentBatchToken
+    && safeEqual(suppliedEnrichmentBatchToken || '', enrichmentBatchToken)
   ) {
     return NextResponse.next();
   }
@@ -40,7 +58,7 @@ export async function middleware(request: NextRequest) {
   if (
     tshirtRolloutPaths.includes(pathname)
     && tshirtRolloutToken
-    && suppliedTshirtRolloutToken === tshirtRolloutToken
+    && safeEqual(suppliedTshirtRolloutToken || '', tshirtRolloutToken)
   ) {
     return NextResponse.next();
   }
@@ -55,9 +73,9 @@ export async function middleware(request: NextRequest) {
     const querySecret = request.nextUrl.searchParams.get('secret');
     const isAuthorizedCron =
       cronSecret &&
-      (authHeader === `Bearer ${cronSecret}` || querySecret === cronSecret);
+      (safeEqual(authHeader || '', `Bearer ${cronSecret}`) || safeEqual(querySecret || '', cronSecret));
 
-    if (sessionToken || isAuthorizedCron) {
+    if (isAuthorizedCron || await hasValidSession(sessionToken)) {
       return NextResponse.next();
     }
 
@@ -67,7 +85,8 @@ export async function middleware(request: NextRequest) {
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon') ||
-    pathname.includes('.')
+    // Static-file bypass must not apply to API paths (dynamic ids may contain a dot).
+    (!pathname.startsWith('/api/') && pathname.includes('.'))
   ) {
     return NextResponse.next();
   }

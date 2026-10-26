@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireCronOrSession } from '@/lib/cron-auth';
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export async function GET() {
+export async function GET(request: Request) {
+  const denied = await requireCronOrSession(request);
+  if (denied) return denied;
   try {
     const today = new Date();
     // Get first day of current month

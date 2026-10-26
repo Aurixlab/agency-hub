@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireSeoSession } from '@/lib/gsc-access';
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -10,6 +11,8 @@ export async function GET(
   req: NextRequest,
   { params }: { params: { slug: string } }
 ) {
+  const denied = await requireSeoSession(req);
+  if (denied) return denied;
   const { searchParams } = new URL(req.url);
   const month = searchParams.get('month'); // e.g. '2026-04'
   if (!month) return NextResponse.json({ error: 'month required' }, { status: 400 });

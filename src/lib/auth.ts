@@ -4,7 +4,9 @@ import { prisma } from './prisma';
 import { verifyPassword } from './password';
 import { redirect } from 'next/navigation';
 
-const SECRET = new TextEncoder().encode(process.env.AUTH_SECRET || 'fallback-secret-change-me');
+// No public fallback in production: with AUTH_SECRET unset, jose rejects the empty key, so signing and
+// verification fail closed instead of accepting tokens forged with a key published in this repository.
+const SECRET = new TextEncoder().encode(process.env.AUTH_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'fallback-secret-change-me'));
 const SESSION_COOKIE = 'agency-hub-session';
 const SESSION_DURATION = 30 * 24 * 60 * 60;
 
@@ -56,7 +58,7 @@ export async function createSession(userId: string): Promise<string> {
 }
 
 // ============================================================
-// FAST AUTH — JWT-only, zero DB queries
+// FAST AUTH — JWT + one indexed session-row lookup (no user query)
 // Used for ALL GET/read API routes
 // ============================================================
 function extractToken(request: Request): string | undefined {
@@ -71,6 +73,9 @@ export async function getSessionFromRequest(request: Request): Promise<SessionUs
     if (!token) return null;
     const { payload } = await jwtVerify(token, SECRET);
     if (!payload.userId) return null;
+    // Logout, disable and password reset delete the session row; a signed JWT alone must not outlive them.
+    const session = await prisma.session.findUnique({ where: { token }, select: { expiresAt: true } });
+    if (!session || session.expiresAt <= new Date()) return null;
     return {
       id: payload.userId as string,
       username: payload.username as string,

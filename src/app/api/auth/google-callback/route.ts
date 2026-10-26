@@ -3,13 +3,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { createSession } from '@/lib/auth';
 
-const oauth2Client = new google.auth.OAuth2(
-  process.env.AUTH_GOOGLE_CLIENT_ID,
-  process.env.AUTH_GOOGLE_CLIENT_SECRET,
-  process.env.AUTH_GOOGLE_REDIRECT_URI
-);
-
 export async function GET(req: NextRequest) {
+  // Per-request client: setCredentials mutates the client, so sharing one across requests could mix identities.
+  const oauth2Client = new google.auth.OAuth2(
+    process.env.AUTH_GOOGLE_CLIENT_ID,
+    process.env.AUTH_GOOGLE_CLIENT_SECRET,
+    process.env.AUTH_GOOGLE_REDIRECT_URI
+  );
   const { searchParams } = new URL(req.url);
   const code = searchParams.get('code');
   const error = searchParams.get('error');
@@ -26,7 +26,8 @@ export async function GET(req: NextRequest) {
     const { data } = await oauth2.userinfo.get();
     const googleEmail = data.email?.toLowerCase();
 
-    if (!googleEmail) {
+    // An unverified Google email must not map to an Agency Hub account.
+    if (!googleEmail || data.verified_email === false) {
       return NextResponse.redirect(new URL('/login?error=no_email', req.url));
     }
 

@@ -1,4 +1,4 @@
-import { calculatePricing } from './pricing';
+import { calculatePricing, discountedBasePrice } from './pricing';
 import { generateVariants } from './variants';
 import {
   INTERNAL_LINK_STRATEGIES,
@@ -43,8 +43,9 @@ export function composeShopifyPayload(args: {
   industryCollectionIds?: string[];
   enrichedAt?: Date;
 }): { pricing: PricingTable; payload: ShopifyPayload } {
-  const pricing = calculatePricing(args.basePrice, args.decorationType);
-  const sellPrice = pricing.tiers[0]?.price ?? args.basePrice;
+  const costPrice = discountedBasePrice(args.basePrice, args.scrapedData.brand);
+  const pricing = calculatePricing(costPrice, args.decorationType);
+  const sellPrice = pricing.tiers[0]?.price ?? costPrice;
   const variants = generateVariants(args.colors, args.scrapedData.sku, sellPrice);
   const lowestTier = pricing.tiers[pricing.tiers.length - 1];
 

@@ -184,13 +184,19 @@ async function deleteProduct(endpoint: string, token: string, productId: string)
   await shopifyGraphql(endpoint, token, mutation, { input: { id: productId } });
 }
 
+// Shopify does not store empty metafield values, so optional fields left blank
+// (e.g. a product with no brand or style number) are skipped rather than sent.
+export const withoutEmptyMetafields = (metafields: ShopifyPayload['metafields']) =>
+  metafields.filter(metafield => metafield.value.trim() !== '');
+
 async function setProductMetafields(
   endpoint: string,
   token: string,
   productId: string,
-  metafields: ShopifyPayload['metafields'],
+  allMetafields: ShopifyPayload['metafields'],
   productFields?: Partial<Pick<ShopifyPayload, 'title' | 'bodyHtml' | 'vendor' | 'productType' | 'tags' | 'templateSuffix'>>
 ) {
+  const metafields = withoutEmptyMetafields(allMetafields);
   if (!metafields.length) return [];
 
   const mutation = `

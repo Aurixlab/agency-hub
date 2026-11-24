@@ -11,8 +11,8 @@ import {
   classifyCatalogDecoration,
 } from './catalog-enrichment';
 import { composeShopifyPayload } from './payload';
-import { calculatePricing } from './pricing';
-import { buildShopifyVariantInput, matchIndustryCollectionIds } from './shopify';
+import { calculatePricing, discountedBasePrice } from './pricing';
+import { buildShopifyVariantInput, matchIndustryCollectionIds, withoutEmptyMetafields } from './shopify';
 import { generateVariants } from './variants';
 import { parseSanmarCanadaProduct, isSanmarCanadaUrl } from './sanmar-canada';
 import { parseSanmarSportsProduct, isSanmarSportsUrl } from './sanmar-sports';
@@ -54,17 +54,36 @@ const completeAiCopy = () => ({
 
 test('calculates print and embroidery pricing tiers', () => {
   assert.deepEqual(calculatePricing(20, 'print').tiers, [
-    { range: '1-24', price: 44.65 },
-    { range: '25-99', price: 39.89 },
-    { range: '100-499', price: 38.07 },
-    { range: '500+', price: 33.31 },
+    { range: '1-24', price: 47 },
+    { range: '25-99', price: 41 },
+    { range: '100-499', price: 38.5 },
+    { range: '500+', price: 33.25 },
   ]);
   assert.deepEqual(calculatePricing(20, 'embroidery').tiers, [
-    { range: '12-23', price: 49.18 },
-    { range: '24-47', price: 48.17 },
-    { range: '48-99', price: 43.31 },
-    { range: '100+', price: 40.58 },
+    { range: '12-23', price: 49.76 },
+    { range: '24-47', price: 48.49 },
+    { range: '48-99', price: 44.3 },
+    { range: '100+', price: 38.14 },
   ]);
+});
+
+test('takes 40% off Helly Hansen base prices before the pricing formulas', () => {
+  assert.equal(discountedBasePrice(400, 'Helly Hansen'), 240);
+  assert.equal(discountedBasePrice(108, 'Helly Hansen Workwear'), 64.8);
+  assert.equal(discountedBasePrice(400, 'ATC'), 400);
+  const { payload, pricing } = composeShopifyPayload({
+    scrapedData: {
+      title: "Men's Coastal Parka 3.0", brand: 'Helly Hansen', sku: 'HH-1', fabric: '', weight: '', raw_description: '',
+      confidence: { title: 'high', brand: 'high', sku: 'high', fabric: 'missing', weight: 'missing', raw_description: 'missing' },
+    },
+    aiCopy: completeAiCopy(),
+    basePrice: 400,
+    decorationType: 'embroidery',
+    colors: ['Black'],
+    productLink: 'https://example.com/p',
+  });
+  assert.deepEqual(pricing.tiers, calculatePricing(240, 'embroidery').tiers);
+  assert.equal(payload.variants[0].price, pricing.tiers[0].price);
 });
 
 test('generates six sizes per unique color', () => {
@@ -72,6 +91,32 @@ test('generates six sizes per unique color', () => {
   assert.equal(variants.length, 12);
   assert.equal(variants[0].sku, 'ABC-1-BLACK-S');
   assert.equal(variants.at(-1)?.sku, 'ABC-1-NAVY-3XL');
+});
+
+test('skips blank brand and style number instead of requiring them', () => {
+  const { payload } = composeShopifyPayload({
+    scrapedData: {
+      title: 'Test Product',
+      brand: '',
+      sku: '',
+      fabric: '',
+      weight: '',
+      raw_description: '',
+      confidence: {
+        title: 'high', brand: 'missing', sku: 'missing', fabric: 'missing', weight: 'missing', raw_description: 'missing',
+      },
+    },
+    aiCopy: completeAiCopy(),
+    basePrice: 20,
+    decorationType: 'print',
+    colors: ['Black'],
+    productLink: 'https://example.com/product',
+  });
+  const keys = withoutEmptyMetafields(payload.metafields).map(metafield => metafield.key);
+  assert.ok(!keys.includes('brand'));
+  assert.ok(!keys.includes('product_style_number'));
+  assert.ok(keys.includes('supplier_name'));
+  assert.ok(keys.includes('accordion1_texts'));
 });
 
 test('composes Shopify draft fields and list metafields', () => {
@@ -154,7 +199,7 @@ test('calculates and maps bulk savings to the exact Shopify metafield', () => {
 
   const savings = payload.metafields.find(item => item.key === 'bulk_savings');
   assert.equal(savings?.type, 'list.single_line_text_field');
-  assert.deepEqual(JSON.parse(savings?.value || '[]'), ['Save 0%', 'Save 2%', 'Save 10%', 'Save 15%']);
+  assert.deepEqual(JSON.parse(savings?.value || '[]'), ['Save 0%', 'Save 3%', 'Save 10%', 'Save 21%']);
 });
 
 test('normalizes generated enrichment and scopes T-shirt links to T-shirt products', () => {

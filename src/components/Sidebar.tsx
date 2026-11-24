@@ -12,8 +12,8 @@ import {
   LayoutTemplate,
   Users,
   Shield,
-  Sun,
-  Moon,
+  Archive,
+  ChevronDown,
   LogOut,
   ChevronLeft,
   Menu,
@@ -56,13 +56,17 @@ const navItems = [
   { href: '/projects', label: 'Projects', icon: FolderKanban },
   { href: '/tasks', label: 'My Tasks', icon: ListTodo },
   { href: '/inbox', label: 'Task Inbox', icon: Inbox },
-  { href: '/reels', label: 'Creative Intel', icon: Flame },
   { href: '/product-automation', label: 'Product Automation', icon: ShoppingBag },
+  { href: '/team', label: 'Team', icon: Users },
+];
+
+// No longer used day to day: tucked away under a collapsible "Legacy" group.
+const legacyItems = [
+  { href: '/reels', label: 'Creative Intel', icon: Flame },
   { href: '/posting', label: 'Posting Automation', icon: Megaphone },
   { href: '/pipeline', label: 'Pipeline', icon: GitBranch },
   { href: '/seo', label: 'SEO', icon: Search },
   { href: '/templates', label: 'Templates', icon: LayoutTemplate },
-  { href: '/team', label: 'Team', icon: Users },
 ];
 
 const adminItems = [
@@ -72,8 +76,10 @@ const adminItems = [
 export default function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { theme, toggle } = useTheme();
+  const { theme } = useTheme();
   const [collapsed, setCollapsed] = useState(false);
+  const isLegacyPath = legacyItems.some(i => pathname === i.href || pathname.startsWith(i.href + '/'));
+  const [legacyOpen, setLegacyOpen] = useState(isLegacyPath);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -133,6 +139,28 @@ export default function Sidebar({ user }: SidebarProps) {
 
   const allItems = user.role === 'ADMIN' ? [...navItems, ...adminItems] : navItems;
 
+  const renderNavLink = ({ href, label, icon: Icon }: { href: string; label: string; icon: typeof LayoutDashboard }, muted = false) => {
+    const active = pathname === href || pathname.startsWith(href + '/');
+    return (
+      <Link
+        key={href}
+        href={href}
+        onClick={() => setMobileOpen(false)}
+        title={collapsed ? label : undefined}
+        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${
+          active
+            ? 'bg-brand-50 text-brand-700 dark:bg-brand-950 dark:text-brand-300'
+            : muted
+              ? 'text-surface-500 hover:bg-surface-100 hover:text-surface-900 dark:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-200'
+              : 'text-surface-600 hover:bg-surface-100 hover:text-surface-900 dark:text-surface-400 dark:hover:bg-surface-800 dark:hover:text-surface-200'
+        }`}
+      >
+        <Icon className="w-[18px] h-[18px] flex-shrink-0" />
+        {!collapsed && <span>{label}</span>}
+      </Link>
+    );
+  };
+
   const sidebarContent = (
     <div className="flex flex-col h-full">
       {/* Logo */}
@@ -187,24 +215,30 @@ export default function Sidebar({ user }: SidebarProps) {
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        {allItems.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || pathname.startsWith(href + '/');
-          return (
-            <Link
-              key={href}
-              href={href}
-              onClick={() => setMobileOpen(false)}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${
-                active
-                  ? 'bg-brand-50 text-brand-700 dark:bg-brand-950 dark:text-brand-300'
-                  : 'text-surface-600 hover:bg-surface-100 hover:text-surface-900 dark:text-surface-400 dark:hover:bg-surface-800 dark:hover:text-surface-200'
-              }`}
-            >
-              <Icon className="w-[18px] h-[18px] flex-shrink-0" />
-              {!collapsed && <span>{label}</span>}
-            </Link>
-          );
-        })}
+        {allItems.map(item => renderNavLink(item))}
+
+        {/* Legacy: collapsed by default, opens automatically when you are on one of its pages */}
+        <div className="pt-3 mt-3 border-t border-surface-200 dark:border-surface-800">
+          <button
+            onClick={() => setLegacyOpen(o => !o)}
+            aria-expanded={legacyOpen || isLegacyPath}
+            title={collapsed ? 'Legacy' : undefined}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium w-full text-surface-500 hover:bg-surface-100 hover:text-surface-900 dark:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-200 transition-all duration-150"
+          >
+            <Archive className="w-[18px] h-[18px] flex-shrink-0" />
+            {!collapsed && (
+              <>
+                <span>Legacy</span>
+                <ChevronDown className={`w-4 h-4 ml-auto transition-transform ${legacyOpen || isLegacyPath ? 'rotate-180' : ''}`} />
+              </>
+            )}
+          </button>
+          {(legacyOpen || isLegacyPath) && (
+            <div className={`mt-1 space-y-1 ${collapsed ? '' : 'ml-3 pl-2 border-l border-surface-200 dark:border-surface-800'}`}>
+              {legacyItems.map(item => renderNavLink(item, true))}
+            </div>
+          )}
+        </div>
       </nav>
 
       {/* Bottom */}
@@ -269,14 +303,6 @@ export default function Sidebar({ user }: SidebarProps) {
             </div>
           )}
         </div>
-
-        <button
-          onClick={toggle}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-surface-600 hover:bg-surface-100 hover:text-surface-900 dark:text-surface-400 dark:hover:bg-surface-800 dark:hover:text-surface-200 w-full transition-all"
-        >
-          {theme === 'dark' ? <Sun className="w-[18px] h-[18px]" /> : <Moon className="w-[18px] h-[18px]" />}
-          {!collapsed && <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>}
-        </button>
 
         <button
           onClick={handleLogout}

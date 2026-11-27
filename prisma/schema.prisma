@@ -171,6 +171,8 @@ model Notification {
   actorName String   @map("actor_name")
   taskTitle String   @map("task_title")
   read      Boolean  @default(false)
+  // When a task-assignment email covering this notification was sent (null = still waiting for the next batch)
+  emailedAt DateTime? @map("emailed_at")
   createdAt DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

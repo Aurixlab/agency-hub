@@ -1,0 +1,81 @@
+name: Task emails
+
+# GitHub cron runs in UTC. Bangladesh time is UTC+6, so subtract 6 hours:
+#   assignment batches at 08:00, 12:00, 16:00, 20:00 Bangladesh = 02:00, 06:00, 10:00, 14:00 UTC
+#   daily digest at 08:30 Bangladesh = 02:30 UTC
+# This repository is public, so these logs are too. The endpoints return counts only.
+on:
+  # The schedule is enabled after the sample email is approved: uncomment the three lines below.
+  # schedule:
+  #   - cron: '0 2,6,10,14 * * *'
+  #   - cron: '30 2 * * *'
+  workflow_dispatch:
+    inputs:
+      job:
+        description: Which email job to run
+        type: choice
+        options:
+          - assignments
+          - digest
+        default: assignments
+      mode:
+        description: dry-run sends nothing, sample emails made-up content to one user, send is the real run
+        type: choice
+        options:
+          - dry-run
+          - sample
+          - send
+        default: dry-run
+      sample_user:
+        description: Username that receives the sample (sample mode only)
+        type: string
+        default: ahnaf
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call the endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          EVENT: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+          JOB: ${{ github.event.inputs.job }}
+          MODE: ${{ github.event.inputs.mode }}
+          SAMPLE_USER: ${{ github.event.inputs.sample_user }}
+        run: |
+          if [ "$SCHEDULE" = "30 2 * * *" ] || [ "$JOB" = "digest" ]; then
+            endpoint=daily-digest
+          else
+            endpoint=task-assignment-emails
+          fi
+
+          # Scheduled runs always do the real send. Manual runs follow the chosen mode.
+          if [ "$EVENT" = "schedule" ]; then
+            MODE=send
+          fi
+          case "$MODE" in
+            dry-run) query='?dryRun=1' ;;
+            sample)
+              if [[ ! "$SAMPLE_USER" =~ ^[a-z0-9._-]+$ ]]; then
+                echo "sample_user may only contain a-z, 0-9, dot, underscore and hyphen" >&2
+                exit 1
+              fi
+              query="?sample=${SAMPLE_USER}"
+              ;;
+            send) query='' ;;
+            *)
+              echo "Unknown mode" >&2
+              exit 1
+              ;;
+          esac
+
+          echo "Running $endpoint ($MODE)"
+          # No automatic retry: a digest that timed out partway would be sent twice.
+          response=$(curl --fail-with-body -sS --max-time 60 \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "https://mission.aurixlab.com/api/cron/${endpoint}${query}") || { echo "$response"; exit 1; }
+          echo "$response"
+          # A failed send still answers HTTP 200, so fail the run unless the job reports success.
+          echo "$response" | jq -e '.ok == true' > /dev/null

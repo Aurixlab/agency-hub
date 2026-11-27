@@ -28,6 +28,7 @@ import {
   Flame,
   ShoppingBag,
   Megaphone,
+  Settings,
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { formatDistanceToNow } from 'date-fns';
@@ -71,6 +72,7 @@ const legacyItems = [
 
 const adminItems = [
   { href: '/admin', label: 'Admin', icon: Shield },
+  { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
 export default function Sidebar({ user }: SidebarProps) {

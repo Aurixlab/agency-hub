@@ -191,6 +191,16 @@ model GscConnection {
   @@map("gsc_connections")
 }
 
+// App-wide switches set from the Settings page, one row per key. A missing row means the default (off).
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedBy String?  @map("updated_by")
+
+  @@map("app_settings")
+}
+
 model Session {
   id        String   @id @default(cuid())
   userId    String   @map("user_id")

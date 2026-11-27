@@ -16,6 +16,7 @@ import {
   type UserRecord,
 } from './task-emails';
 import { assignmentEmail, digestEmail } from './email-templates';
+import { EMAILS_ENABLED_KEY, getEmailsEnabled, setEmailsEnabled } from './email-settings';
 
 // Tuesday 24 Nov 2026, 10:00 in Dhaka (04:00 UTC).
 const NOW = new Date('2026-11-24T04:00:00Z');
@@ -401,22 +402,38 @@ test('sample emails are marked and contain every section', () => {
 
 // ---------- Runners (fake database and sender, no network) ----------
 
-const PUBLIC_KEYS = ['ok', 'recipients', 'sent', 'failed', 'skipped', 'dryRun', 'sample', 'errors'];
+const PUBLIC_KEYS = ['ok', 'recipients', 'sent', 'failed', 'skipped', 'dryRun', 'sample', 'errors', 'emailsEnabled'];
 const RUNNERS = [runAssignmentEmails, runDailyDigest];
 
 function assertPublic(summary: RunSummary) {
   for (const key of Object.keys(summary)) assert.ok(PUBLIC_KEYS.includes(key), `unexpected key ${key}`);
+  if ('emailsEnabled' in summary) {
+    assert.equal(summary.dryRun, true, 'emailsEnabled belongs to dry runs only');
+    assert.equal(typeof summary.emailsEnabled, 'boolean');
+  }
   const json = JSON.stringify(summary);
   for (const secret of ['@', 'Ann', 'Lee', 'Bob', 'Secret title', 'u1', '<']) {
     assert.ok(!json.includes(secret), `response leaks ${secret}: ${json}`);
   }
 }
 
-function fakes(opts: { fail?: boolean; user?: Partial<UserRecord> | null } = {}) {
+interface FakeOptions {
+  fail?: boolean;
+  user?: Partial<UserRecord> | null;
+  /** Stored value of the emails switch: null means no row. On unless a test says otherwise. */
+  setting?: string | null;
+  settingError?: boolean;
+  /** Overrides for the rows the runners read. */
+  pending?: NotificationRecord[];
+  dueDate?: Date;
+}
+
+function fakes(opts: FakeOptions = {}) {
   const sent: Array<{ to: string; subject: string }> = [];
   const calls: string[] = [];
   // Long overdue, so the digest has something to report whatever today's date is.
-  const t = task({ title: 'Secret title', dueDate: new Date(Date.UTC(2020, 0, 1)) });
+  const t = task({ title: 'Secret title', dueDate: opts.dueDate ?? new Date(Date.UTC(2020, 0, 1)) });
+  const setting = opts.setting === undefined ? 'true' : opts.setting;
   const returns = (name: string, value: unknown) => async () => {
     calls.push(name);
     return value;
@@ -428,8 +445,16 @@ function fakes(opts: { fail?: boolean; user?: Partial<UserRecord> | null } = {})
     },
     task: { findMany: returns('task.findMany', [t]) },
     notification: {
-      findMany: returns('notification.findMany', [notif('n1', 'u1', t.id)]),
+      findMany: returns('notification.findMany', opts.pending ?? [notif('n1', 'u1', t.id)]),
       updateMany: returns('notification.updateMany', { count: 1 }),
+    },
+    appSetting: {
+      findUnique: async () => {
+        calls.push('appSetting.findUnique');
+        if (opts.settingError) throw new Error('relation "app_settings" does not exist');
+        return setting === null ? null : { value: setting };
+      },
+      upsert: returns('appSetting.upsert', {}),
     },
   };
   const deps: RunDeps = {
@@ -507,4 +532,163 @@ test('sample mode with dry run sends nothing', async () => {
   const summary = await runDailyDigest({ sample: 'u1', dryRun: true }, deps);
   assert.equal(summary.sent, 0);
   assert.equal(sent.length, 0);
+});
+
+// ---------- The Settings "Emails" switch ----------
+
+const WRITES = ['notification.updateMany', 'appSetting.upsert'];
+
+test('switch off (no row, or anything but "true"): real runs send nothing and write nothing', async () => {
+  for (const run of RUNNERS) {
+    for (const setting of [null, 'false', 'TRUE', '1', '']) {
+      const { deps, sent, calls } = fakes({ setting });
+      const summary = await run({}, deps);
+      assertPublic(summary);
+      assert.deepEqual(summary, { ok: true, recipients: 0, sent: 0, failed: 0, skipped: 'emails off' });
+      assert.equal(sent.length, 0);
+      // Only the setting is read: no task data, no writes.
+      assert.deepEqual(calls, ['appSetting.findUnique']);
+    }
+  }
+});
+
+test('switch on: real runs send as before', async () => {
+  const assignments = fakes({ setting: 'true' });
+  assert.deepEqual(await runAssignmentEmails({}, assignments.deps), {
+    ok: true, recipients: 1, sent: 1, failed: 0, skipped: 0,
+  });
+  assert.deepEqual(assignments.sent.map(m => m.to), ['u1@example.com']);
+  assert.ok(assignments.calls.includes('notification.updateMany'));
+
+  const digest = fakes({ setting: 'true' });
+  assert.deepEqual(await runDailyDigest({}, digest.deps), { ok: true, recipients: 2, sent: 2, failed: 0, skipped: 0 });
+  assert.deepEqual(digest.sent.map(m => m.to), ['u1@example.com', 'u2@example.com']);
+  assert.ok(!digest.calls.some(c => WRITES.includes(c)));
+});
+
+test('dry run reports the switch and otherwise behaves the same either way', async () => {
+  for (const run of RUNNERS) {
+    const summaries: RunSummary[] = [];
+    for (const [setting, expected] of [[null, false], ['false', false], ['true', true]] as const) {
+      const { deps, sent, calls } = fakes({ setting });
+      const summary = await run({ dryRun: true }, deps);
+      assertPublic(summary);
+      assert.equal(summary.emailsEnabled, expected);
+      assert.ok(summary.recipients > 0);
+      assert.equal(sent.length, 0);
+      assert.ok(!calls.some(c => WRITES.includes(c)));
+      summaries.push({ ...summary, emailsEnabled: undefined });
+    }
+    assert.deepEqual(summaries[0], summaries[2]);
+    assert.deepEqual(summaries[1], summaries[2]);
+  }
+});
+
+test('dry run reports the switch when there is nothing to send', async () => {
+  const none = fakes({ setting: null, pending: [] });
+  assert.deepEqual(await runAssignmentEmails({ dryRun: true }, none.deps), {
+    ok: true, recipients: 0, sent: 0, failed: 0, skipped: 0, dryRun: true, emailsEnabled: false,
+  });
+  const nothingDue = fakes({ setting: 'true', dueDate: new Date(Date.UTC(2999, 0, 1)) });
+  assert.deepEqual(await runDailyDigest({ dryRun: true }, nothingDue.deps), {
+    ok: true, recipients: 2, sent: 0, failed: 0, skipped: 'nothing due', dryRun: true, emailsEnabled: true,
+  });
+});
+
+test('sample mode still sends while the switch is off', async () => {
+  for (const run of RUNNERS) {
+    for (const opts of [{ setting: null }, { setting: 'false' }, { settingError: true }]) {
+      const { deps, sent, calls } = fakes(opts);
+      const summary = await run({ sample: 'u1' }, deps);
+      assert.deepEqual(summary, { ok: true, recipients: 1, sent: 1, failed: 0, skipped: 0, sample: true });
+      assert.deepEqual(sent.map(m => m.to), ['u1@example.com']);
+      assert.deepEqual(calls, ['user.findUnique']);
+    }
+  }
+});
+
+test('a setting that cannot be read sends nothing and writes nothing', async () => {
+  for (const run of RUNNERS) {
+    for (const dryRun of [false, true]) {
+      const { deps, sent, calls } = fakes({ settingError: true });
+      await assert.rejects(run({ dryRun }, deps), /app_settings/);
+      assert.equal(sent.length, 0);
+      assert.deepEqual(calls, ['appSetting.findUnique']);
+    }
+  }
+});
+
+/** Writes are only reachable through the transaction client, so anything outside it would throw. */
+function switchFake(initial: string | null) {
+  let value = initial;
+  const writes: string[] = [];
+  const markedWith: Array<{ where: unknown; data: { emailedAt: Date } }> = [];
+  const upserts: Array<{ where: unknown; create: unknown; update: unknown }> = [];
+  let transactions = 0;
+  const tx = {
+    appSetting: {
+      findUnique: async () => (value === null ? null : { value }),
+      upsert: async (args: { where: unknown; create: { value: string }; update: { value: string } }) => {
+        writes.push('appSetting.upsert');
+        upserts.push(args);
+        value = value === null ? args.create.value : args.update.value;
+      },
+    },
+    notification: {
+      updateMany: async (args: { where: unknown; data: { emailedAt: Date } }) => {
+        writes.push('notification.updateMany');
+        markedWith.push(args);
+        return { count: 3 };
+      },
+    },
+  };
+  const db = {
+    $transaction: async (work: (client: typeof tx) => Promise<void>) => {
+      transactions += 1;
+      await work(tx);
+    },
+  };
+  return {
+    db: db as unknown as Parameters<typeof setEmailsEnabled>[0],
+    read: () => getEmailsEnabled(tx as unknown as Parameters<typeof getEmailsEnabled>[0]),
+    writes,
+    markedWith,
+    upserts,
+    transactions: () => transactions,
+  };
+}
+
+test('switching on from off marks pending assignments handled, then stores true, in one transaction', async () => {
+  for (const initial of [null, 'false']) {
+    const fake = switchFake(initial);
+    const before = Date.now();
+    await setEmailsEnabled(fake.db, true, 'admin-1');
+    assert.equal(fake.transactions(), 1);
+    assert.deepEqual(fake.writes, ['notification.updateMany', 'appSetting.upsert']);
+    assert.deepEqual(fake.markedWith[0].where, { type: 'task_assigned', emailedAt: null });
+    assert.deepEqual(Object.keys(fake.markedWith[0].data), ['emailedAt']);
+    assert.ok(fake.markedWith[0].data.emailedAt.getTime() >= before);
+    assert.deepEqual(fake.upserts[0], {
+      where: { key: EMAILS_ENABLED_KEY },
+      create: { key: 'task_emails_enabled', value: 'true', updatedBy: 'admin-1' },
+      update: { value: 'true', updatedBy: 'admin-1' },
+    });
+    assert.equal(await fake.read(), true);
+  }
+});
+
+test('saving on while already on leaves notifications alone', async () => {
+  const fake = switchFake('true');
+  await setEmailsEnabled(fake.db, true, 'admin-1');
+  assert.deepEqual(fake.writes, ['appSetting.upsert']);
+  assert.equal(await fake.read(), true);
+});
+
+test('switching off only stores false', async () => {
+  for (const initial of [null, 'false', 'true']) {
+    const fake = switchFake(initial);
+    await setEmailsEnabled(fake.db, false, 'admin-1');
+    assert.deepEqual(fake.writes, ['appSetting.upsert']);
+    assert.equal(await fake.read(), false);
+  }
 });

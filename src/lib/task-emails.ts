@@ -1,5 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 import { finalStatusOf } from './dashboard-focus';
+import { getEmailsEnabled } from './email-settings';
 import { SEND_GAP_MS, sendEmail, sleep, type SendEmailResult } from './email';
 import { assignmentEmail, digestEmail, type EmailContent } from './email-templates';
 
@@ -115,7 +116,7 @@ export interface RunOptions {
 
 /** Swapped out in tests; routes always use the defaults. */
 export interface RunDeps {
-  db?: Pick<PrismaClient, 'user' | 'task' | 'notification'>;
+  db?: Pick<PrismaClient, 'user' | 'task' | 'notification' | 'appSetting'>;
   send?: typeof sendEmail;
 }
 
@@ -407,6 +408,8 @@ export interface RunSummary {
   skipped: number | string;
   dryRun?: boolean;
   sample?: boolean;
+  /** Dry runs only: which way the Settings "Emails" switch is set. */
+  emailsEnabled?: boolean;
   /** Generic messages only. */
   errors?: string[];
 }
@@ -416,14 +419,18 @@ async function getPrisma(): Promise<PrismaClient> {
   return (await import('./prisma')).prisma;
 }
 
-const emptySummary = (dryRun: boolean, recipients = 0): RunSummary => ({
+const emptySummary = (dryRun: boolean, recipients = 0, emailsEnabled?: boolean): RunSummary => ({
   ok: true,
   recipients,
   sent: 0,
   failed: 0,
   skipped: 0,
   ...(dryRun ? { dryRun: true } : {}),
+  ...(dryRun && emailsEnabled !== undefined ? { emailsEnabled } : {}),
 });
+
+/** A real run while the switch is off. `ok` stays true so the scheduled job does not report a failure. */
+const emailsOffSummary = (): RunSummary => ({ ...emptySummary(false), skipped: 'emails off' });
 
 /** Count a failed send: full detail to the server log, a generic line in the response. */
 function recordFailure(summary: RunSummary, who: string, result: Extract<SendEmailResult, { ok: false }>) {
@@ -469,12 +476,16 @@ export async function runAssignmentEmails(
   const send = deps.send ?? sendEmail;
   const now = new Date();
 
+  // A failed read throws, so nothing is sent when the setting is unknown.
+  const emailsEnabled = await getEmailsEnabled(prisma);
+  if (!dryRun && !emailsEnabled) return emailsOffSummary();
+
   const notifications: NotificationRecord[] = await prisma.notification.findMany({
     where: { type: 'task_assigned', emailedAt: null },
     orderBy: { createdAt: 'asc' },
     select: { id: true, userId: true, taskId: true, actorName: true, taskTitle: true },
   });
-  if (notifications.length === 0) return emptySummary(dryRun);
+  if (notifications.length === 0) return emptySummary(dryRun, 0, emailsEnabled);
 
   const taskIds = Array.from(new Set(notifications.map(n => n.taskId).filter((id): id is string => !!id)));
   const userIds = Array.from(new Set(notifications.map(n => n.userId)));
@@ -497,7 +508,10 @@ export async function runAssignmentEmails(
   const base = appUrl();
   const rendered = toSend.map(b => ({ batch: b, mail: assignmentEmail({ name: b.name, items: b.items, appUrl: base, now }) }));
 
-  const summary: RunSummary = { ...emptySummary(dryRun, rendered.length), skipped: batches.length - rendered.length };
+  const summary: RunSummary = {
+    ...emptySummary(dryRun, rendered.length, emailsEnabled),
+    skipped: batches.length - rendered.length,
+  };
   if (dryRun) return summary;
 
   // Notifications with nothing to list (task done, deleted, reassigned, user disabled) are just marked handled.
@@ -539,6 +553,10 @@ export async function runDailyDigest(
   const send = deps.send ?? sendEmail;
   const now = new Date();
 
+  // A failed read throws, so nothing is sent when the setting is unknown.
+  const emailsEnabled = await getEmailsEnabled(prisma);
+  if (!dryRun && !emailsEnabled) return emailsOffSummary();
+
   const users: UserRecord[] = await prisma.user.findMany({
     where: { disabled: false, role: { in: ['ADMIN', 'MEMBER'] }, username: { notIn: EXCLUDED_USERNAMES } },
     orderBy: { name: 'asc' },
@@ -559,7 +577,7 @@ export async function runDailyDigest(
   const base = appUrl();
 
   if (!digest.anyDue) {
-    return { ...emptySummary(dryRun, digest.members.length), skipped: 'nothing due' };
+    return { ...emptySummary(dryRun, digest.members.length, emailsEnabled), skipped: 'nothing due' };
   }
 
   const rendered = digest.members.map(member => ({
@@ -567,7 +585,7 @@ export async function runDailyDigest(
     mail: digestEmail({ digest, member, appUrl: base }),
   }));
 
-  const summary = emptySummary(dryRun, rendered.length);
+  const summary = emptySummary(dryRun, rendered.length, emailsEnabled);
   if (dryRun) return summary;
 
   for (let i = 0; i < rendered.length; i++) {

@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 // compared against the property URLs configured for each SEO client.
 export async function GET(req: NextRequest) {
   const session = await getSessionFromRequestFull(req);
-  if (!session || session.role !== 'ADMIN' || session.mustChangePassword) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!session || session.role !== 'ADMIN') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const headers = { 'Cache-Control': 'no-store' };
   const stored = await prisma.gscConnection.findUnique({ where: { id: 'agency' }, select: { updatedAt: true } }).catch(() => null);
   const connection = stored ? { source: 'database', connectedAt: stored.updatedAt } : { source: process.env.GOOGLE_REFRESH_TOKEN ? 'environment (GOOGLE_REFRESH_TOKEN)' : 'none' };

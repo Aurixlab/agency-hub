@@ -51,9 +51,8 @@ working before the new table is provisioned.
 3. Request only `https://www.googleapis.com/auth/webmasters.readonly`. If the app
    is External + Testing, Google refresh tokens for this scope expire after seven
    days. Configure an appropriate production/internal app state for unattended use.
-4. Sign in to Agency Hub as an active ADMIN who has finished changing their initial
-   password. On `/seo`, click **Connect Google** and choose the Google account that
-   has access to all three properties.
+4. Sign in to Agency Hub as an active ADMIN. On `/seo`, click **Connect Google**
+   and choose the Google account that has access to all three properties.
 5. Google returns to Agency Hub. The refresh token is encrypted with AES-256-GCM
    and stored in PostgreSQL, never included in the callback response or MCP output.
 

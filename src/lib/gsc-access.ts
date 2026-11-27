@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 
 export async function requireSeoSession(request: Request) {
   const session = await getSessionFromRequestFull(request);
-  if (!session || !['ADMIN', 'MEMBER'].includes(session.role) || session.mustChangePassword) {
+  if (!session || !['ADMIN', 'MEMBER'].includes(session.role)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   return null;

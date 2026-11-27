@@ -34,8 +34,8 @@ export async function consumeGrant(userId: string, token: string) {
   if (result.count !== 1) throw new Error('Grant expired or already consumed');
 }
 export async function activeAdmin(userId: string) {
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true, disabled: true, mustChangePassword: true } });
-  return user?.role === 'ADMIN' && !user.disabled && !user.mustChangePassword;
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true, disabled: true } });
+  return user?.role === 'ADMIN' && !user.disabled;
 }
 export async function issueTokens(userId: string) {
   const access = await sign({ sub: userId, scope: 'gsc:read' }, 'access', '1h');

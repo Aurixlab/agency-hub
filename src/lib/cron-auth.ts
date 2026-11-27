@@ -12,6 +12,6 @@ export async function requireCronOrSession(request: Request) {
     if (matches(request.headers.get('authorization') || '', `Bearer ${secret}`) || (supplied && matches(supplied, secret))) return null;
   }
   const session = await getSessionFromRequestFull(request);
-  if (session && ['ADMIN', 'MEMBER'].includes(session.role) && !session.mustChangePassword) return null;
+  if (session && ['ADMIN', 'MEMBER'].includes(session.role)) return null;
   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 }

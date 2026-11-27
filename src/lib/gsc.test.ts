@@ -22,7 +22,7 @@ process.env.MCP_REDIRECT_URIS = 'https://claude.example/callback';
 const appSessionSecret = process.env.AUTH_SECRET || 'fallback-secret-change-me';
 
 const grants = new Map<string, { userId: string; expiresAt: Date }>();
-prisma.user.findUnique = async () => ({ role: 'ADMIN', disabled: false, mustChangePassword: false });
+prisma.user.findUnique = async () => ({ role: 'ADMIN', disabled: false });
 prisma.session.create = async ({ data }: any) => { grants.set(data.token, data); return data; };
 prisma.session.deleteMany = async ({ where }: any) => {
   const grant = grants.get(where.token);
@@ -103,7 +103,7 @@ test('MCP rejects anonymous access and lists seven read-only tools with a valid 
   assert.ok(message.result.tools.every((t: any) => t.annotations.readOnlyHint));
   prisma.user.findUnique = async () => ({ role: 'ADMIN', disabled: true });
   assert.equal((await mcpEndpoint(request(token))).status, 401);
-  prisma.user.findUnique = async () => ({ id: 'admin', role: 'ADMIN', disabled: false, mustChangePassword: false });
+  prisma.user.findUnique = async () => ({ id: 'admin', role: 'ADMIN', disabled: false });
 });
 
 test('OAuth consent rejects foreign origins and binds approval to the signed admin session', async () => {
@@ -128,15 +128,15 @@ test('OAuth consent rejects foreign origins and binds approval to the signed adm
   assert.equal((await middleware(new NextRequest('https://agency.example/api/seo/overview', { headers }))).status, 200);
 });
 
-test('connector access explains current account restrictions without granting member or pending-password access', async () => {
+test('connector access explains current account restrictions without granting member or disabled access', async () => {
   process.env.AUTH_SECRET = appSessionSecret;
   // Deliberately stale ADMIN claims: routes must use the current database role.
-  const cookie = await new SignJWT({ userId: 'admin', role: 'ADMIN', mustChangePassword: false }).setProtectedHeader({ alg: 'HS256' }).setExpirationTime('1h').sign(new TextEncoder().encode(appSessionSecret));
+  const cookie = await new SignJWT({ userId: 'admin', role: 'ADMIN' }).setProtectedHeader({ alg: 'HS256' }).setExpirationTime('1h').sign(new TextEncoder().encode(appSessionSecret));
   prisma.session.findFirst = async () => ({ userId: 'admin', token: cookie, expiresAt: new Date(Date.now() + 100000) });
   const headers = { Cookie: `agency-hub-session=${cookie}` };
   const q = new URLSearchParams({ client_id: 'test-client', redirect_uri: 'https://claude.example/callback', response_type: 'code', code_challenge_method: 'S256', code_challenge: hash('verifier') });
   const url = `https://agency.example/api/mcp/oauth/authorize?${q}`;
-  prisma.user.findUnique = async () => ({ id: 'admin', username: 'member@example.test', role: 'MEMBER', mustChangePassword: false, disabled: false });
+  prisma.user.findUnique = async () => ({ id: 'admin', username: 'member@example.test', role: 'MEMBER', disabled: false });
   const member = await authorize(new NextRequest(url, { headers }));
   assert.equal(member.status, 403);
   const memberPage = await member.text();
@@ -147,12 +147,6 @@ test('connector access explains current account restrictions without granting me
   assert.equal(denied.status, 403);
   assert.equal((await denied.json()).code, 'agency_hub_admin_required');
   assert.equal((await (await accountStatus(new Request('https://agency.example/api/auth/me', { headers }))).json()).role, 'MEMBER');
-  prisma.user.findUnique = async () => ({ id: 'admin', username: 'owner', role: 'ADMIN', mustChangePassword: true, disabled: false });
-  const pending = await authorize(new NextRequest(url, { headers }));
-  assert.equal(pending.status, 403);
-  assert.match(await pending.text(), /href="\/change-password"/);
-  const pendingPost = await consent(new NextRequest(url, { method: 'POST', headers: { ...headers, Origin: 'https://agency.example' }, body: new URLSearchParams() }));
-  assert.equal((await pendingPost.json()).code, 'password_change_required');
   prisma.user.findUnique = async () => ({ id: 'admin', role: 'ADMIN', disabled: true });
   assert.equal((await accountStatus(new Request('https://agency.example/api/auth/me', { headers }))).status, 401);
 });

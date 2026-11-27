@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 
-const publicPaths = ['/login', '/api/auth/login', '/api/auth/google'];
+const publicPaths = ['/login', '/api/auth/google'];
 
 // Constant-time string comparison (Edge runtime has no node:crypto timingSafeEqual).
 function safeEqual(a: string, b: string) {

@@ -9,7 +9,7 @@ import { ensureGscStorage, connectionFailure, type GoogleConnectionStage } from 
 export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
   const session = await getSessionFromRequestFull(req);
-  if (!session || session.role !== 'ADMIN' || session.mustChangePassword) return NextResponse.json({ error: 'Admin sign-in required' }, { status: 401 });
+  if (!session || session.role !== 'ADMIN') return NextResponse.json({ error: 'Admin sign-in required' }, { status: 401 });
   let stage: GoogleConnectionStage = 'configuration';
   try {
     const auth = googleOAuth();

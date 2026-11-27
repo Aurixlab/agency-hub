@@ -5,7 +5,6 @@ export interface User {
   email?: string | null;
   role: 'ADMIN' | 'MEMBER' | 'GUEST';
   disabled: boolean;
-  mustChangePassword: boolean;
   createdAt: string;
 }
 

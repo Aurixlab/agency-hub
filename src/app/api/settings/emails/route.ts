@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 async function requireAdminRequest(request: Request) {
   const session = await getSessionFromRequestFull(request);
   if (!session) return { denied: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
-  if (session.role !== 'ADMIN' || session.mustChangePassword) {
+  if (session.role !== 'ADMIN') {
     return { denied: NextResponse.json({ error: 'Admin only' }, { status: 403 }) };
   }
   return { session };

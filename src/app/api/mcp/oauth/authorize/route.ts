@@ -9,18 +9,14 @@ const escape = (s: string) => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '
 const headers = { 'Cache-Control': 'no-store', 'Content-Security-Policy': "default-src 'none'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'", 'Referrer-Policy': 'same-origin' };
 
 function accountAccessPage(req: NextRequest, session: SessionUser | null) {
-  const pendingPassword = session?.role === 'ADMIN' && session.mustChangePassword;
-  const title = !session ? 'Sign in to Agency Hub to continue' : pendingPassword ? 'Finish setting up your admin account' : 'Use an Agency Hub admin account';
+  const title = !session ? 'Sign in to Agency Hub to continue' : 'Use an Agency Hub admin account';
   const details = !session
     ? 'Sign in to Agency Hub in this browser, then return here to continue connecting Claude.'
-    : pendingPassword
-      ? 'Your account is an admin, but its initial password change is still pending. Finish that step before approving access to client data.'
-      : 'This Agency Hub account cannot approve access to the agency’s Search Console data. Sign in with your existing admin account.';
+    : 'This Agency Hub account cannot approve access to the agency’s Search Console data. Sign in with your existing admin account.';
   const account = session ? `<p>Signed in as <strong>${escape(session.username || session.name)}</strong>. Agency Hub role: <strong>${escape(session.role)}</strong>.</p>` : '';
-  const action = pendingPassword ? '/change-password' : '/login';
-  const label = pendingPassword ? 'Complete password change' : session ? 'Sign in with another Agency Hub account' : 'Sign in to Agency Hub';
+  const label = session ? 'Sign in with another Agency Hub account' : 'Sign in to Agency Hub';
   const retry = escape(req.nextUrl.pathname + req.nextUrl.search);
-  return new NextResponse(`<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title></head><body><main><h1>${title}</h1>${account}<p>${details}</p><p>Your Claude and Google email addresses can be different. Access is approved by your Agency Hub admin account.</p><p><a href="${action}" target="_blank" rel="noopener">${label}</a></p><p>After finishing in the other tab, <a href="${retry}">check this account again</a>. If Claude’s connection has timed out, click Connect again in Claude.</p></main></body></html>`, { status: session ? 403 : 200, headers: { ...headers, 'Content-Type': 'text/html; charset=utf-8' } });
+  return new NextResponse(`<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title></head><body><main><h1>${title}</h1>${account}<p>${details}</p><p>Your Claude and Google email addresses can be different. Access is approved by your Agency Hub admin account.</p><p><a href="/login" target="_blank" rel="noopener">${label}</a></p><p>After finishing in the other tab, <a href="${retry}">check this account again</a>. If Claude’s connection has timed out, click Connect again in Claude.</p></main></body></html>`, { status: session ? 403 : 200, headers: { ...headers, 'Content-Type': 'text/html; charset=utf-8' } });
 }
 
 export async function GET(req: NextRequest) {
@@ -32,7 +28,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'invalid_request' }, { status: 400, headers });
     }
     const session = await getSessionFromRequestFull(req);
-    if (!session || session.role !== 'ADMIN' || session.mustChangePassword) return accountAccessPage(req, session);
+    if (!session || session.role !== 'ADMIN') return accountAccessPage(req, session);
     const ticket = await sign({ sub: session.id, sessionBinding: hash(req.cookies.get('agency-hub-session')?.value || ''), redirect, state: q.get('state') || '', challenge: q.get('code_challenge'), nonce: randomBytes(24).toString('hex') }, 'consent', '10m');
     // Chrome applies form-action to the post's redirect, so the OAuth callback origins must be allowed too.
     const formAction = ["'self'", ...Array.from(new Set(config.redirects.map(r => new URL(r).origin)))].join(' ');
@@ -51,7 +47,6 @@ export async function POST(req: NextRequest) {
     const session = await getSessionFromRequestFull(req);
     if (!session) return NextResponse.json({ error: 'Sign in to Agency Hub and restart Connect in Claude.', code: 'agency_hub_sign_in_required' }, { status: 401, headers });
     if (session.role !== 'ADMIN') return NextResponse.json({ error: 'The signed-in Agency Hub account must be an ADMIN to approve client data access.', code: 'agency_hub_admin_required' }, { status: 403, headers });
-    if (session.mustChangePassword) return NextResponse.json({ error: 'Complete your Agency Hub initial password change, then restart Connect in Claude.', code: 'password_change_required' }, { status: 403, headers });
     const form = await req.formData();
     const ticket = await verify(String(form.get('ticket') || ''), 'consent');
     if (ticket.sub !== session.id || ticket.sessionBinding !== hash(req.cookies.get('agency-hub-session')?.value || '') || !config.redirects.includes(String(ticket.redirect))) throw new Error('Invalid consent');

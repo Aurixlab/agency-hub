@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   try {
     const auth = googleOAuth();
     const session = await getSessionFromRequestFull(req);
-    if (!session || session.role !== 'ADMIN' || session.mustChangePassword) return NextResponse.json({ error: 'Admin sign-in required' }, { status: 401, headers });
+    if (!session || session.role !== 'ADMIN') return NextResponse.json({ error: 'Admin sign-in required' }, { status: 401, headers });
     stage = 'state';
     const state = req.nextUrl.searchParams.get('state');
     const code = req.nextUrl.searchParams.get('code');

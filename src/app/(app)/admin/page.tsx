@@ -2,7 +2,7 @@
 
 import { useFetch, apiCall } from '@/hooks/useFetch';
 import { User, ActivityLog } from '@/types';
-import { Shield, Plus, UserX, UserCheck, Key, RefreshCw, X, FileText } from 'lucide-react';
+import { Shield, Plus, UserX, UserCheck, RefreshCw, X, FileText } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -14,12 +14,10 @@ export default function AdminPage() {
   const { data: me } = useFetch<any>('/api/auth/me', { pollInterval: false });
   const router = useRouter();
   const [showNewUser, setShowNewUser] = useState(false);
-  const [showResetPw, setShowResetPw] = useState<string | null>(null);
   const [editBioFor, setEditBioFor] = useState<string | null>(null);
   const [bioText, setBioText] = useState('');
   const [savingBio, setSavingBio] = useState(false);
-  const [newUser, setNewUser] = useState({ username: '', name: '', email: '', role: 'MEMBER', password: '' });
-  const [resetPassword, setResetPassword] = useState('');
+  const [newUser, setNewUser] = useState({ username: '', name: '', email: '', role: 'MEMBER' });
   const [creating, setCreating] = useState(false);
   // Redirect non-admins
   useEffect(() => {
@@ -39,7 +37,7 @@ export default function AdminPage() {
     else {
       toast.success(`User ${newUser.username} created!`);
       setShowNewUser(false);
-      setNewUser({ username: '', name: '', email: '', role: 'MEMBER', password: '' });
+      setNewUser({ username: '', name: '', email: '', role: 'MEMBER' });
       refetch();
     }
     setCreating(false);
@@ -55,16 +53,6 @@ export default function AdminPage() {
     });
     if (error) toast.error(error);
     else { toast.success(`User ${action}d`); refetch(); }
-  };
-
-  const handleResetPassword = async () => {
-    if (!resetPassword || !showResetPw) return;
-    const { error } = await apiCall('/api/users', {
-      method: 'PATCH',
-      body: JSON.stringify({ userId: showResetPw, action: 'resetPassword', password: resetPassword }),
-    });
-    if (error) toast.error(error);
-    else { toast.success('Password reset. User must change it on next login.'); setShowResetPw(null); setResetPassword(''); }
   };
 
   const handleSaveBio = async () => {
@@ -147,8 +135,6 @@ export default function AdminPage() {
                     <td className="px-5 py-3">
                       {user.disabled ? (
                         <span className="badge bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300">Disabled</span>
-                      ) : user.mustChangePassword ? (
-                        <span className="badge bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">Needs password change</span>
                       ) : (
                         <span className="badge bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">Active</span>
                       )}
@@ -168,13 +154,6 @@ export default function AdminPage() {
                           title={user.disabled ? 'Enable user' : 'Disable user'}
                         >
                           {user.disabled ? <UserCheck className="w-3.5 h-3.5" /> : <UserX className="w-3.5 h-3.5" />}
-                        </button>
-                        <button
-                          onClick={() => { setShowResetPw(user.id); setResetPassword(''); }}
-                          className="btn-ghost btn-sm"
-                          title="Reset password"
-                        >
-                          <Key className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </td>
@@ -260,11 +239,6 @@ export default function AdminPage() {
                 <p className="text-xs text-surface-500 mt-1">Used for Google sign-in</p>
               </div>
               <div>
-                <label className="label">Initial Password *</label>
-                <input value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} className="input" placeholder="At least 8 characters" required />
-                <p className="text-xs text-surface-500 mt-1">User will be forced to change this on first login</p>
-              </div>
-              <div>
                 <label className="label">Role</label>
                 <select value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value})} className="select">
                   <option value="MEMBER">Member</option>
@@ -279,33 +253,6 @@ export default function AdminPage() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* Reset Password Modal */}
-      {showResetPw && (
-        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={() => setShowResetPw(null)}>
-          <div className="card p-6 w-full max-w-sm animate-slide-up" onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-bold text-surface-900 dark:text-white mb-4">Reset Password</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="label">New Password</label>
-                <input
-                  type="text"
-                  value={resetPassword}
-                  onChange={e => setResetPassword(e.target.value)}
-                  className="input"
-                  placeholder="Enter new password"
-                  autoFocus
-                />
-                <p className="text-xs text-surface-500 mt-1">User will be required to change this on next login</p>
-              </div>
-              <div className="flex justify-end gap-2">
-                <button onClick={() => setShowResetPw(null)} className="btn-secondary">Cancel</button>
-                <button onClick={handleResetPassword} className="btn-primary">Reset Password</button>
-              </div>
-            </div>
           </div>
         </div>
       )}

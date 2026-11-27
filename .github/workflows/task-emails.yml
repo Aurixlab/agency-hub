@@ -5,10 +5,10 @@ name: Task emails
 #   daily digest at 08:30 Bangladesh = 02:30 UTC
 # This repository is public, so these logs are too. The endpoints return counts only.
 on:
-  # The schedule is enabled after the sample email is approved: uncomment the three lines below.
-  # schedule:
-  #   - cron: '0 2,6,10,14 * * *'
-  #   - cron: '30 2 * * *'
+  # Real sends only go out while the "Emails" switch on the Settings page is on.
+  schedule:
+    - cron: '0 2,6,10,14 * * *'
+    - cron: '30 2 * * *'
   workflow_dispatch:
     inputs:
       job:

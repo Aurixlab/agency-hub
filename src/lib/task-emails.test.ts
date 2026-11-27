@@ -129,9 +129,12 @@ test('own section is omitted when empty but the team overview lists everyone', (
   assert.ok(!bobMail.text.includes('YOUR TASKS'));
   assert.ok(bobMail.html.includes('Team this week'));
   assert.ok(bobMail.html.includes('Ann Lee'));
-  assert.ok(bobMail.html.includes('Bob Ray'));
-  assert.ok(bobMail.html.includes('Nothing due'));
+  assert.ok(bobMail.html.includes('<strong>All clear:</strong> Bob Ray'));
+  assert.ok(bobMail.text.includes('Bob Ray: Nothing due'));
   assert.ok(bobMail.html.includes('Ann only'));
+  // No stat boxes or columns for someone with nothing of their own.
+  assert.ok(!bobMail.html.includes('Due today'));
+  assert.ok(!bobMail.html.includes('Nothing overdue'));
 
   const annMail = digestEmail({ digest, member: digest.members.find(m => m.id === 'u1')!, appUrl: APP });
   assert.ok(annMail.html.includes('Your tasks'));
@@ -153,7 +156,8 @@ test('team overview caps titles at 4 and flags overdue', () => {
   const digest = buildDigest(TEAM, tasks, NOW);
   const mail = digestEmail({ digest, member: digest.members[1], appUrl: APP });
   assert.ok(mail.html.includes('+2 more'));
-  assert.ok(mail.html.includes('(overdue)'));
+  assert.ok(mail.html.includes('1d overdue'));
+  assert.ok(mail.text.includes('Late one (overdue)'));
 });
 
 test('digest email has stats, link and no em dashes', () => {
@@ -204,7 +208,8 @@ test('a single task gets a specific subject; duplicates are listed once', () => 
   const mail = assignmentEmail({ name: 'Ann Lee', items: batches[0].items, appUrl: APP, now: NOW });
   assert.equal(mail.subject, 'New task from Cy: A');
   assert.ok(mail.html.includes('Website'));
-  assert.ok(mail.html.includes('Urgent priority'));
+  assert.ok(mail.html.includes('>Urgent</span>'));
+  assert.ok(mail.text.includes('Urgent priority'));
   assert.ok(mail.html.includes('Due Fri, Nov 27'));
 });
 
@@ -259,6 +264,102 @@ test('user text is HTML-escaped in both emails', () => {
   }
 });
 
+// ---------- Design ----------
+
+const OVERDUE_BG = '#3a1517';
+const TODAY_BG = '#3a2a0c';
+const SOON_BG = '#10263f';
+
+test('both emails declare the dark theme and a 960px fluid layout', () => {
+  for (const kind of ['digest', 'assignment'] as const) {
+    const { html } = buildSampleEmail(kind, 'Robin', NOW, APP);
+    assert.ok(html.includes('<meta name="color-scheme" content="dark">'));
+    assert.ok(html.includes('<meta name="supported-color-schemes" content="dark">'));
+    assert.ok(html.includes('bgcolor="#0b0b0c"'));
+    assert.ok(html.includes('max-width:960px'));
+    assert.ok(html.includes('@media only screen and (max-width:640px)'));
+    for (const colour of [OVERDUE_BG, TODAY_BG, SOON_BG]) assert.ok(html.includes(colour), `${kind} ${colour}`);
+    assert.ok(!html.includes('text-transform'));
+  }
+});
+
+test('empty own columns say so and zero stat boxes are neutral', () => {
+  const digest = buildDigest(TEAM, [task({ dueDate: due(2) })], NOW);
+  const { html } = digestEmail({ digest, member: digest.members[0], appUrl: APP });
+  assert.ok(html.includes('Nothing overdue'));
+  assert.ok(html.includes('Nothing today'));
+  assert.ok(!html.includes('Nothing upcoming'));
+  const statCells = html.match(/<td width="32%" align="center"[^>]*>/g)!;
+  assert.deepEqual(statCells.map(c => /bgcolor="(#[0-9a-f]+)"/.exec(c)![1]), ['#1a1a1e', '#1a1a1e', '#2563eb']);
+});
+
+test('team cards are ordered by overdue, today, upcoming and everyone appears', () => {
+  const users = ['Ann', 'Ben', 'Cat', 'Dan', 'Eli'].map((name, i) => user(`m${i}`, { name: `${name} Test` }));
+  const tasks = [
+    task({ assigneeId: 'm0', dueDate: due(2) }),
+    task({ assigneeId: 'm1', dueDate: due(0) }),
+    task({ assigneeId: 'm2', dueDate: due(-1) }),
+  ];
+  const digest = buildDigest(users, tasks, NOW);
+  const { html } = digestEmail({ digest, member: digest.members[4], appUrl: APP });
+  const at = (name: string) => html.indexOf(`${name} Test`);
+  assert.ok(at('Cat') < at('Ben') && at('Ben') < at('Ann'));
+  assert.ok(html.includes('<strong>All clear:</strong> Dan Test, Eli Test'));
+});
+
+test('assignment cards are coloured by current urgency in Dhaka and sorted most urgent first', () => {
+  const tasks = [
+    task({ title: 'No date', dueDate: null }),
+    task({ title: 'Far off', dueDate: due(6) }),
+    task({ title: 'Soon one', dueDate: due(5) }),
+    task({ title: 'Now one', dueDate: due(0) }),
+    task({ title: 'Late one', dueDate: due(-3) }),
+  ];
+  const [batch] = buildAssignmentBatches(tasks.map((t, i) => notif(`n${i}`, 'u1', t.id)), tasks, TEAM);
+  const mail = assignmentEmail({ name: 'Ann Lee', items: batch.items, appUrl: APP, now: NOW });
+  const order = ['Late one', 'Now one', 'Soon one', 'Far off', 'No date'].map(title => mail.html.indexOf(`>${title}<`));
+  assert.deepEqual(order, [...order].sort((a, b) => a - b));
+  const cards = mail.html.match(/<td class="col" [^>]*>/g)!;
+  assert.deepEqual(
+    cards.map(c => /bgcolor="(#[0-9a-f]+)"/.exec(c)![1]),
+    [OVERDUE_BG, TODAY_BG, SOON_BG, '#1a1a1e', '#1a1a1e'],
+  );
+  assert.ok(mail.html.includes('3 days overdue'));
+  // The plain-text list keeps the order the tasks were assigned in.
+  assert.ok(mail.text.indexOf('No date') < mail.text.indexOf('Late one'));
+
+  // Same data after Dhaka midnight: the task that was due today is now overdue.
+  const later = assignmentEmail({ name: 'Ann', items: batch.items, appUrl: APP, now: new Date('2026-11-24T19:00:00Z') });
+  assert.equal(later.html.match(/<td class="col" [^>]*#3a1517/g)!.length, 2);
+});
+
+test('a large digest stays under the Gmail clipping limit', () => {
+  const users = Array.from({ length: 12 }, (_, i) =>
+    user(`w${i}`, { name: `Teammate Longfirstname Longsurname ${i}` }),
+  );
+  const longProject = { name: 'A fairly long project name for the size check', statuses: ['To Do', 'Done'] };
+  const make = (assigneeId: string, offset: number) =>
+    task({
+      title: `A deliberately long task title that describes the work in some detail, item ${assigneeId} ${offset}`,
+      assigneeId,
+      dueDate: due(offset),
+      project: longProject,
+    });
+  const team = users.slice(1).flatMap(u => [-2, -1, 0, 0, 1, 2, 3, 4].map(offset => make(u.id, offset)));
+
+  // 15 own tasks, spread over the columns (all shown) and piled into one column (capped).
+  const spread = [-3, -3, -2, -1, -1, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5].map(offset => make('w0', offset));
+  const piled = Array.from({ length: 15 }, () => make('w0', -1));
+  for (const own of [spread, piled]) {
+    const digest = buildDigest(users, [...own, ...team], NOW);
+    assert.equal(digest.members[0].counts.total, 15);
+    const { html } = digestEmail({ digest, member: digest.members[0], appUrl: APP });
+    const bytes = Buffer.byteLength(html, 'utf8');
+    assert.ok(bytes < 100 * 1024, `digest is ${bytes} bytes`);
+    assert.equal(html.includes('+7 more in Mission Control'), own === piled);
+  }
+});
+
 // ---------- Sample content ----------
 
 test('sample data is made up and covers overdue, today, later and teammates', () => {
@@ -267,24 +368,33 @@ test('sample data is made up and covers overdue, today, later and teammates', ()
     assert.ok(t.title.startsWith('Sample: '));
     assert.equal(t.project!.name, 'Sample project');
   }
-  assert.deepEqual(data.users.map(u => u.name), ['Robin', 'Teammate A', 'Teammate B']);
+  assert.deepEqual(
+    data.users.map(u => u.name),
+    ['Robin', 'Teammate A', 'Teammate B', 'Teammate C', 'Teammate D', 'Teammate E'],
+  );
   assert.ok(data.users.every(u => u.email!.endsWith('@example.com')));
 
   const digest = buildDigest(data.users, data.tasks, NOW);
-  assert.deepEqual(digest.members[0].counts, { overdue: 1, today: 1, upcoming: 2, total: 4 });
-  assert.ok(digest.members[1].counts.total > 0);
-  assert.equal(digest.members[2].counts.total, 0);
+  assert.deepEqual(digest.members[0].counts, { overdue: 2, today: 1, upcoming: 2, total: 5 });
+  const teammates = digest.members.slice(1).map(m => m.counts);
+  assert.ok(teammates.some(c => c.overdue > 0));
+  assert.ok(teammates.some(c => c.today > 0));
+  assert.ok(teammates.some(c => c.upcoming > 0));
+  assert.equal(teammates.filter(c => c.total === 0).length, 2);
 });
 
 test('sample emails are marked and contain every section', () => {
   const d = buildSampleEmail('digest', 'Robin Placeholder', NOW, APP);
   assert.ok(d.subject.startsWith('[Sample] '));
-  const sections = ['Hi Robin', 'Your tasks', 'Overdue', 'Today', 'Thu, Nov 26', 'Sat, Nov 28', 'Team this week', 'Teammate A', 'Nothing due'];
+  const sections = [
+    'Hi Robin', 'Your tasks', 'Overdue', 'Today', 'Thu, Nov 26', 'Sat, Nov 28', 'Team this week', 'Teammate A',
+    'All clear:</strong> Teammate D, Teammate E', '+2 more', '>Urgent<', '>High<', '>Medium<', '>Low<',
+  ];
   for (const part of sections) assert.ok(d.html.includes(part), part);
   assert.ok(!d.html.includes('Placeholder'));
 
   const a = buildSampleEmail('assignment', 'Robin Placeholder', NOW, APP);
-  assert.equal(a.subject, '[Sample] 4 new tasks assigned to you');
+  assert.equal(a.subject, '[Sample] 6 new tasks assigned to you');
   assert.ok(a.html.includes('Sample: homepage banner update'));
   assert.ok(a.html.includes('Assigned by Teammate A'));
 });

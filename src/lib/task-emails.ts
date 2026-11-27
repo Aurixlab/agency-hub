@@ -93,6 +93,8 @@ export interface AssignmentItem {
   projectName: string | null;
   priority: string;
   dueLabel: string | null;
+  /** Integer day number of the current due date, for urgency colouring. */
+  dueDay: number | null;
   actorName: string;
 }
 
@@ -303,6 +305,7 @@ export function buildAssignmentBatches(
       projectName: task.project?.name ?? null,
       priority: task.priority,
       dueLabel: task.dueDate ? dayLabel(dueDayNumber(task.dueDate)) : null,
+      dueDay: task.dueDate ? dueDayNumber(task.dueDate) : null,
       actorName: n.actorName,
     });
   }
@@ -332,7 +335,7 @@ export function buildSampleData(
     id, username: id, name, email: `${id}@example.com`, role: 'MEMBER', disabled: false,
   });
   const you = person('sample-you', recipientName.trim().split(/\s+/)[0] || 'You');
-  const users = [you, person('sample-a', 'Teammate A'), person('sample-b', 'Teammate B')];
+  const users = [you, ...['A', 'B', 'C', 'D', 'E'].map(x => person(`sample-${x.toLowerCase()}`, `Teammate ${x}`))];
 
   const task = (n: number, title: string, assigneeId: string, offset: number, priority: string): TaskRecord => ({
     id: `sample-task-${n}`,
@@ -345,14 +348,28 @@ export function buildSampleData(
     deletedAt: null,
     project: SAMPLE_PROJECT,
   });
-  // Teammate B has no tasks, so the overview also shows the "Nothing due" case.
+  // Covers every urgency and priority. Teammates D and E have no tasks, so they show as all clear.
   const tasks = [
-    task(1, 'homepage banner update', you.id, -2, 'HIGH'),
-    task(2, 'weekly report draft', you.id, 0, 'MEDIUM'),
-    task(3, 'contact page copy', you.id, 2, 'LOW'),
-    task(4, 'image alt text pass', you.id, 4, 'MEDIUM'),
-    task(5, 'newsletter layout', 'sample-a', -1, 'URGENT'),
-    task(6, 'footer link check', 'sample-a', 3, 'MEDIUM'),
+    task(1, 'homepage banner update', you.id, -2, 'URGENT'),
+    task(2, 'pricing table fix', you.id, -1, 'HIGH'),
+    task(3, 'weekly report draft', you.id, 0, 'MEDIUM'),
+    task(4, 'contact page copy', you.id, 2, 'LOW'),
+    task(5, 'image alt text pass', you.id, 4, 'MEDIUM'),
+    // Beyond the digest window: only the assignment email lists it, in the neutral colour.
+    task(6, 'quarterly plan outline', you.id, 9, 'NONE'),
+    task(7, 'newsletter layout', 'sample-a', -5, 'URGENT'),
+    task(8, 'footer link check', 'sample-a', -3, 'MEDIUM'),
+    task(9, 'checkout wording review', 'sample-a', -1, 'HIGH'),
+    task(10, 'menu spacing tweak', 'sample-a', 3, 'LOW'),
+    task(11, 'social image resize', 'sample-b', 0, 'HIGH'),
+    task(12, 'signup form copy', 'sample-b', 0, 'LOW'),
+    task(13, 'sitemap review', 'sample-b', 5, 'NONE'),
+    task(14, 'blog outline', 'sample-c', 1, 'MEDIUM'),
+    task(15, 'product photo selection', 'sample-c', 1, 'HIGH'),
+    task(16, 'help page refresh', 'sample-c', 2, 'LOW'),
+    task(17, 'metadata cleanup', 'sample-c', 3, 'MEDIUM'),
+    task(18, 'banner copy options', 'sample-c', 4, 'LOW'),
+    task(19, 'analytics notes', 'sample-c', 5, 'NONE'),
   ];
 
   const notifications = tasks
